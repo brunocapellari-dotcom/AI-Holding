@@ -1,4 +1,4 @@
-name: ci
+name: ci-and-deploy
 
 on:
   pull_request:
@@ -35,8 +35,108 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.8"
       - run: pip install -e '.[dev]'
       - run: ruff check app tests alembic
       - run: mypy app
       - run: alembic upgrade head
       - run: pytest
+      - name: Terraform format
+        run: terraform -chdir=infra/terraform fmt -check
+      - name: Terraform validate
+        run: |
+          terraform -chdir=infra/terraform init -backend=false
+          terraform -chdir=infra/terraform validate
+
+  deploy-production:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    concurrency:
+      group: ai-holding-production
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      PROJECT_ID: ai-holding-prod-bc
+      PROJECT_NUMBER: "868946857614"
+      REGION: southamerica-east1
+      SERVICE_NAME: holding-control-plane
+      TF_STATE_BUCKET: ai-holding-prod-bc-tfstate
+      WIF_PROVIDER: projects/868946857614/locations/global/workloadIdentityPools/github-actions/providers/ai-holding-main
+      DEPLOY_SERVICE_ACCOUNT: github-deployer@ai-holding-prod-bc.iam.gserviceaccount.com
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud without static keys
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEPLOY_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.8"
+
+      - name: Initialize production state
+        run: |
+          terraform -chdir=infra/terraform init \
+            -backend-config="bucket=${TF_STATE_BUCKET}" \
+            -backend-config="prefix=control-plane/prod"
+
+      - name: Create production foundation on first deployment
+        run: |
+          if terraform -chdir=infra/terraform state show google_artifact_registry_repository.holding >/dev/null 2>&1; then
+            echo "Foundation already exists; preserving deployed service."
+          else
+            terraform -chdir=infra/terraform apply \
+              -var-file=prod.tfvars \
+              -var="deploy_service=false" \
+              -auto-approve
+          fi
+
+      - name: Build immutable production image
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+          IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/holding/${SERVICE_NAME}:${IMAGE_TAG}"
+          docker build --pull --tag "${IMAGE}" .
+          docker push "${IMAGE}"
+          DIGEST="$(gcloud artifacts docker images describe "${IMAGE}" --format='value(image_summary.digest)')"
+          test -n "${DIGEST}"
+          echo "IMAGE_REF=${REGION}-docker.pkg.dev/${PROJECT_ID}/holding/${SERVICE_NAME}@${DIGEST}" >> "${GITHUB_ENV}"
+
+      - name: Plan production deployment
+        run: |
+          terraform -chdir=infra/terraform plan \
+            -var-file=prod.tfvars \
+            -var="deploy_service=true" \
+            -var="image_ref=${IMAGE_REF}" \
+            -out=tfplan
+
+      - name: Apply production deployment
+        run: terraform -chdir=infra/terraform apply -auto-approve tfplan
+
+      - name: Run database migrations in private network
+        run: |
+          gcloud run jobs execute "${SERVICE_NAME}-migrate" \
+            --project="${PROJECT_ID}" \
+            --region="${REGION}" \
+            --wait
+
+      - name: Verify deployed service state
+        run: |
+          URL="$(gcloud run services describe "${SERVICE_NAME}" \
+            --project="${PROJECT_ID}" \
+            --region="${REGION}" \
+            --format='value(status.url)')"
+          test -n "${URL}"
+          echo "Production Control Plane deployed at ${URL}"
