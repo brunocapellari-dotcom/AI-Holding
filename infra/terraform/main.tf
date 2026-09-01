@@ -18,9 +18,11 @@ terraform {
 variable "project_id" { type = string }
 variable "region" { type = string, default = "southamerica-east1" }
 variable "service_name" { type = string, default = "holding-control-plane" }
-variable "image_tag" {
+variable "deploy_service" { type = bool, default = false }
+variable "image_ref" {
   type        = string
-  description = "Immutable container tag or digest to deploy. Never use latest in production."
+  default     = ""
+  description = "Immutable Artifact Registry image reference, preferably by digest. Required when deploy_service=true."
 }
 
 provider "google" {
@@ -37,6 +39,8 @@ locals {
     "servicenetworking.googleapis.com",
     "sqladmin.googleapis.com",
   ])
+
+  deployer_service_account = "github-deployer@${var.project_id}.iam.gserviceaccount.com"
 }
 
 resource "google_project_service" "required" {
@@ -85,6 +89,12 @@ resource "google_artifact_registry_repository" "holding" {
 resource "google_service_account" "control_plane" {
   account_id   = "holding-control-plane"
   display_name = "Holding Control Plane"
+}
+
+resource "google_service_account_iam_member" "deployer_act_as_control_plane" {
+  service_account_id = google_service_account.control_plane.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${local.deployer_service_account}"
 }
 
 resource "google_sql_database_instance" "postgres" {
@@ -170,6 +180,7 @@ resource "google_secret_manager_secret_iam_member" "control_plane_database_url" 
 }
 
 resource "google_cloud_run_v2_service" "api" {
+  count               = var.deploy_service ? 1 : 0
   name                = var.service_name
   location            = var.region
   deletion_protection = true
@@ -178,7 +189,16 @@ resource "google_cloud_run_v2_service" "api" {
   depends_on = [
     google_project_service.required,
     google_secret_manager_secret_iam_member.control_plane_database_url,
+    google_service_account_iam_member.deployer_act_as_control_plane,
   ]
+
+  lifecycle {
+    prevent_destroy = true
+    precondition {
+      condition     = !var.deploy_service || startswith(var.image_ref, "${var.region}-docker.pkg.dev/${var.project_id}/")
+      error_message = "image_ref must be an immutable Artifact Registry reference in the production project when deploy_service=true."
+    }
+  }
 
   template {
     service_account = google_service_account.control_plane.email
@@ -197,10 +217,10 @@ resource "google_cloud_run_v2_service" "api" {
     }
 
     containers {
-      image = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.holding.repository_id}/${var.service_name}:${var.image_tag}"
+      image = var.image_ref
 
       resources {
-        limits = { cpu = "1", memory = "1Gi" }
+        limits   = { cpu = "1", memory = "1Gi" }
         cpu_idle = true
       }
 
@@ -231,10 +251,67 @@ resource "google_cloud_run_v2_service" "api" {
       }
     }
   }
-
-  lifecycle { prevent_destroy = true }
 }
 
-output "control_plane_url" { value = google_cloud_run_v2_service.api.uri }
+resource "google_cloud_run_v2_job" "migrate" {
+  count               = var.deploy_service ? 1 : 0
+  name                = "${var.service_name}-migrate"
+  location            = var.region
+  deletion_protection = true
+
+  depends_on = [
+    google_project_service.required,
+    google_secret_manager_secret_iam_member.control_plane_database_url,
+    google_service_account_iam_member.deployer_act_as_control_plane,
+  ]
+
+  lifecycle {
+    prevent_destroy = true
+    precondition {
+      condition     = !var.deploy_service || startswith(var.image_ref, "${var.region}-docker.pkg.dev/${var.project_id}/")
+      error_message = "image_ref must be an immutable Artifact Registry reference in the production project when deploy_service=true."
+    }
+  }
+
+  template {
+    template {
+      service_account = google_service_account.control_plane.email
+      timeout         = "600s"
+      max_retries     = 1
+
+      vpc_access {
+        network_interfaces {
+          network    = google_compute_network.holding.name
+          subnetwork = google_compute_subnetwork.holding.name
+        }
+        egress = "PRIVATE_RANGES_ONLY"
+      }
+
+      containers {
+        image   = var.image_ref
+        command = ["alembic"]
+        args    = ["upgrade", "head"]
+
+        env { name = "ENVIRONMENT", value = "production" }
+        env {
+          name = "DATABASE_URL"
+          value_source {
+            secret_key_ref {
+              secret  = google_secret_manager_secret.database_url.secret_id
+              version = "latest"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+output "control_plane_url" {
+  value = var.deploy_service ? google_cloud_run_v2_service.api[0].uri : null
+}
+output "migration_job" {
+  value = var.deploy_service ? google_cloud_run_v2_job.migrate[0].name : null
+}
 output "artifact_repository" { value = google_artifact_registry_repository.holding.name }
 output "cloud_sql_instance" { value = google_sql_database_instance.postgres.connection_name }
