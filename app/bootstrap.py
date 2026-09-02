@@ -88,7 +88,9 @@ PROJECT_SEEDS: tuple[ProjectSeed, ...] = (
     ProjectSeed(
         key="AI_HOLDING",
         name="AI Holding",
-        strategic_goal="Operate the digital Holding with audited, secure and evidence-based autonomy.",
+        strategic_goal=(
+            "Operate the digital Holding with audited, secure and evidence-based autonomy."
+        ),
         priority=0,
         autonomy_level=4,
         repository="brunocapellari-dotcom/AI-Holding",
@@ -97,7 +99,9 @@ PROJECT_SEEDS: tuple[ProjectSeed, ...] = (
     ProjectSeed(
         key="AGROLOG_MT",
         name="AgroLog MT",
-        strategic_goal="Deliver decision-grade agribusiness and logistics intelligence from reliable data.",
+        strategic_goal=(
+            "Deliver decision-grade agribusiness and logistics intelligence from reliable data."
+        ),
         priority=1,
         autonomy_level=4,
         repository="brunocapellari-dotcom/AgroLogMT",
@@ -116,7 +120,9 @@ PROJECT_SEEDS: tuple[ProjectSeed, ...] = (
     ProjectSeed(
         key="MARITIME_INTELLIGENCE",
         name="AgroLog Maritime Intelligence",
-        strategic_goal="Measure maritime flows, port pressure, ETA and logistics risk for AgroLog MT.",
+        strategic_goal=(
+            "Measure maritime flows, port pressure, ETA and logistics risk for AgroLog MT."
+        ),
         priority=2,
         autonomy_level=3,
         parent_key="AGROLOG_MT",
@@ -126,7 +132,9 @@ PROJECT_SEEDS: tuple[ProjectSeed, ...] = (
     ProjectSeed(
         key="GEOPOLITICAL_WATCH",
         name="Geopolitical Watch",
-        strategic_goal="Produce structured geopolitical signals for Holding projects without speculative claims.",
+        strategic_goal=(
+            "Produce structured geopolitical signals for Holding projects without speculative claims."
+        ),
         priority=2,
         autonomy_level=3,
         repository="brunocapellari-dotcom/Geopolitical-Watch",
@@ -135,7 +143,9 @@ PROJECT_SEEDS: tuple[ProjectSeed, ...] = (
     ProjectSeed(
         key="MERCADO_FINANCEIRO",
         name="Mercado Financeiro",
-        strategic_goal="Research and validate quantitative financial edge under deterministic capital controls.",
+        strategic_goal=(
+            "Research and validate quantitative financial edge under deterministic capital controls."
+        ),
         priority=3,
         autonomy_level=1,
         business_unit="Capital Strategies",
@@ -143,7 +153,9 @@ PROJECT_SEEDS: tuple[ProjectSeed, ...] = (
     ProjectSeed(
         key="INTELIGENCIA_ESPORTIVA",
         name="Inteligência Esportiva Quantitativa",
-        strategic_goal="Build calibrated sports intelligence with reproducible evidence and controlled risk.",
+        strategic_goal=(
+            "Build calibrated sports intelligence with reproducible evidence and controlled risk."
+        ),
         priority=3,
         autonomy_level=1,
         business_unit="Quantitative Intelligence",
@@ -151,7 +163,9 @@ PROJECT_SEEDS: tuple[ProjectSeed, ...] = (
     ProjectSeed(
         key="WORLDWAR_MODERN",
         name="WorldWar Modern",
-        strategic_goal="Build a coherent strategic simulation around one authoritative world state.",
+        strategic_goal=(
+            "Build a coherent strategic simulation around one authoritative world state."
+        ),
         priority=4,
         autonomy_level=2,
         business_unit="Interactive Systems",
@@ -159,7 +173,9 @@ PROJECT_SEEDS: tuple[ProjectSeed, ...] = (
     ProjectSeed(
         key="MAINTENANCE_FIELD_INTELLIGENCE",
         name="Maintenance & Field Intelligence",
-        strategic_goal="Validate a low-touch field-maintenance intelligence venture before scaling investment.",
+        strategic_goal=(
+            "Validate a low-touch field-maintenance intelligence venture before scaling investment."
+        ),
         priority=4,
         autonomy_level=1,
         status=ProjectStatus.incubating,
