@@ -8,9 +8,12 @@ from app.schemas.api import ProjectProgress
 
 
 def project_progress(db: Session, project_id: UUID) -> ProjectProgress:
-    milestones = list(
-        db.scalars(select(Milestone).where(Milestone.project_id == project_id).order_by(Milestone.key))
+    milestone_stmt = (
+        select(Milestone)
+        .where(Milestone.project_id == project_id)
+        .order_by(Milestone.key)
     )
+    milestones = list(db.scalars(milestone_stmt))
     criteria_total = 0
     criteria_verified = 0
     weighted_numerator = 0.0
@@ -19,7 +22,9 @@ def project_progress(db: Session, project_id: UUID) -> ProjectProgress:
     for milestone in milestones:
         criteria = list(
             db.scalars(
-                select(AcceptanceCriterion).where(AcceptanceCriterion.milestone_id == milestone.id)
+                select(AcceptanceCriterion).where(
+                    AcceptanceCriterion.milestone_id == milestone.id
+                )
             )
         )
         milestone_weight_total += milestone.weight
@@ -29,7 +34,9 @@ def project_progress(db: Session, project_id: UUID) -> ProjectProgress:
         verified_weight = sum(
             item.weight for item in criteria if item.status == CriterionStatus.verified
         )
-        milestone_ratio = verified_weight / criterion_weight_total if criterion_weight_total else 0.0
+        milestone_ratio = (
+            verified_weight / criterion_weight_total if criterion_weight_total else 0.0
+        )
         weighted_numerator += milestone_ratio * milestone.weight
         criteria_total += len(criteria)
         criteria_verified += sum(item.status == CriterionStatus.verified for item in criteria)
