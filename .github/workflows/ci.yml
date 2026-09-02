@@ -39,16 +39,28 @@ jobs:
         with:
           terraform_version: "1.9.8"
       - run: pip install -e '.[dev]'
-      - run: ruff check app tests alembic
-      - run: mypy app
-      - run: alembic upgrade head
-      - run: pytest
+      - name: Ruff lint
+        run: ruff check app tests alembic
+      - name: Ruff format
+        run: ruff format --check app tests alembic
+      - name: Strict typing
+        run: mypy app
+      - name: Dependency audit
+        run: pip-audit
+      - name: Static security scan
+        run: bandit -c pyproject.toml -r app
+      - name: Database migration test
+        run: alembic upgrade head
+      - name: Test suite and coverage gate
+        run: pytest
       - name: Terraform format
         run: terraform -chdir=infra/terraform fmt -check
       - name: Terraform validate
         run: |
           terraform -chdir=infra/terraform init -backend=false
           terraform -chdir=infra/terraform validate
+      - name: Container build verification
+        run: docker build --pull --tag holding-control-plane:ci .
 
   deploy-production:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -93,7 +105,8 @@ jobs:
 
       - name: Create production foundation on first deployment
         run: |
-          if terraform -chdir=infra/terraform state show google_artifact_registry_repository.holding >/dev/null 2>&1; then
+          if terraform -chdir=infra/terraform state show \
+            google_artifact_registry_repository.holding >/dev/null 2>&1; then
             echo "Foundation already exists; preserving deployed service."
           else
             terraform -chdir=infra/terraform apply \
@@ -110,9 +123,11 @@ jobs:
           IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/holding/${SERVICE_NAME}:${IMAGE_TAG}"
           docker build --pull --tag "${IMAGE}" .
           docker push "${IMAGE}"
-          DIGEST="$(gcloud artifacts docker images describe "${IMAGE}" --format='value(image_summary.digest)')"
+          DIGEST="$(gcloud artifacts docker images describe \
+            "${IMAGE}" --format='value(image_summary.digest)')"
           test -n "${DIGEST}"
-          echo "IMAGE_REF=${REGION}-docker.pkg.dev/${PROJECT_ID}/holding/${SERVICE_NAME}@${DIGEST}" >> "${GITHUB_ENV}"
+          echo "IMAGE_REF=${REGION}-docker.pkg.dev/${PROJECT_ID}/holding/${SERVICE_NAME}@${DIGEST}" \
+            >> "${GITHUB_ENV}"
 
       - name: Plan production deployment
         run: |
