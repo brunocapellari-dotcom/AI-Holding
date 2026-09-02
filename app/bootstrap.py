@@ -1,0 +1,251 @@
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.db.session import SessionLocal
+from app.models.entities import Agent, AgentStatus, Project, ProjectStatus
+
+
+@dataclass(frozen=True)
+class AgentSeed:
+    key: str
+    name: str
+    role: str
+    max_autonomy: int
+    capabilities: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class ProjectSeed:
+    key: str
+    name: str
+    strategic_goal: str
+    priority: int
+    autonomy_level: int
+    status: ProjectStatus = ProjectStatus.active
+    parent_key: str | None = None
+    repository: str | None = None
+    repository_path: str | None = None
+    business_unit: str | None = None
+
+
+AGENT_SEEDS: tuple[AgentSeed, ...] = (
+    AgentSeed(
+        key="CEO_IA",
+        name="CEO IA",
+        role="Holding portfolio and execution coordinator",
+        max_autonomy=5,
+        capabilities=(
+            "portfolio-prioritization",
+            "delegation",
+            "incident-escalation",
+            "resource-allocation",
+        ),
+    ),
+    AgentSeed(
+        key="PMO_IA",
+        name="PMO IA",
+        role="Portfolio execution and dependency manager",
+        max_autonomy=4,
+        capabilities=(
+            "task-routing",
+            "dependency-management",
+            "milestone-governance",
+            "continuity-management",
+        ),
+    ),
+    AgentSeed(
+        key="AUDITOR_IA",
+        name="Auditor IA",
+        role="Independent evidence and control reviewer",
+        max_autonomy=3,
+        capabilities=(
+            "evidence-review",
+            "quality-gates",
+            "risk-review",
+            "postmortem-review",
+        ),
+    ),
+    AgentSeed(
+        key="HERMES",
+        name="Hermes",
+        role="User-facing executive Holding assistant",
+        max_autonomy=2,
+        capabilities=(
+            "executive-reporting",
+            "decision-queue",
+            "portfolio-observation",
+        ),
+    ),
+)
+
+
+PROJECT_SEEDS: tuple[ProjectSeed, ...] = (
+    ProjectSeed(
+        key="AI_HOLDING",
+        name="AI Holding",
+        strategic_goal="Operate the digital Holding with audited, secure and evidence-based autonomy.",
+        priority=0,
+        autonomy_level=4,
+        repository="brunocapellari-dotcom/AI-Holding",
+        business_unit="Holding",
+    ),
+    ProjectSeed(
+        key="AGROLOG_MT",
+        name="AgroLog MT",
+        strategic_goal="Deliver decision-grade agribusiness and logistics intelligence from reliable data.",
+        priority=1,
+        autonomy_level=4,
+        repository="brunocapellari-dotcom/AgroLogMT",
+        business_unit="AgroLog MT",
+    ),
+    ProjectSeed(
+        key="PECUARIA",
+        name="Inteligência Pecuária",
+        strategic_goal="Deliver audited cattle-market intelligence as an AgroLog MT domain.",
+        priority=2,
+        autonomy_level=3,
+        parent_key="AGROLOG_MT",
+        repository="brunocapellari-dotcom/AgroLogMT",
+        business_unit="AgroLog MT",
+    ),
+    ProjectSeed(
+        key="MARITIME_INTELLIGENCE",
+        name="AgroLog Maritime Intelligence",
+        strategic_goal="Measure maritime flows, port pressure, ETA and logistics risk for AgroLog MT.",
+        priority=2,
+        autonomy_level=3,
+        parent_key="AGROLOG_MT",
+        repository="brunocapellari-dotcom/AgroLogMT",
+        business_unit="AgroLog MT",
+    ),
+    ProjectSeed(
+        key="GEOPOLITICAL_WATCH",
+        name="Geopolitical Watch",
+        strategic_goal="Produce structured geopolitical signals for Holding projects without speculative claims.",
+        priority=2,
+        autonomy_level=3,
+        repository="brunocapellari-dotcom/Geopolitical-Watch",
+        business_unit="Shared Intelligence",
+    ),
+    ProjectSeed(
+        key="MERCADO_FINANCEIRO",
+        name="Mercado Financeiro",
+        strategic_goal="Research and validate quantitative financial edge under deterministic capital controls.",
+        priority=3,
+        autonomy_level=1,
+        business_unit="Capital Strategies",
+    ),
+    ProjectSeed(
+        key="INTELIGENCIA_ESPORTIVA",
+        name="Inteligência Esportiva Quantitativa",
+        strategic_goal="Build calibrated sports intelligence with reproducible evidence and controlled risk.",
+        priority=3,
+        autonomy_level=1,
+        business_unit="Quantitative Intelligence",
+    ),
+    ProjectSeed(
+        key="WORLDWAR_MODERN",
+        name="WorldWar Modern",
+        strategic_goal="Build a coherent strategic simulation around one authoritative world state.",
+        priority=4,
+        autonomy_level=2,
+        business_unit="Interactive Systems",
+    ),
+    ProjectSeed(
+        key="MAINTENANCE_FIELD_INTELLIGENCE",
+        name="Maintenance & Field Intelligence",
+        strategic_goal="Validate a low-touch field-maintenance intelligence venture before scaling investment.",
+        priority=4,
+        autonomy_level=1,
+        status=ProjectStatus.incubating,
+        business_unit="Venture Factory",
+    ),
+)
+
+
+def _ensure_agent(db: Session, seed: AgentSeed) -> bool:
+    existing = db.scalar(select(Agent).where(Agent.key == seed.key))
+    if existing:
+        if existing.name != seed.name or existing.role != seed.role:
+            raise RuntimeError(f"agent identity drift detected for {seed.key}")
+        return False
+
+    db.add(
+        Agent(
+            key=seed.key,
+            name=seed.name,
+            role=seed.role,
+            status=AgentStatus.disabled,
+            max_autonomy=seed.max_autonomy,
+            model_policy={"status": "unconfigured"},
+            capabilities=list(seed.capabilities),
+        )
+    )
+    db.flush()
+    return True
+
+
+def _ensure_project(db: Session, seed: ProjectSeed, by_key: dict[str, Project]) -> bool:
+    existing = db.scalar(select(Project).where(Project.key == seed.key))
+    parent = by_key.get(seed.parent_key) if seed.parent_key else None
+    if seed.parent_key and not parent:
+        raise RuntimeError(f"missing canonical parent {seed.parent_key} for {seed.key}")
+
+    if existing:
+        if existing.name != seed.name:
+            raise RuntimeError(f"project identity drift detected for {seed.key}")
+        if seed.repository and existing.repository not in {None, seed.repository}:
+            raise RuntimeError(f"repository drift detected for {seed.key}")
+        expected_parent_id = parent.id if parent else None
+        if existing.parent_project_id != expected_parent_id:
+            raise RuntimeError(f"project hierarchy drift detected for {seed.key}")
+        by_key[seed.key] = existing
+        return False
+
+    project = Project(
+        key=seed.key,
+        name=seed.name,
+        status=seed.status,
+        priority=seed.priority,
+        autonomy_level=seed.autonomy_level,
+        parent_project_id=parent.id if parent else None,
+        repository=seed.repository,
+        repository_path=seed.repository_path,
+        business_unit=seed.business_unit,
+        strategic_goal=seed.strategic_goal,
+        metadata_json={"bootstrap_source": "canonical-portfolio-v1"},
+    )
+    db.add(project)
+    db.flush()
+    by_key[seed.key] = project
+    return True
+
+
+def bootstrap_canonical_portfolio(db: Session) -> dict[str, int]:
+    created_agents = sum(_ensure_agent(db, seed) for seed in AGENT_SEEDS)
+    by_key: dict[str, Project] = {}
+    created_projects = 0
+    for seed in PROJECT_SEEDS:
+        created_projects += int(_ensure_project(db, seed, by_key))
+    db.commit()
+    return {
+        "created_agents": created_agents,
+        "created_projects": created_projects,
+        "canonical_agents": len(AGENT_SEEDS),
+        "canonical_projects": len(PROJECT_SEEDS),
+    }
+
+
+def main() -> None:
+    with SessionLocal() as db:
+        result = bootstrap_canonical_portfolio(db)
+    print(json.dumps(result, sort_keys=True))
+
+
+if __name__ == "__main__":
+    main()
