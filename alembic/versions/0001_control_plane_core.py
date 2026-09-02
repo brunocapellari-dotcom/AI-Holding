@@ -167,9 +167,7 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("milestone_id", "key", name="uq_criterion_milestone_key"),
     )
-    op.create_index(
-        "ix_acceptance_criteria_milestone_id", "acceptance_criteria", ["milestone_id"]
-    )
+    op.create_index("ix_acceptance_criteria_milestone_id", "acceptance_criteria", ["milestone_id"])
 
     op.create_table(
         "tasks",
