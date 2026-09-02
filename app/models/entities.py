@@ -117,6 +117,7 @@ class Project(Base, TimestampMixin):
     __table_args__ = (
         CheckConstraint("priority BETWEEN 0 AND 5", name="priority_range"),
         CheckConstraint("autonomy_level BETWEEN 0 AND 6", name="autonomy_range"),
+        CheckConstraint("parent_project_id IS NULL OR parent_project_id <> id", name="no_self_parent"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -125,10 +126,14 @@ class Project(Base, TimestampMixin):
     status: Mapped[ProjectStatus] = mapped_column(Enum(ProjectStatus), default=ProjectStatus.active)
     priority: Mapped[int] = mapped_column(Integer, default=3)
     autonomy_level: Mapped[int] = mapped_column(Integer, default=3)
+    parent_project_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("projects.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     owner_agent_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("agents.id", ondelete="SET NULL"), nullable=True
     )
     repository: Mapped[str | None] = mapped_column(String(240), nullable=True)
+    repository_path: Mapped[str | None] = mapped_column(String(240), nullable=True)
     business_unit: Mapped[str | None] = mapped_column(String(120), nullable=True)
     strategic_goal: Mapped[str] = mapped_column(Text)
     metadata_json: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
