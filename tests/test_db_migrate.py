@@ -21,10 +21,7 @@ def test_migration_runner_succeeds_after_preflight(monkeypatch):
 def test_migration_runner_reports_missing_public_schema_create(monkeypatch):
     monkeypatch.setattr(db_migrate, "_preflight_public_schema", lambda: False)
 
-    assert (
-        db_migrate.run_migrations()
-        == MigrationExitCode.public_schema_create_denied
-    )
+    assert db_migrate.run_migrations() == MigrationExitCode.public_schema_create_denied
 
 
 def test_migration_runner_reports_connectivity_failure(monkeypatch):
@@ -33,10 +30,7 @@ def test_migration_runner_reports_connectivity_failure(monkeypatch):
 
     monkeypatch.setattr(db_migrate, "_preflight_public_schema", fail_preflight)
 
-    assert (
-        db_migrate.run_migrations()
-        == MigrationExitCode.database_connectivity_or_auth
-    )
+    assert db_migrate.run_migrations() == MigrationExitCode.database_connectivity_or_auth
 
 
 def test_migration_runner_reports_sql_failure(monkeypatch):
