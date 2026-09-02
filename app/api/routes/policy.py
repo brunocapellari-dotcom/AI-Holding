@@ -94,12 +94,13 @@ def evaluate_action(
                     tuple(reasons + [f"human decision is {existing.status.value}"]),
                 )
         else:
+            recommendation = "Human approval required by deterministic policy: " + "; ".join(reasons)
             decision = Decision(
                 key=decision_key,
                 project_id=project.id,
                 title=f"Policy approval: {payload.action_type.value}",
                 context=context,
-                recommendation="Human approval required by deterministic policy: " + "; ".join(reasons),
+                recommendation=recommendation,
                 risk_level=payload.risk_level,
                 requires_human=True,
                 options=[{"outcome": "approved"}, {"outcome": "rejected"}],
