@@ -28,12 +28,16 @@ def create_running_task(client, project_id: str, key: str = "RUN_TASK"):
     )
     assert response.status_code == 201, response.text
     task = response.json()
-    assert client.post(
-        f"/api/v1/tasks/{task['id']}/transition", json={"status": "ready"}
-    ).status_code == 200
-    assert client.post(
-        f"/api/v1/tasks/{task['id']}/transition", json={"status": "running"}
-    ).status_code == 200
+    assert (
+        client.post(f"/api/v1/tasks/{task['id']}/transition", json={"status": "ready"}).status_code
+        == 200
+    )
+    assert (
+        client.post(
+            f"/api/v1/tasks/{task['id']}/transition", json={"status": "running"}
+        ).status_code
+        == 200
+    )
     return task
 
 
@@ -84,9 +88,7 @@ def test_agent_registry_lifecycle_and_duplicate_capabilities(client):
     )
     assert restored.status_code == 200
     assert len(client.get("/api/v1/agents").json()) == 1
-    missing_agent = client.post(
-        f"/api/v1/agents/{uuid4()}/transition", json={"status": "active"}
-    )
+    missing_agent = client.post(f"/api/v1/agents/{uuid4()}/transition", json={"status": "active"})
     assert missing_agent.status_code == 404
 
 
@@ -126,9 +128,7 @@ def test_run_lifecycle_is_idempotent_and_blocks_parallel_execution(client):
     parallel = client.post("/api/v1/runs", json={"task_id": task["id"]})
     assert parallel.status_code == 409
 
-    started = client.post(
-        f"/api/v1/runs/{run['id']}/transition", json={"status": "running"}
-    )
+    started = client.post(f"/api/v1/runs/{run['id']}/transition", json={"status": "running"})
     assert started.status_code == 200
     assert started.json()["started_at"] is not None
     succeeded = client.post(
@@ -138,9 +138,10 @@ def test_run_lifecycle_is_idempotent_and_blocks_parallel_execution(client):
     assert succeeded.status_code == 200
     assert succeeded.json()["finished_at"] is not None
     assert succeeded.json()["output_metadata"] == {"artifact": "result-1"}
-    assert client.post(
-        f"/api/v1/runs/{run['id']}/transition", json={"status": "running"}
-    ).status_code == 409
+    assert (
+        client.post(f"/api/v1/runs/{run['id']}/transition", json={"status": "running"}).status_code
+        == 409
+    )
 
     retry = client.post(
         "/api/v1/runs",
@@ -170,27 +171,38 @@ def test_run_validation_rejects_bad_task_agent_and_failure_payload(client):
         "/api/v1/agents",
         json={"key": "OFFLINE", "name": "Offline", "role": "Worker"},
     ).json()
-    assert client.post(
-        f"/api/v1/agents/{agent['id']}/transition", json={"status": "disabled"}
-    ).status_code == 200
-    assert client.post(
-        "/api/v1/runs", json={"task_id": task["id"], "agent_id": agent["id"]}
-    ).status_code == 409
-    assert client.post(
-        "/api/v1/runs", json={"task_id": task["id"], "agent_id": str(uuid4())}
-    ).status_code == 400
+    assert (
+        client.post(
+            f"/api/v1/agents/{agent['id']}/transition", json={"status": "disabled"}
+        ).status_code
+        == 200
+    )
+    assert (
+        client.post(
+            "/api/v1/runs", json={"task_id": task["id"], "agent_id": agent["id"]}
+        ).status_code
+        == 409
+    )
+    assert (
+        client.post(
+            "/api/v1/runs", json={"task_id": task["id"], "agent_id": str(uuid4())}
+        ).status_code
+        == 400
+    )
 
     run = client.post("/api/v1/runs", json={"task_id": task["id"]}).json()
-    assert client.post(
-        f"/api/v1/runs/{run['id']}/transition", json={"status": "failed"}
-    ).status_code == 422
-    assert client.post(
-        f"/api/v1/runs/{run['id']}/transition",
-        json={"status": "running", "error": "not valid here"},
-    ).status_code == 422
-    missing_run = client.post(
-        f"/api/v1/runs/{uuid4()}/transition", json={"status": "running"}
+    assert (
+        client.post(f"/api/v1/runs/{run['id']}/transition", json={"status": "failed"}).status_code
+        == 422
     )
+    assert (
+        client.post(
+            f"/api/v1/runs/{run['id']}/transition",
+            json={"status": "running", "error": "not valid here"},
+        ).status_code
+        == 422
+    )
+    missing_run = client.post(f"/api/v1/runs/{uuid4()}/transition", json={"status": "running"})
     assert missing_run.status_code == 404
 
 
@@ -227,20 +239,29 @@ def test_incident_lifecycle_requires_resolution_evidence(client):
     )
     assert resolved.status_code == 200
     assert resolved.json()["resolved_at"] is not None
-    assert client.post(
-        f"/api/v1/incidents/{incident['id']}/transition", json={"status": "investigating"}
-    ).status_code == 409
+    assert (
+        client.post(
+            f"/api/v1/incidents/{incident['id']}/transition", json={"status": "investigating"}
+        ).status_code
+        == 409
+    )
     assert len(client.get("/api/v1/incidents?incident_status=resolved").json()) == 1
 
-    assert client.post(
-        "/api/v1/incidents",
-        json={
-            "project_id": str(uuid4()),
-            "severity": "sev3",
-            "title": "Missing project",
-            "source": "test",
-        },
-    ).status_code == 400
-    assert client.post(
-        f"/api/v1/incidents/{uuid4()}/transition", json={"status": "investigating"}
-    ).status_code == 404
+    assert (
+        client.post(
+            "/api/v1/incidents",
+            json={
+                "project_id": str(uuid4()),
+                "severity": "sev3",
+                "title": "Missing project",
+                "source": "test",
+            },
+        ).status_code
+        == 400
+    )
+    assert (
+        client.post(
+            f"/api/v1/incidents/{uuid4()}/transition", json={"status": "investigating"}
+        ).status_code
+        == 404
+    )
