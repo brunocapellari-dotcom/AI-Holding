@@ -133,7 +133,8 @@ PROJECT_SEEDS: tuple[ProjectSeed, ...] = (
         key="GEOPOLITICAL_WATCH",
         name="Geopolitical Watch",
         strategic_goal=(
-            "Produce structured geopolitical signals for Holding projects without speculative claims."
+            "Produce structured geopolitical signals for Holding projects "
+            "without speculative claims."
         ),
         priority=2,
         autonomy_level=3,
@@ -144,7 +145,8 @@ PROJECT_SEEDS: tuple[ProjectSeed, ...] = (
         key="MERCADO_FINANCEIRO",
         name="Mercado Financeiro",
         strategic_goal=(
-            "Research and validate quantitative financial edge under deterministic capital controls."
+            "Research and validate quantitative financial edge "
+            "under deterministic capital controls."
         ),
         priority=3,
         autonomy_level=1,
