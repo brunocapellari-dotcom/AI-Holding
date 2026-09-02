@@ -17,6 +17,40 @@ def create_project(client):
     return response.json()
 
 
+def test_project_hierarchy_supports_agrolog_modules(client):
+    parent = create_project(client)
+    child = client.post(
+        "/api/v1/projects",
+        json={
+            "key": "PECUARIA",
+            "name": "Inteligência Pecuária",
+            "priority": 0,
+            "autonomy_level": 4,
+            "parent_project_id": parent["id"],
+            "repository": "brunocapellari-dotcom/AgroLogMT",
+            "repository_path": "domains/pecuaria",
+            "business_unit": "Agronegócio e Logística",
+            "strategic_goal": "Operar inteligência pecuária com governança própria.",
+        },
+    )
+    assert child.status_code == 201, child.text
+    assert child.json()["parent_project_id"] == parent["id"]
+    assert child.json()["repository_path"] == "domains/pecuaria"
+
+    invalid = client.post(
+        "/api/v1/projects",
+        json={
+            "key": "INVALID_CHILD",
+            "name": "Invalid Child",
+            "priority": 3,
+            "autonomy_level": 2,
+            "parent_project_id": "00000000-0000-0000-0000-000000000001",
+            "strategic_goal": "This must not be accepted without a valid parent.",
+        },
+    )
+    assert invalid.status_code == 400
+
+
 def test_progress_is_evidence_based(client):
     project = create_project(client)
     milestone = client.post(
