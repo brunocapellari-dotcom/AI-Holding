@@ -1,3 +1,4 @@
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -12,13 +13,18 @@ from app.schemas.api import DecisionCreate, DecisionOut, DecisionResolve
 from app.services.audit import record_audit
 
 router = APIRouter(prefix="/decisions", tags=["decisions"])
+DbSession = Annotated[Session, Depends(get_db)]
+Actor = Annotated[ActorContext, Depends(get_actor)]
 
 
 @router.get("/pending-human", response_model=list[DecisionOut])
-def pending_human_decisions(db: Session = Depends(get_db)) -> list[Decision]:
+def pending_human_decisions(db: DbSession) -> list[Decision]:
     stmt = (
         select(Decision)
-        .where(Decision.status == DecisionStatus.pending, Decision.requires_human.is_(True))
+        .where(
+            Decision.status == DecisionStatus.pending,
+            Decision.requires_human.is_(True),
+        )
         .order_by(Decision.created_at)
     )
     return list(db.scalars(stmt))
@@ -27,8 +33,8 @@ def pending_human_decisions(db: Session = Depends(get_db)) -> list[Decision]:
 @router.post("", response_model=DecisionOut, status_code=status.HTTP_201_CREATED)
 def create_decision(
     payload: DecisionCreate,
-    db: Session = Depends(get_db),
-    actor: ActorContext = Depends(get_actor),
+    db: DbSession,
+    actor: Actor,
 ) -> Decision:
     if not db.get(Project, payload.project_id):
         raise HTTPException(status_code=404, detail="project not found")
@@ -56,8 +62,8 @@ def create_decision(
 def resolve_decision(
     decision_id: UUID,
     payload: DecisionResolve,
-    db: Session = Depends(get_db),
-    actor: ActorContext = Depends(get_actor),
+    db: DbSession,
+    actor: Actor,
 ) -> Decision:
     decision = db.get(Decision, decision_id)
     if not decision:
