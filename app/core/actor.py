@@ -1,5 +1,6 @@
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import Annotated
+from typing import Annotated, cast
 
 from fastapi import Header, HTTPException
 from google.auth.exceptions import GoogleAuthError
@@ -9,6 +10,7 @@ from google.oauth2 import id_token
 from app.core.config import settings
 
 TRUSTED_GOOGLE_ISSUERS = {"accounts.google.com", "https://accounts.google.com"}
+VerifyGoogleToken = Callable[[str, Request], Mapping[str, object]]
 
 
 @dataclass(frozen=True)
@@ -30,9 +32,14 @@ def _unauthorized(detail: str) -> HTTPException:
     return HTTPException(status_code=401, detail=detail)
 
 
+def _verified_claims(token: str) -> Mapping[str, object]:
+    verifier = cast(VerifyGoogleToken, id_token.verify_oauth2_token)
+    return verifier(token, Request())
+
+
 def _verify_google_identity(token: str) -> VerifiedGoogleIdentity:
     try:
-        claims = id_token.verify_oauth2_token(token, Request())
+        claims = _verified_claims(token)
     except (GoogleAuthError, ValueError) as exc:
         raise _unauthorized("invalid Google identity token") from exc
 
