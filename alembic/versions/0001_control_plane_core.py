@@ -120,7 +120,10 @@ def upgrade() -> None:
         *timestamps(),
         sa.CheckConstraint("priority BETWEEN 0 AND 5", name="priority_range"),
         sa.CheckConstraint("autonomy_level BETWEEN 0 AND 6", name="autonomy_range"),
-        sa.CheckConstraint("parent_project_id IS NULL OR parent_project_id <> id", name="no_self_parent"),
+        sa.CheckConstraint(
+            "parent_project_id IS NULL OR parent_project_id <> id",
+            name="no_self_parent",
+        ),
         sa.ForeignKeyConstraint(["owner_agent_id"], ["agents.id"], ondelete="SET NULL"),
         sa.ForeignKeyConstraint(["parent_project_id"], ["projects.id"], ondelete="SET NULL"),
         sa.PrimaryKeyConstraint("id"),
