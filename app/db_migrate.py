@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from enum import IntEnum
 
-from alembic import command
 from alembic.config import Config
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, OperationalError, ProgrammingError, SQLAlchemyError
 
+from alembic import command
 from app.db.session import engine
 
 
