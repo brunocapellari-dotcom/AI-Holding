@@ -23,7 +23,7 @@ class ProjectCreate(BaseModel):
     repository: str | None = Field(default=None, max_length=240)
     business_unit: str | None = Field(default=None, max_length=120)
     strategic_goal: str = Field(min_length=5)
-    metadata_json: dict = Field(default_factory=dict)
+    metadata_json: dict[str, object] = Field(default_factory=dict)
 
 
 class ProjectOut(ProjectCreate):
@@ -62,12 +62,12 @@ class CriterionOut(CriterionCreate):
     milestone_id: UUID
     status: CriterionStatus
     verifier: str | None
-    evidence: list
+    evidence: list[object]
     verified_at: datetime | None
 
 
 class CriterionVerify(BaseModel):
-    evidence: list[dict | str] = Field(min_length=1)
+    evidence: list[dict[str, object] | str] = Field(min_length=1)
 
 
 class TaskCreate(BaseModel):
@@ -81,7 +81,7 @@ class TaskCreate(BaseModel):
     depends_on: list[UUID] = Field(default_factory=list)
     due_at: datetime | None = None
     idempotency_key: str = Field(min_length=8, max_length=160)
-    metadata_json: dict = Field(default_factory=dict)
+    metadata_json: dict[str, object] = Field(default_factory=dict)
 
 
 class TaskOut(BaseModel):
@@ -98,7 +98,7 @@ class TaskOut(BaseModel):
     status: WorkStatus
     blocked_reason: str | None
     idempotency_key: str
-    metadata_json: dict
+    metadata_json: dict[str, object]
 
 
 class TaskTransition(BaseModel):
@@ -114,7 +114,7 @@ class DecisionCreate(BaseModel):
     recommendation: str | None = None
     risk_level: RiskLevel = RiskLevel.medium
     requires_human: bool = True
-    options: list[dict | str] = Field(default_factory=list)
+    options: list[dict[str, object] | str] = Field(default_factory=list)
     due_at: datetime | None = None
 
 
@@ -122,7 +122,7 @@ class DecisionOut(DecisionCreate):
     model_config = ConfigDict(from_attributes=True)
     id: UUID
     status: DecisionStatus
-    resolution: dict
+    resolution: dict[str, object]
 
 
 class DecisionResolve(BaseModel):
