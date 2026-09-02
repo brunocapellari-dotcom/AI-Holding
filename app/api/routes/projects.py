@@ -1,5 +1,5 @@
 from datetime import UTC, datetime
-from typing import Annotated
+from typing import Annotated, cast
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -156,7 +156,7 @@ def verify_criterion(
         raise HTTPException(status_code=404, detail="criterion not found in milestone")
     criterion.status = CriterionStatus.verified
     criterion.verifier = actor.name
-    criterion.evidence = payload.evidence
+    criterion.evidence = cast(list[object], payload.evidence)
     criterion.verified_at = datetime.now(UTC)
     record_audit(
         db,
