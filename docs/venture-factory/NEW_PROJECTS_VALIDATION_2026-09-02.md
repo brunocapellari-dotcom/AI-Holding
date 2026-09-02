@@ -1,203 +1,107 @@
-# Novos Projetos — Lista para Validação
+# Novos Projetos — Decisão Consolidada
 
 Data: 02/09/2026
+Status: decisão do Owner
 
-## Critério
+## Decisão
 
-Somente entram aqui oportunidades que merecem existir como projeto/unidade própria ou como candidato forte a spin-off. Módulos que aumentam valor de projetos existentes foram removidos desta lista para evitar fragmentação.
+Após as rodadas de pesquisa, somente **Maintenance & Field Intelligence** permanece como novo projeto em validação.
 
-Gates econômicos da Holding:
+O **AgroLog Fleet OS Brasil está descontinuado** neste estágio por ausência de público validado. Não deve consumir desenvolvimento, infraestrutura ou esforço comercial até existir nova evidência objetiva de demanda.
 
-- automação madura >= 80–90% quando plausível;
-- compatível com o emprego atual do Owner;
-- baixa dependência presencial recorrente;
-- validação barata antes de escala;
-- receita recorrente ou efeito de rede/dados;
-- caminho plausível para unit economics positivos;
-- segurança, licença e compliance controláveis;
-- reutilização preferencial do Product/Data/Knowledge/Security Core da Holding.
+Os demais candidatos da lista anterior foram descartados como novos negócios independentes. Capacidades úteis encontradas durante a pesquisa podem continuar existindo como componentes internos de projetos já ativos, desde que não abram uma nova unidade de negócio sem nova decisão do Owner.
 
-## Prioridade 1 — AgroLog Fleet OS Brasil
+## Projeto aprovado — Maintenance & Field Intelligence
 
-**Status proposto:** VALIDAR AGORA
+**Status:** APROVADO PARA VALIDAÇÃO
 
-Plataforma para transportadoras/frotistas, inicialmente MT/corredores AgroLog.
+Vertical reutilizável para manutenção e operação de campo em energia solar, refrigeração, bombas, irrigação, telecom, máquinas, agro, indústria e facilities.
 
-Módulos consolidados no mesmo produto:
+### Núcleo
 
-- Fleet Profitability e margem econômica real por viagem;
-- documentos CT-e/MDF-e/NF-e/POD;
-- motorista/viagem/ocorrências;
-- manutenção e Asset Health;
-- Tire Intelligence;
-- Fuel Intelligence/Fuel Fraud;
-- detention/waiting/turnaround;
-- Route Risk/GeoRisk;
-- Driver Copilot voz/offline;
-- road quality signals;
-- parts/services procurement network futuro;
-- counterparty/customer operational score futuro.
-
-Componentes/referências: Fleetbase por módulos/arquitetura, Traccar, OpenDBC/SavvyCAN, NFePHP, OR-Tools/PyVRP/Valhalla/FMM, PyOD, Pipecat, MapLibre/deck.gl.
-
-**Moat:** custo/tempo/rota/manutenção/espera reais acumulados em operação brasileira.
-
-## Prioridade 2 — Corporate Knowledge & Compliance OS
-
-**Status proposto:** VALIDAR INTERNAMENTE PRIMEIRO
-
-Transformar a Knowledge Factory da Holding em produto B2B.
-
-Módulos consolidados:
-
-- knowledge base citada e versionada;
-- documentos/contratos;
-- obrigações/vencimentos;
-- SOP/checklists;
-- treinamento/certificação;
-- Tax/Regulatory Intelligence por domínio;
-- vídeo/aulas/reuniões autorizadas;
-- Source Hunter;
-- atualização automática de normas e fontes;
-- auditoria de resposta e confidence/evidence.
-
-Componentes: Docling, LlamaIndex, Graphiti, pgvector, OpenAlex, Whisper.cpp, PySceneDetect, Frappe LMS, docassemble como referência, assinatura eletrônica via componente selecionado.
-
-**Moat:** conhecimento validado + processo + evidência + atualização + integração operacional, não chatbot genérico.
-
-## Prioridade 3 — Maintenance & Field Intelligence
-
-**Status proposto:** VALIDAR
-
-Vertical reutilizável para energia solar, refrigeração, bombas, irrigação, telecom, máquinas, indústria e facilities.
-
-Módulos:
-
-- assets;
-- preventiva/corretiva;
+- cadastro e histórico de ativos;
+- preventiva e corretiva;
 - QR por ativo;
 - ordem de serviço;
-- agenda/território/técnico;
-- rota;
-- peças;
-- IoT/telemetria;
+- agenda, território e técnico;
+- rota e deslocamento;
+- peças e consumíveis;
+- IoT e telemetria;
 - predictive maintenance;
-- downtime/cost priority;
-- voz/foto/evidência de campo.
+- prioridade por risco/custo de parada;
+- voz, foto e evidência de campo;
+- checklists e SOPs;
+- integração com Knowledge Factory e Security Control Plane.
 
-Componentes/referências: Grash CMMS, OCA Field Service, OR-Tools/Timefold, Traccar, IoT core, PyOD/Nixtla, Pipecat.
+### Módulo aprovado — Field Weather Station
 
-## Prioridade 4 — Operational Intelligence Platform
+Criar uma estação meteorológica modular de baixo custo baseada em **ESP32** como parte do Maintenance & Field Intelligence, com capacidade de alimentar também o AgroLog MT.
 
-**Status proposto:** VALIDAR APÓS PRIMEIROS CLIENTES OPERACIONAIS
+Capacidades por etapas:
 
-B2B para empresas com ERP/TMS/WMS/CRM que querem reduzir gargalos e melhorar scheduling.
+1. temperatura, umidade e pressão;
+2. pluviômetro de báscula;
+3. velocidade e direção do vento;
+4. radiação/iluminação quando houver sensor adequado;
+5. energia solar + bateria para operação remota;
+6. Wi-Fi no modelo simples e LoRa/4G/gateway quando a operação exigir;
+7. armazenamento local temporário e sincronização após retorno da conectividade;
+8. telemetria com timestamp, qualidade, calibração e health do dispositivo.
 
-Motores:
+Componentes/referências a avaliar pelo Open Source Intake Gate:
 
-- PM4Py process mining;
-- OR-Tools/Timefold optimization;
-- Nixtla forecasting;
-- PyOD anomaly detection;
-- document/ERP ingestion;
-- scenario/simulation;
-- before/after KPI attribution.
+- ESPHome;
+- OpenMQTTGateway;
+- rtl_433 quando fizer sentido integrar sensores RF existentes;
+- MQTT;
+- WeeWX como referência de software de estação;
+- sensores ESP32/LoRa já levantados nas rodadas anteriores.
 
-Não vender consultoria manual contínua; vender plataforma + diagnóstico automatizado + implantação controlada.
+A estação não será tratada como estação oficial INMET. O sistema deverá confrontar leituras com INMET/CPTEC/CEMADEN/ANA e outras fontes canônicas quando aplicável, preservando diferença entre dado próprio observado e dado oficial.
 
-## Prioridade 5 — Risk & Counterparty Intelligence
+### Segurança obrigatória do dispositivo
 
-**Status proposto:** VALIDAR
+- credencial única por dispositivo;
+- nunca usar senha/API key global embutida no firmware;
+- TLS quando tecnicamente suportado;
+- ACL por dispositivo/tópico no broker;
+- sem portas de administração expostas diretamente à internet;
+- OTA controlado e assinado quando adotado;
+- secrets fora do GitHub;
+- segmentação de rede/gateway;
+- logs de atualização e identidade do firmware;
+- revogação de dispositivo comprometido.
 
-Monitoramento de fornecedores, clientes e contrapartes sem assumir concessão de crédito.
+### Componentes de software de referência
 
-Módulos:
+- Grash CMMS — arquitetura de manutenção;
+- OCA Field Service — arquitetura de operação de campo;
+- OR-Tools/Timefold — agenda/roteamento quando útil;
+- Traccar — localização autorizada quando houver caso real;
+- PyOD/Nixtla — anomalia/predição após histórico suficiente;
+- Pipecat — voz quando houver caso real;
+- IoT Core próprio — ingestão, device registry, health, security e contratos.
 
-- identidade/resolução de entidade;
-- sanções/compliance;
-- corporate changes;
-- pagamentos/atrasos autorizados;
-- concentração/exposição;
-- incidentes/geopolítica;
-- maritime counterparties quando aplicável;
-- score explicável com evidência.
+Nenhum projeto externo será copiado integralmente. O domínio, APIs e regras comerciais serão próprios da Holding.
 
-Componentes/referências: OpenSanctions stack, Aleph, OpenCTI concepts, Graphiti, Official Sources News Engine.
+## Projetos descontinuados ou descartados como novos negócios
 
-## Prioridade 6 — Procurement Opportunity Radar Brasil
+1. AgroLog Fleet OS Brasil — **DESCONTINUADO** por falta de público validado.
+2. Corporate Knowledge & Compliance OS — **DESCARTADO COMO NEGÓCIO**; Knowledge Factory permanece infraestrutura interna da Holding.
+3. Operational Intelligence Platform — **DESCARTADO**.
+4. Risk & Counterparty Intelligence — **DESCARTADO COMO UNIDADE NOVA**; técnicas de risco podem ser reutilizadas internamente quando necessárias.
+5. Procurement Opportunity Radar Brasil — **DESCARTADO**.
+6. Construction & Infrastructure Intelligence — **DESCARTADO**.
+7. Agro Quality / Lab Intelligence — **DESCARTADO COMO NOVO NEGÓCIO**; conhecimento útil pode permanecer no AgroLog sem spin-off.
 
-**Status proposto:** VALIDAR RÁPIDO
+## Regra de reaproveitamento
 
-Radar de oportunidades de compra pública/privada, iniciando por PNCP e fontes oficiais, com matching empresa-oportunidade.
+Descartar um projeto não significa apagar tecnologia útil. Componentes, algoritmos ou ideias descobertas podem ser absorvidos por um projeto existente quando:
 
-Entrega:
+- resolvam uma necessidade real já existente;
+- passem por segurança, licença e testes;
+- não criem nova fonte de verdade;
+- não abram nova frente comercial sem validação;
+- reduzam código/custo ou aumentem capacidade de forma mensurável.
 
-- oportunidades relevantes;
-- prazo/valor/objeto;
-- fit por CNAE/capacidade/região;
-- documentos exigidos;
-- checklist;
-- alertas;
-- histórico de participação/resultado quando autorizado.
-
-Baixa complexidade inicial e forte automação. Não prometer chance de vitória.
-
-## Prioridade 7 — Construction & Infrastructure Intelligence
-
-**Status proposto:** VALIDAR NICHO RURAL/INDUSTRIAL
-
-Não criar ERP de construção. Foco em inteligência de custo/avanço/compras/risco para galpões, silos, armazéns, obras rurais e infraestrutura.
-
-Componentes/referências: OpenConstructionERP como referência, BIM/CAD parsers, SINAPI oficial, GeoRisk, procurement, document intelligence, PM4Py/OR-Tools.
-
-Diferencial: custo regional + logística/frete + execução + geointeligência.
-
-## Prioridade 8 — Agro Quality / Lab Intelligence
-
-**Status proposto:** VALIDAR COMO VERTICAL AGROLOG; SPIN-OFF SÓ SE MERCADO JUSTIFICAR
-
-LIMS/qualidade para solo, água, grãos, sementes, ração, fertilizantes e classificação.
-
-Componentes/referências: SENAITE (licença exige gate), QR/barcode, instruments adapters, document engine, Traceability, analytics/anomaly.
-
-Moat: ligar qualidade do lote a origem, armazenagem, transporte, ambiente e resultado operacional.
-
-## Não abrir como projetos independentes agora
-
-Estes itens ficam como motores/módulos:
-
-- Voice Operations;
-- GeoRisk/Live Earth;
-- Tax Reform Intelligence;
-- Contract Operations;
-- Document Automation;
-- Corporate Training/SOP;
-- Traceability/Export Compliance;
-- Carbon Intelligence;
-- Road Intelligence Network;
-- Tire Intelligence;
-- Fuel Fraud;
-- Fleet Parts Marketplace;
-- Sports Broadcast Hub;
-- Sports Realtime Data Gateway;
-- Video Intelligence;
-- Official Sources News Engine;
-- Dataset Scout/Source Hunter;
-- Agent Security Platform;
-- Software Supply Chain Risk;
-- Data Marketplace/API.
-
-Eles devem provar valor dentro de uma plataforma existente antes de qualquer spin-off.
-
-## Ordem de validação recomendada
-
-1. AgroLog Fleet OS Brasil.
-2. Procurement Opportunity Radar Brasil em paralelo como teste barato de monetização digital.
-3. Corporate Knowledge & Compliance OS usando a própria Holding como cliente zero.
-4. Maintenance & Field Intelligence.
-5. Risk & Counterparty Intelligence.
-6. Operational Intelligence.
-7. Construction & Infrastructure Intelligence.
-8. Agro Quality/Lab Intelligence.
-
-A Venture Factory deve registrar acceptance criteria, custo máximo de validação, hipótese de preço, cliente-alvo e motivo objetivo de continuidade ou encerramento antes de escalar cada item.
+A Venture Factory não deve reabrir os projetos descartados sem nova evidência objetiva de mercado ou decisão explícita do Owner.
