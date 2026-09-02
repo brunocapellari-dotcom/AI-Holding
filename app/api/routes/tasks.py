@@ -35,12 +35,7 @@ def list_tasks(
 ) -> list[Task]:
     limit = min(max(limit, 1), 500)
     offset = max(offset, 0)
-    statement = (
-        select(Task)
-        .order_by(Task.priority, Task.created_at)
-        .limit(limit)
-        .offset(offset)
-    )
+    statement = select(Task).order_by(Task.priority, Task.created_at).limit(limit).offset(offset)
     return list(db.scalars(statement))
 
 
