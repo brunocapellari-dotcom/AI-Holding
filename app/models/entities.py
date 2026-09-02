@@ -220,9 +220,7 @@ class Task(Base, TimestampMixin):
 
 class TaskDependency(Base):
     __tablename__ = "task_dependencies"
-    __table_args__ = (
-        UniqueConstraint("task_id", "depends_on_task_id", name="uq_task_dependency"),
-    )
+    __table_args__ = (UniqueConstraint("task_id", "depends_on_task_id", name="uq_task_dependency"),)
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     task_id: Mapped[uuid.UUID] = mapped_column(
