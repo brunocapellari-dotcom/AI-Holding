@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import enum
 import uuid
 from datetime import date, datetime
+from enum import StrEnum
 
 from sqlalchemy import (
     JSON,
@@ -24,14 +24,14 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
 
-class ProjectStatus(str, enum.Enum):
+class ProjectStatus(StrEnum):
     active = "active"
     paused = "paused"
     incubating = "incubating"
     archived = "archived"
 
 
-class WorkStatus(str, enum.Enum):
+class WorkStatus(StrEnum):
     planned = "planned"
     ready = "ready"
     running = "running"
@@ -41,27 +41,27 @@ class WorkStatus(str, enum.Enum):
     cancelled = "cancelled"
 
 
-class CriterionStatus(str, enum.Enum):
+class CriterionStatus(StrEnum):
     pending = "pending"
     verified = "verified"
     rejected = "rejected"
 
 
-class DecisionStatus(str, enum.Enum):
+class DecisionStatus(StrEnum):
     pending = "pending"
     approved = "approved"
     rejected = "rejected"
     superseded = "superseded"
 
 
-class IncidentStatus(str, enum.Enum):
+class IncidentStatus(StrEnum):
     open = "open"
     investigating = "investigating"
     mitigated = "mitigated"
     resolved = "resolved"
 
 
-class RunStatus(str, enum.Enum):
+class RunStatus(StrEnum):
     queued = "queued"
     running = "running"
     succeeded = "succeeded"
@@ -69,20 +69,20 @@ class RunStatus(str, enum.Enum):
     cancelled = "cancelled"
 
 
-class AgentStatus(str, enum.Enum):
+class AgentStatus(StrEnum):
     active = "active"
     disabled = "disabled"
     degraded = "degraded"
 
 
-class RiskLevel(str, enum.Enum):
+class RiskLevel(StrEnum):
     low = "low"
     medium = "medium"
     high = "high"
     critical = "critical"
 
 
-class Severity(str, enum.Enum):
+class Severity(StrEnum):
     sev1 = "sev1"
     sev2 = "sev2"
     sev3 = "sev3"
@@ -220,7 +220,9 @@ class Task(Base, TimestampMixin):
 
 class TaskDependency(Base):
     __tablename__ = "task_dependencies"
-    __table_args__ = (UniqueConstraint("task_id", "depends_on_task_id", name="uq_task_dependency"),)
+    __table_args__ = (
+        UniqueConstraint("task_id", "depends_on_task_id", name="uq_task_dependency"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     task_id: Mapped[uuid.UUID] = mapped_column(
@@ -239,7 +241,9 @@ class Run(Base, TimestampMixin):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    task_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"), index=True)
+    task_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("tasks.id", ondelete="CASCADE"), index=True
+    )
     agent_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("agents.id", ondelete="SET NULL"), nullable=True, index=True
     )
