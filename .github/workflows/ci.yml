@@ -49,8 +49,11 @@ jobs:
         run: pip-audit
       - name: Static security scan
         run: bandit -c pyproject.toml -r app
-      - name: Database migration test
-        run: alembic upgrade head
+      - name: Database migration round trip
+        run: |
+          alembic upgrade head
+          alembic downgrade base
+          alembic upgrade head
       - name: Test suite and coverage gate
         run: pytest
       - name: Terraform format
@@ -61,6 +64,23 @@ jobs:
           terraform -chdir=infra/terraform validate
       - name: Container build verification
         run: docker build --pull --tag holding-control-plane:ci .
+      - name: Generate CycloneDX SBOM
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
+        with:
+          image: holding-control-plane:ci
+          format: cyclonedx-json
+          output-file: sbom.cdx.json
+          upload-artifact: false
+          dependency-snapshot: false
+      - name: Container vulnerability gate
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: holding-control-plane:ci
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          severity: HIGH,CRITICAL
+          vuln-type: os,library
 
   deploy-production:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
