@@ -189,10 +189,45 @@ jobs:
 
       - name: Run database migrations in private network
         run: |
+          set +e
           gcloud run jobs execute "${SERVICE_NAME}-migrate" \
             --project="${PROJECT_ID}" \
             --region="${REGION}" \
             --wait
+          migration_status=$?
+          set -e
+
+          if [ "${migration_status}" -ne 0 ]; then
+            execution="$(gcloud run jobs executions list \
+              --job="${SERVICE_NAME}-migrate" \
+              --project="${PROJECT_ID}" \
+              --region="${REGION}" \
+              --sort-by='~metadata.creationTimestamp' \
+              --limit=1 \
+              --format='value(metadata.name)')"
+
+            if [ -n "${execution}" ]; then
+              gcloud run jobs executions describe "${execution}" \
+                --project="${PROJECT_ID}" \
+                --region="${REGION}" \
+                --format='yaml(status.conditions,status.failedCount,status.succeededCount)' \
+                || true
+            fi
+
+            gcloud logging read \
+              "resource.type=\"cloud_run_job\" AND resource.labels.job_name=\"${SERVICE_NAME}-migrate\"" \
+              --project="${PROJECT_ID}" \
+              --freshness=30m \
+              --limit=80 \
+              --order=asc \
+              --format='value(timestamp,severity,textPayload,jsonPayload.message)' \
+              | sed -E \
+                -e 's#postgresql(\+psycopg)?://[^[:space:]]+#postgresql://[REDACTED]#g' \
+                -e 's#(password|passwd|pwd)=([^[:space:]]+)#\1=[REDACTED]#Ig' \
+              || true
+
+            exit "${migration_status}"
+          fi
 
       - name: Verify deployed service state
         run: |
