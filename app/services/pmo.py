@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from uuid import UUID
+
 from sqlalchemy import exists, func, or_, select
 from sqlalchemy.orm import Session, aliased
 
@@ -25,7 +27,7 @@ def claim_next_task(
     *,
     agent: Agent,
     actor: ActorContext,
-    project_id: object | None = None,
+    project_id: UUID | None = None,
 ) -> tuple[Task, Run] | None:
     if agent.status != AgentStatus.active:
         return None
