@@ -19,6 +19,7 @@ class MigrationExitCode(IntEnum):
     migration_integrity_error = 23
     migration_database_error = 24
     unexpected_runtime_error = 25
+    alembic_configuration_error = 26
 
 
 class ProbeMode(StrEnum):
@@ -69,6 +70,8 @@ def run_migrations() -> MigrationExitCode:
         return MigrationExitCode.migration_integrity_error
     except SQLAlchemyError:
         return MigrationExitCode.migration_database_error
+    except ValueError:
+        return MigrationExitCode.alembic_configuration_error
     except Exception:
         return MigrationExitCode.unexpected_runtime_error
 
