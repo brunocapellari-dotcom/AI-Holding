@@ -17,6 +17,7 @@ dependencies = [
   "pydantic-settings>=2.5,<3",
   "python-json-logger>=2.0,<4",
   "prometheus-client>=0.21,<1",
+  "google-auth[requests]>=2.35,<3",
 ]
 
 [project.optional-dependencies]

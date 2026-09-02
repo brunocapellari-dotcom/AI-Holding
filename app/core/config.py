@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     environment: str = "production"
     database_url: str = "postgresql+psycopg://holding:holding@localhost:5432/holding"
     api_prefix: str = "/api/v1"
-    require_actor_header: bool = True
+    require_verified_identity: bool = True
 
 
 settings = Settings()
