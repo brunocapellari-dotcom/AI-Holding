@@ -1,10 +1,10 @@
 import logging
 import uuid
-from typing import Any
 
 from fastapi import FastAPI, Request, Response
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from sqlalchemy import text
+from starlette.middleware.base import RequestResponseEndpoint
 
 from app.api.routes import decisions, executive, projects, tasks
 from app.core.config import settings
@@ -23,7 +23,7 @@ app = FastAPI(
 
 
 @app.middleware("http")
-async def request_context(request: Request, call_next: Any) -> Response:
+async def request_context(request: Request, call_next: RequestResponseEndpoint) -> Response:
     request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
     token = request_id_ctx.set(request_id)
     try:
