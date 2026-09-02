@@ -117,7 +117,10 @@ class Project(Base, TimestampMixin):
     __table_args__ = (
         CheckConstraint("priority BETWEEN 0 AND 5", name="priority_range"),
         CheckConstraint("autonomy_level BETWEEN 0 AND 6", name="autonomy_range"),
-        CheckConstraint("parent_project_id IS NULL OR parent_project_id <> id", name="no_self_parent"),
+        CheckConstraint(
+            "parent_project_id IS NULL OR parent_project_id <> id",
+            name="no_self_parent",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
