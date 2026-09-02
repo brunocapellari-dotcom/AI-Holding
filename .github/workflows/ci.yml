@@ -214,18 +214,6 @@ jobs:
                 || true
             fi
 
-            gcloud logging read \
-              "resource.type=\"cloud_run_job\" AND resource.labels.job_name=\"${SERVICE_NAME}-migrate\"" \
-              --project="${PROJECT_ID}" \
-              --freshness=30m \
-              --limit=80 \
-              --order=asc \
-              --format='value(timestamp,severity,textPayload,jsonPayload.message)' \
-              | sed -E \
-                -e 's#postgresql(\+psycopg)?://[^[:space:]]+#postgresql://[REDACTED]#g' \
-                -e 's#(password|passwd|pwd)=([^[:space:]]+)#\1=[REDACTED]#Ig' \
-              || true
-
             exit "${migration_status}"
           fi
 

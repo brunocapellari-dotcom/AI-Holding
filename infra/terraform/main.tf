@@ -333,8 +333,8 @@ resource "google_cloud_run_v2_job" "migrate" {
 
       containers {
         image   = var.image_ref
-        command = ["alembic"]
-        args    = ["upgrade", "head"]
+        command = ["python"]
+        args    = ["-m", "app.db_migrate"]
 
         env {
           name  = "ENVIRONMENT"
