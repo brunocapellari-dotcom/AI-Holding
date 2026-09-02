@@ -8,7 +8,9 @@ def create_project(client):
             "autonomy_level": 4,
             "repository": "brunocapellari-dotcom/AgroLogMT",
             "business_unit": "Agronegócio e Logística",
-            "strategic_goal": "Operar inteligência agro e logística com confiabilidade institucional.",
+            "strategic_goal": (
+                "Operar inteligência agro e logística com confiabilidade institucional."
+            ),
         },
     )
     assert response.status_code == 201, response.text
@@ -39,7 +41,10 @@ def test_progress_is_evidence_based(client):
     assert before["progress_pct"] == 0.0
 
     verified = client.post(
-        f"/api/v1/projects/{project['id']}/milestones/{milestone['id']}/criteria/{criterion['id']}/verify",
+        (
+            f"/api/v1/projects/{project['id']}/milestones/{milestone['id']}"
+            f"/criteria/{criterion['id']}/verify"
+        ),
         json={"evidence": ["ci://agrolog/freshness/2026-09-01"]},
     )
     assert verified.status_code == 200
@@ -66,11 +71,32 @@ def test_task_idempotency_and_state_machine(client):
     assert first.json()["id"] == second.json()["id"]
 
     task_id = first.json()["id"]
-    assert client.post(f"/api/v1/tasks/{task_id}/transition", json={"status": "ready"}).status_code == 200
-    assert client.post(f"/api/v1/tasks/{task_id}/transition", json={"status": "running"}).status_code == 200
-    assert client.post(f"/api/v1/tasks/{task_id}/transition", json={"status": "done"}).status_code == 409
-    assert client.post(f"/api/v1/tasks/{task_id}/transition", json={"status": "review"}).status_code == 200
-    assert client.post(f"/api/v1/tasks/{task_id}/transition", json={"status": "done"}).status_code == 200
+    ready = client.post(
+        f"/api/v1/tasks/{task_id}/transition",
+        json={"status": "ready"},
+    )
+    running = client.post(
+        f"/api/v1/tasks/{task_id}/transition",
+        json={"status": "running"},
+    )
+    invalid_done = client.post(
+        f"/api/v1/tasks/{task_id}/transition",
+        json={"status": "done"},
+    )
+    review = client.post(
+        f"/api/v1/tasks/{task_id}/transition",
+        json={"status": "review"},
+    )
+    done = client.post(
+        f"/api/v1/tasks/{task_id}/transition",
+        json={"status": "done"},
+    )
+
+    assert ready.status_code == 200
+    assert running.status_code == 200
+    assert invalid_done.status_code == 409
+    assert review.status_code == 200
+    assert done.status_code == 200
 
 
 def test_decision_queue_requires_resolution(client):
