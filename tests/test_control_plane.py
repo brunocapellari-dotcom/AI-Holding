@@ -8,11 +8,47 @@ def create_project(client):
             "autonomy_level": 4,
             "repository": "brunocapellari-dotcom/AgroLogMT",
             "business_unit": "Agronegócio e Logística",
-            "strategic_goal": "Operar inteligência agro e logística com confiabilidade institucional.",
+            "strategic_goal": (
+                "Operar inteligência agro e logística com confiabilidade institucional."
+            ),
         },
     )
     assert response.status_code == 201, response.text
     return response.json()
+
+
+def test_project_hierarchy_supports_agrolog_modules(client):
+    parent = create_project(client)
+    child = client.post(
+        "/api/v1/projects",
+        json={
+            "key": "PECUARIA",
+            "name": "Inteligência Pecuária",
+            "priority": 0,
+            "autonomy_level": 4,
+            "parent_project_id": parent["id"],
+            "repository": "brunocapellari-dotcom/AgroLogMT",
+            "repository_path": "domains/pecuaria",
+            "business_unit": "Agronegócio e Logística",
+            "strategic_goal": "Operar inteligência pecuária com governança própria.",
+        },
+    )
+    assert child.status_code == 201, child.text
+    assert child.json()["parent_project_id"] == parent["id"]
+    assert child.json()["repository_path"] == "domains/pecuaria"
+
+    invalid = client.post(
+        "/api/v1/projects",
+        json={
+            "key": "INVALID_CHILD",
+            "name": "Invalid Child",
+            "priority": 3,
+            "autonomy_level": 2,
+            "parent_project_id": "00000000-0000-0000-0000-000000000001",
+            "strategic_goal": "This must not be accepted without a valid parent.",
+        },
+    )
+    assert invalid.status_code == 400
 
 
 def test_progress_is_evidence_based(client):
@@ -39,7 +75,10 @@ def test_progress_is_evidence_based(client):
     assert before["progress_pct"] == 0.0
 
     verified = client.post(
-        f"/api/v1/projects/{project['id']}/milestones/{milestone['id']}/criteria/{criterion['id']}/verify",
+        (
+            f"/api/v1/projects/{project['id']}/milestones/{milestone['id']}"
+            f"/criteria/{criterion['id']}/verify"
+        ),
         json={"evidence": ["ci://agrolog/freshness/2026-09-01"]},
     )
     assert verified.status_code == 200
@@ -66,11 +105,32 @@ def test_task_idempotency_and_state_machine(client):
     assert first.json()["id"] == second.json()["id"]
 
     task_id = first.json()["id"]
-    assert client.post(f"/api/v1/tasks/{task_id}/transition", json={"status": "ready"}).status_code == 200
-    assert client.post(f"/api/v1/tasks/{task_id}/transition", json={"status": "running"}).status_code == 200
-    assert client.post(f"/api/v1/tasks/{task_id}/transition", json={"status": "done"}).status_code == 409
-    assert client.post(f"/api/v1/tasks/{task_id}/transition", json={"status": "review"}).status_code == 200
-    assert client.post(f"/api/v1/tasks/{task_id}/transition", json={"status": "done"}).status_code == 200
+    ready = client.post(
+        f"/api/v1/tasks/{task_id}/transition",
+        json={"status": "ready"},
+    )
+    running = client.post(
+        f"/api/v1/tasks/{task_id}/transition",
+        json={"status": "running"},
+    )
+    invalid_done = client.post(
+        f"/api/v1/tasks/{task_id}/transition",
+        json={"status": "done"},
+    )
+    review = client.post(
+        f"/api/v1/tasks/{task_id}/transition",
+        json={"status": "review"},
+    )
+    done = client.post(
+        f"/api/v1/tasks/{task_id}/transition",
+        json={"status": "done"},
+    )
+
+    assert ready.status_code == 200
+    assert running.status_code == 200
+    assert invalid_done.status_code == 409
+    assert review.status_code == 200
+    assert done.status_code == 200
 
 
 def test_decision_queue_requires_resolution(client):

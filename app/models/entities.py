@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import enum
 import uuid
 from datetime import date, datetime
+from enum import StrEnum
 
 from sqlalchemy import (
     JSON,
@@ -12,26 +12,28 @@ from sqlalchemy import (
     DateTime,
     Enum,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
     UniqueConstraint,
     Uuid,
     func,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 
 
-class ProjectStatus(str, enum.Enum):
+class ProjectStatus(StrEnum):
     active = "active"
     paused = "paused"
     incubating = "incubating"
     archived = "archived"
 
 
-class WorkStatus(str, enum.Enum):
+class WorkStatus(StrEnum):
     planned = "planned"
     ready = "ready"
     running = "running"
@@ -41,27 +43,27 @@ class WorkStatus(str, enum.Enum):
     cancelled = "cancelled"
 
 
-class CriterionStatus(str, enum.Enum):
+class CriterionStatus(StrEnum):
     pending = "pending"
     verified = "verified"
     rejected = "rejected"
 
 
-class DecisionStatus(str, enum.Enum):
+class DecisionStatus(StrEnum):
     pending = "pending"
     approved = "approved"
     rejected = "rejected"
     superseded = "superseded"
 
 
-class IncidentStatus(str, enum.Enum):
+class IncidentStatus(StrEnum):
     open = "open"
     investigating = "investigating"
     mitigated = "mitigated"
     resolved = "resolved"
 
 
-class RunStatus(str, enum.Enum):
+class RunStatus(StrEnum):
     queued = "queued"
     running = "running"
     succeeded = "succeeded"
@@ -69,20 +71,20 @@ class RunStatus(str, enum.Enum):
     cancelled = "cancelled"
 
 
-class AgentStatus(str, enum.Enum):
+class AgentStatus(StrEnum):
     active = "active"
     disabled = "disabled"
     degraded = "degraded"
 
 
-class RiskLevel(str, enum.Enum):
+class RiskLevel(StrEnum):
     low = "low"
     medium = "medium"
     high = "high"
     critical = "critical"
 
 
-class Severity(str, enum.Enum):
+class Severity(StrEnum):
     sev1 = "sev1"
     sev2 = "sev2"
     sev3 = "sev3"
@@ -108,8 +110,8 @@ class Agent(Base, TimestampMixin):
     role: Mapped[str] = mapped_column(String(160))
     status: Mapped[AgentStatus] = mapped_column(Enum(AgentStatus), default=AgentStatus.active)
     max_autonomy: Mapped[int] = mapped_column(Integer, default=3)
-    model_policy: Mapped[dict] = mapped_column(JSON, default=dict)
-    capabilities: Mapped[list] = mapped_column(JSON, default=list)
+    model_policy: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
+    capabilities: Mapped[list[object]] = mapped_column(JSON, default=list)
 
 
 class Project(Base, TimestampMixin):
@@ -117,6 +119,10 @@ class Project(Base, TimestampMixin):
     __table_args__ = (
         CheckConstraint("priority BETWEEN 0 AND 5", name="priority_range"),
         CheckConstraint("autonomy_level BETWEEN 0 AND 6", name="autonomy_range"),
+        CheckConstraint(
+            "parent_project_id IS NULL OR parent_project_id <> id",
+            name="no_self_parent",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -125,13 +131,17 @@ class Project(Base, TimestampMixin):
     status: Mapped[ProjectStatus] = mapped_column(Enum(ProjectStatus), default=ProjectStatus.active)
     priority: Mapped[int] = mapped_column(Integer, default=3)
     autonomy_level: Mapped[int] = mapped_column(Integer, default=3)
+    parent_project_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("projects.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     owner_agent_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("agents.id", ondelete="SET NULL"), nullable=True
     )
     repository: Mapped[str | None] = mapped_column(String(240), nullable=True)
+    repository_path: Mapped[str | None] = mapped_column(String(240), nullable=True)
     business_unit: Mapped[str | None] = mapped_column(String(120), nullable=True)
     strategic_goal: Mapped[str] = mapped_column(Text)
-    metadata_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    metadata_json: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
 
     milestones: Mapped[list[Milestone]] = relationship(
@@ -183,7 +193,7 @@ class AcceptanceCriterion(Base, TimestampMixin):
         Enum(CriterionStatus), default=CriterionStatus.pending
     )
     verifier: Mapped[str | None] = mapped_column(String(160), nullable=True)
-    evidence: Mapped[list] = mapped_column(JSON, default=list)
+    evidence: Mapped[list[object]] = mapped_column(JSON, default=list)
     verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     milestone: Mapped[Milestone] = relationship(back_populates="criteria")
@@ -215,7 +225,7 @@ class Task(Base, TimestampMixin):
     blocked_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     idempotency_key: Mapped[str] = mapped_column(String(160))
-    metadata_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    metadata_json: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
 
 
 class TaskDependency(Base):
@@ -236,18 +246,27 @@ class Run(Base, TimestampMixin):
     __table_args__ = (
         UniqueConstraint("external_run_id", name="uq_run_external_run_id"),
         CheckConstraint("attempt >= 1", name="attempt_positive"),
+        Index(
+            "uq_runs_one_active_per_task",
+            "task_id",
+            unique=True,
+            postgresql_where=text("status IN ('queued', 'running')"),
+            sqlite_where=text("status IN ('queued', 'running')"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    task_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"), index=True)
+    task_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("tasks.id", ondelete="CASCADE"), index=True
+    )
     agent_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("agents.id", ondelete="SET NULL"), nullable=True, index=True
     )
     status: Mapped[RunStatus] = mapped_column(Enum(RunStatus), default=RunStatus.queued)
     attempt: Mapped[int] = mapped_column(Integer, default=1)
     external_run_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
-    input_metadata: Mapped[dict] = mapped_column(JSON, default=dict)
-    output_metadata: Mapped[dict] = mapped_column(JSON, default=dict)
+    input_metadata: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
+    output_metadata: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -270,8 +289,8 @@ class Decision(Base, TimestampMixin):
         Enum(DecisionStatus), default=DecisionStatus.pending
     )
     requires_human: Mapped[bool] = mapped_column(Boolean, default=True)
-    options: Mapped[list] = mapped_column(JSON, default=list)
-    resolution: Mapped[dict] = mapped_column(JSON, default=dict)
+    options: Mapped[list[object]] = mapped_column(JSON, default=list)
+    resolution: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
     due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
@@ -303,9 +322,9 @@ class Incident(Base, TimestampMixin):
         Enum(IncidentStatus), default=IncidentStatus.open
     )
     source: Mapped[str] = mapped_column(String(120))
-    details: Mapped[dict] = mapped_column(JSON, default=dict)
+    details: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
     root_cause: Mapped[str | None] = mapped_column(Text, nullable=True)
-    resolution: Mapped[dict] = mapped_column(JSON, default=dict)
+    resolution: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
@@ -319,7 +338,7 @@ class AuditEvent(Base):
     action: Mapped[str] = mapped_column(String(160), index=True)
     entity_type: Mapped[str] = mapped_column(String(80), index=True)
     entity_id: Mapped[str] = mapped_column(String(80), index=True)
-    payload: Mapped[dict] = mapped_column(JSON, default=dict)
+    payload: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
     )

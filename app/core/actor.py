@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Annotated
 
 from fastapi import Header, HTTPException
 
@@ -12,11 +13,14 @@ class ActorContext:
 
 
 def get_actor(
-    x_actor: str | None = Header(default=None, alias="X-Actor"),
-    x_actor_type: str | None = Header(default=None, alias="X-Actor-Type"),
+    x_actor: Annotated[str | None, Header(alias="X-Actor")] = None,
+    x_actor_type: Annotated[str | None, Header(alias="X-Actor-Type")] = None,
 ) -> ActorContext:
     if not x_actor:
-        if settings.require_actor_header and settings.environment not in {"development", "test"}:
+        if settings.require_actor_header and settings.environment not in {
+            "development",
+            "test",
+        }:
             raise HTTPException(status_code=401, detail="X-Actor header is required")
         x_actor = "local-user"
     return ActorContext(name=x_actor, actor_type=x_actor_type or "human")

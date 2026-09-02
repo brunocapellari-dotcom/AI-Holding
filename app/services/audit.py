@@ -12,7 +12,7 @@ def record_audit(
     action: str,
     entity_type: str,
     entity_id: str,
-    payload: dict | None = None,
+    payload: dict[str, object] | None = None,
 ) -> None:
     db.add(
         AuditEvent(
