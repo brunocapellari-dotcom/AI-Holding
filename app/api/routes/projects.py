@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.core.actor import ActorContext, get_actor
 from app.db.session import get_db
-from app.models.entities import Agent, AcceptanceCriterion, CriterionStatus, Milestone, Project
+from app.models.entities import AcceptanceCriterion, Agent, CriterionStatus, Milestone, Project
 from app.schemas.api import (
     CriterionCreate,
     CriterionOut,
@@ -29,11 +29,7 @@ Actor = Annotated[ActorContext, Depends(get_actor)]
 
 
 @router.get("", response_model=list[ProjectOut])
-def list_projects(
-    db: DbSession,
-    limit: int = 100,
-    offset: int = 0,
-) -> list[Project]:
+def list_projects(db: DbSession, limit: int = 100, offset: int = 0) -> list[Project]:
     limit = min(max(limit, 1), 500)
     offset = max(offset, 0)
     statement = select(Project).order_by(Project.priority, Project.name).limit(limit).offset(offset)
@@ -41,11 +37,7 @@ def list_projects(
 
 
 @router.post("", response_model=ProjectOut, status_code=status.HTTP_201_CREATED)
-def create_project(
-    payload: ProjectCreate,
-    db: DbSession,
-    actor: Actor,
-) -> Project:
+def create_project(payload: ProjectCreate, db: DbSession, actor: Actor) -> Project:
     if payload.parent_project_id and not db.get(Project, payload.parent_project_id):
         raise HTTPException(status_code=400, detail="parent project not found")
     if payload.owner_agent_id and not db.get(Agent, payload.owner_agent_id):
