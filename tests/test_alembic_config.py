@@ -4,9 +4,7 @@ from app.db.alembic_config import escape_config_parser_value
 
 
 def test_percent_encoded_database_url_round_trips_through_alembic_config():
-    database_url = (
-        "postgresql+psycopg://holding_app:p%40ss%23word%25value@10.42.0.3:5432/holding"
-    )
+    database_url = "postgresql+psycopg://holding_app:p%40ss%23word%25value@10.42.0.3:5432/holding"
     config = Config()
 
     config.set_main_option(
