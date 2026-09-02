@@ -1,3 +1,4 @@
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -12,6 +13,8 @@ from app.schemas.api import TaskCreate, TaskOut, TaskTransition
 from app.services.audit import record_audit
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
+DbSession = Annotated[Session, Depends(get_db)]
+Actor = Annotated[ActorContext, Depends(get_actor)]
 
 ALLOWED_TRANSITIONS: dict[WorkStatus, set[WorkStatus]] = {
     WorkStatus.planned: {WorkStatus.ready, WorkStatus.cancelled},
@@ -25,19 +28,27 @@ ALLOWED_TRANSITIONS: dict[WorkStatus, set[WorkStatus]] = {
 
 
 @router.get("", response_model=list[TaskOut])
-def list_tasks(limit: int = 100, offset: int = 0, db: Session = Depends(get_db)) -> list[Task]:
+def list_tasks(
+    db: DbSession,
+    limit: int = 100,
+    offset: int = 0,
+) -> list[Task]:
     limit = min(max(limit, 1), 500)
     offset = max(offset, 0)
-    return list(
-        db.scalars(select(Task).order_by(Task.priority, Task.created_at).limit(limit).offset(offset))
+    statement = (
+        select(Task)
+        .order_by(Task.priority, Task.created_at)
+        .limit(limit)
+        .offset(offset)
     )
+    return list(db.scalars(statement))
 
 
 @router.post("", response_model=TaskOut, status_code=status.HTTP_201_CREATED)
 def create_task(
     payload: TaskCreate,
-    db: Session = Depends(get_db),
-    actor: ActorContext = Depends(get_actor),
+    db: DbSession,
+    actor: Actor,
 ) -> Task:
     project = db.get(Project, payload.project_id)
     if not project:
@@ -55,7 +66,10 @@ def create_task(
     for dependency_id in dependency_ids:
         dependency = db.get(Task, dependency_id)
         if not dependency or dependency.project_id != project.id:
-            raise HTTPException(status_code=400, detail="invalid cross-project or missing dependency")
+            raise HTTPException(
+                status_code=400,
+                detail="invalid cross-project or missing dependency",
+            )
 
     data = payload.model_dump(exclude={"depends_on"})
     task = Task(**data)
@@ -67,7 +81,10 @@ def create_task(
         db.flush()
     except IntegrityError as exc:
         db.rollback()
-        raise HTTPException(status_code=409, detail="task key or idempotency key already exists") from exc
+        raise HTTPException(
+            status_code=409,
+            detail="task key or idempotency key already exists",
+        ) from exc
 
     record_audit(
         db,
@@ -86,8 +103,8 @@ def create_task(
 def transition_task(
     task_id: UUID,
     payload: TaskTransition,
-    db: Session = Depends(get_db),
-    actor: ActorContext = Depends(get_actor),
+    db: DbSession,
+    actor: Actor,
 ) -> Task:
     task = db.get(Task, task_id)
     if not task:
