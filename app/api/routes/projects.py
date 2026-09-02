@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -23,22 +24,32 @@ from app.services.audit import record_audit
 from app.services.progress import project_progress
 
 router = APIRouter(prefix="/projects", tags=["projects"])
+DbSession = Annotated[Session, Depends(get_db)]
+Actor = Annotated[ActorContext, Depends(get_actor)]
 
 
 @router.get("", response_model=list[ProjectOut])
-def list_projects(limit: int = 100, offset: int = 0, db: Session = Depends(get_db)) -> list[Project]:
+def list_projects(
+    db: DbSession,
+    limit: int = 100,
+    offset: int = 0,
+) -> list[Project]:
     limit = min(max(limit, 1), 500)
     offset = max(offset, 0)
-    return list(
-        db.scalars(select(Project).order_by(Project.priority, Project.name).limit(limit).offset(offset))
+    statement = (
+        select(Project)
+        .order_by(Project.priority, Project.name)
+        .limit(limit)
+        .offset(offset)
     )
+    return list(db.scalars(statement))
 
 
 @router.post("", response_model=ProjectOut, status_code=status.HTTP_201_CREATED)
 def create_project(
     payload: ProjectCreate,
-    db: Session = Depends(get_db),
-    actor: ActorContext = Depends(get_actor),
+    db: DbSession,
+    actor: Actor,
 ) -> Project:
     project = Project(**payload.model_dump())
     db.add(project)
@@ -60,13 +71,15 @@ def create_project(
 
 
 @router.post(
-    "/{project_id}/milestones", response_model=MilestoneOut, status_code=status.HTTP_201_CREATED
+    "/{project_id}/milestones",
+    response_model=MilestoneOut,
+    status_code=status.HTTP_201_CREATED,
 )
 def create_milestone(
     project_id: UUID,
     payload: MilestoneCreate,
-    db: Session = Depends(get_db),
-    actor: ActorContext = Depends(get_actor),
+    db: DbSession,
+    actor: Actor,
 ) -> Milestone:
     project = db.get(Project, project_id)
     if not project:
@@ -100,8 +113,8 @@ def create_criterion(
     project_id: UUID,
     milestone_id: UUID,
     payload: CriterionCreate,
-    db: Session = Depends(get_db),
-    actor: ActorContext = Depends(get_actor),
+    db: DbSession,
+    actor: Actor,
 ) -> AcceptanceCriterion:
     milestone = db.get(Milestone, milestone_id)
     if not milestone or milestone.project_id != project_id:
@@ -134,8 +147,8 @@ def verify_criterion(
     milestone_id: UUID,
     criterion_id: UUID,
     payload: CriterionVerify,
-    db: Session = Depends(get_db),
-    actor: ActorContext = Depends(get_actor),
+    db: DbSession,
+    actor: Actor,
 ) -> AcceptanceCriterion:
     milestone = db.get(Milestone, milestone_id)
     criterion = db.get(AcceptanceCriterion, criterion_id)
@@ -164,7 +177,7 @@ def verify_criterion(
 
 
 @router.get("/{project_id}/progress", response_model=ProjectProgress)
-def get_project_progress(project_id: UUID, db: Session = Depends(get_db)) -> ProjectProgress:
+def get_project_progress(project_id: UUID, db: DbSession) -> ProjectProgress:
     if not db.get(Project, project_id):
         raise HTTPException(status_code=404, detail="project not found")
     return project_progress(db, project_id)
