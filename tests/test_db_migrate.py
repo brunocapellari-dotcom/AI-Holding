@@ -1,6 +1,6 @@
-from alembic import command
 from sqlalchemy.exc import OperationalError, ProgrammingError
 
+from alembic import command
 from app import db_migrate
 from app.db_migrate import MigrationExitCode
 
