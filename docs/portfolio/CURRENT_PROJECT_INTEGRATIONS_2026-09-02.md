@@ -95,13 +95,19 @@ Inclusões:
 
 Toda alegação de ataque, sanção, fechamento, dano ou controle territorial exige evidência e confidence; social media não é fonte canônica.
 
-## 5. WorldWar Modern — REBOOT
+## 5. WorldWar Modern — PAUSADO
 
-A especificação anterior foi substituída por:
+**Status atual: REGISTRADO / PAUSADO POR DECISÃO DO OWNER EM 02/09/2026.**
+
+Não iniciar desenvolvimento, pesquisa adicional específica, refatoração, criação de tarefas ou consumo de recursos da Holding para o WorldWar Modern enquanto não houver decisão explícita de retomada.
+
+A especificação de reboot permanece preservada em:
 
 `docs/portfolio/WORLDWAR_MODERN_REBOOT_2026-09-02.md`
 
-Nova direção:
+Quando houver retomada, essa especificação será a referência funcional vigente, salvo nova decisão do Owner.
+
+Direção registrada para retomada futura:
 
 - RTS moderno operacional/tático;
 - mapa 3D;
@@ -118,7 +124,7 @@ Nova direção:
 - economia e diplomacia como suporte à guerra, não como núcleo baseado em menus;
 - batalha visível e comandável.
 
-Stack web candidato:
+Stack web candidato preservado para eventual retomada:
 
 - Babylon.js/WebGPU para 3D;
 - Recast Navigation para navegação local;
