@@ -49,11 +49,13 @@ jobs:
         run: pip-audit
       - name: Static security scan
         run: bandit -c pyproject.toml -r app
-      - name: Database migration round trip
+      - name: Database migration round trip and schema drift gate
         run: |
           alembic upgrade head
+          alembic check
           alembic downgrade base
           alembic upgrade head
+          alembic check
       - name: Test suite and coverage gate
         run: pytest
       - name: Terraform format
