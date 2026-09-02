@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.core.actor import ActorContext, get_actor
 from app.db.session import get_db
-from app.models.entities import AcceptanceCriterion, CriterionStatus, Milestone, Project
+from app.models.entities import Agent, AcceptanceCriterion, CriterionStatus, Milestone, Project
 from app.schemas.api import (
     CriterionCreate,
     CriterionOut,
@@ -46,6 +46,11 @@ def create_project(
     db: DbSession,
     actor: Actor,
 ) -> Project:
+    if payload.parent_project_id and not db.get(Project, payload.parent_project_id):
+        raise HTTPException(status_code=400, detail="parent project not found")
+    if payload.owner_agent_id and not db.get(Agent, payload.owner_agent_id):
+        raise HTTPException(status_code=400, detail="owner agent not found")
+
     project = Project(**payload.model_dump())
     db.add(project)
     try:
@@ -59,6 +64,13 @@ def create_project(
         action="project.created",
         entity_type="project",
         entity_id=str(project.id),
+        payload={
+            "parent_project_id": str(project.parent_project_id)
+            if project.parent_project_id
+            else None,
+            "repository": project.repository,
+            "repository_path": project.repository_path,
+        },
     )
     db.commit()
     db.refresh(project)
