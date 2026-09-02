@@ -125,11 +125,11 @@ jobs:
             -backend-config="bucket=${TF_STATE_BUCKET}" \
             -backend-config="prefix=control-plane/prod"
 
-      - name: Create production foundation on first deployment
+      - name: Complete production foundation when database is absent
         run: |
           if terraform -chdir=infra/terraform state show \
-            google_artifact_registry_repository.holding >/dev/null 2>&1; then
-            echo "Foundation already exists; preserving deployed service."
+            google_sql_database_instance.postgres >/dev/null 2>&1; then
+            echo "Database foundation exists; preserving deployed runtime."
           else
             terraform -chdir=infra/terraform apply \
               -var-file=prod.tfvars \
