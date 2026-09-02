@@ -9,9 +9,7 @@ from app.schemas.api import ProjectProgress
 
 def project_progress(db: Session, project_id: UUID) -> ProjectProgress:
     milestone_stmt = (
-        select(Milestone)
-        .where(Milestone.project_id == project_id)
-        .order_by(Milestone.key)
+        select(Milestone).where(Milestone.project_id == project_id).order_by(Milestone.key)
     )
     milestones = list(db.scalars(milestone_stmt))
     criteria_total = 0
