@@ -31,6 +31,31 @@ def test_production_actor_uses_verified_google_identity(monkeypatch):
     assert context.authenticated is True
 
 
+def test_google_verifier_receives_pinned_audience(monkeypatch):
+    captured: dict[str, str] = {}
+
+    def fake_verify(token, request, audience):
+        captured["token"] = token
+        captured["audience"] = audience
+        return {
+            "iss": "https://accounts.google.com",
+            "email": "pmo@example.com",
+            "email_verified": True,
+            "sub": "123",
+        }
+
+    monkeypatch.setattr(settings, "verified_identity_audience", "holding-control-plane")
+    monkeypatch.setattr(actor.id_token, "verify_oauth2_token", fake_verify)
+
+    claims = actor._verified_claims("signed-token")
+
+    assert claims["sub"] == "123"
+    assert captured == {
+        "token": "signed-token",
+        "audience": "holding-control-plane",
+    }
+
+
 def test_production_actor_rejects_missing_token(monkeypatch):
     monkeypatch.setattr(settings, "environment", "production")
     monkeypatch.setattr(settings, "require_verified_identity", True)
