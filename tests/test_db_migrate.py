@@ -44,6 +44,17 @@ def test_migration_runner_reports_sql_failure(monkeypatch):
     assert db_migrate.run_migrations() == MigrationExitCode.migration_sql_error
 
 
+def test_migration_runner_reports_alembic_config_failure(monkeypatch):
+    monkeypatch.setattr(db_migrate, "_preflight_public_schema", lambda: True)
+
+    def fail_upgrade(config, revision):
+        raise ValueError("invalid interpolation syntax")
+
+    monkeypatch.setattr(command, "upgrade", fail_upgrade)
+
+    assert db_migrate.run_migrations() == MigrationExitCode.alembic_configuration_error
+
+
 def test_connectivity_probe_uses_connectivity_preflight(monkeypatch):
     monkeypatch.setattr(db_migrate, "_preflight_connectivity", lambda: True)
 
