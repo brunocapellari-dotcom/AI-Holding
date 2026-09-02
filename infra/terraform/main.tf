@@ -15,10 +15,25 @@ terraform {
   backend "gcs" {}
 }
 
-variable "project_id" { type = string }
-variable "region" { type = string, default = "southamerica-east1" }
-variable "service_name" { type = string, default = "holding-control-plane" }
-variable "deploy_service" { type = bool, default = false }
+variable "project_id" {
+  type = string
+}
+
+variable "region" {
+  type    = string
+  default = "southamerica-east1"
+}
+
+variable "service_name" {
+  type    = string
+  default = "holding-control-plane"
+}
+
+variable "deploy_service" {
+  type    = bool
+  default = false
+}
+
 variable "image_ref" {
   type        = string
   default     = ""
@@ -116,6 +131,7 @@ resource "google_sql_database_instance" "postgres" {
       point_in_time_recovery_enabled = true
       start_time                     = "03:00"
       transaction_log_retention_days = 7
+
       backup_retention_settings {
         retained_backups = 14
         retention_unit   = "COUNT"
@@ -142,7 +158,9 @@ resource "google_sql_database_instance" "postgres" {
     }
   }
 
-  lifecycle { prevent_destroy = true }
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "google_sql_database" "holding" {
@@ -164,7 +182,11 @@ resource "google_sql_user" "holding" {
 
 resource "google_secret_manager_secret" "database_url" {
   secret_id = "holding-control-plane-database-url"
-  replication { auto {} }
+
+  replication {
+    auto {}
+  }
+
   depends_on = [google_project_service.required]
 }
 
@@ -194,6 +216,7 @@ resource "google_cloud_run_v2_service" "api" {
 
   lifecycle {
     prevent_destroy = true
+
     precondition {
       condition     = !var.deploy_service || startswith(var.image_ref, "${var.region}-docker.pkg.dev/${var.project_id}/")
       error_message = "image_ref must be an immutable Artifact Registry reference in the production project when deploy_service=true."
@@ -220,12 +243,23 @@ resource "google_cloud_run_v2_service" "api" {
       image = var.image_ref
 
       resources {
-        limits   = { cpu = "1", memory = "1Gi" }
+        limits = {
+          cpu    = "1"
+          memory = "1Gi"
+        }
         cpu_idle = true
       }
 
-      env { name = "ENVIRONMENT", value = "production" }
-      env { name = "REQUIRE_ACTOR_HEADER", value = "true" }
+      env {
+        name  = "ENVIRONMENT"
+        value = "production"
+      }
+
+      env {
+        name  = "REQUIRE_ACTOR_HEADER"
+        value = "true"
+      }
+
       env {
         name = "DATABASE_URL"
         value_source {
@@ -240,14 +274,22 @@ resource "google_cloud_run_v2_service" "api" {
         failure_threshold = 12
         period_seconds    = 5
         timeout_seconds   = 3
-        http_get { path = "/healthz", port = 8080 }
+
+        http_get {
+          path = "/healthz"
+          port = 8080
+        }
       }
 
       liveness_probe {
         failure_threshold = 3
         period_seconds    = 30
         timeout_seconds   = 3
-        http_get { path = "/healthz", port = 8080 }
+
+        http_get {
+          path = "/healthz"
+          port = 8080
+        }
       }
     }
   }
@@ -267,6 +309,7 @@ resource "google_cloud_run_v2_job" "migrate" {
 
   lifecycle {
     prevent_destroy = true
+
     precondition {
       condition     = !var.deploy_service || startswith(var.image_ref, "${var.region}-docker.pkg.dev/${var.project_id}/")
       error_message = "image_ref must be an immutable Artifact Registry reference in the production project when deploy_service=true."
@@ -292,7 +335,11 @@ resource "google_cloud_run_v2_job" "migrate" {
         command = ["alembic"]
         args    = ["upgrade", "head"]
 
-        env { name = "ENVIRONMENT", value = "production" }
+        env {
+          name  = "ENVIRONMENT"
+          value = "production"
+        }
+
         env {
           name = "DATABASE_URL"
           value_source {
@@ -310,8 +357,15 @@ resource "google_cloud_run_v2_job" "migrate" {
 output "control_plane_url" {
   value = var.deploy_service ? google_cloud_run_v2_service.api[0].uri : null
 }
+
 output "migration_job" {
   value = var.deploy_service ? google_cloud_run_v2_job.migrate[0].name : null
 }
-output "artifact_repository" { value = google_artifact_registry_repository.holding.name }
-output "cloud_sql_instance" { value = google_sql_database_instance.postgres.connection_name }
+
+output "artifact_repository" {
+  value = google_artifact_registry_repository.holding.name
+}
+
+output "cloud_sql_instance" {
+  value = google_sql_database_instance.postgres.connection_name
+}
