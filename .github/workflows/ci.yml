@@ -146,6 +146,17 @@ jobs:
             terraform -chdir=infra/terraform apply -auto-approve foundation.tfplan
           fi
 
+      - name: Recover resources tainted by failed first bootstrap
+        run: |
+          for address in \
+            'google_cloud_run_v2_service.api[0]' \
+            'google_cloud_run_v2_job.migrate[0]'; do
+            state="$(terraform -chdir=infra/terraform state show "${address}" 2>/dev/null || true)"
+            if printf '%s\n' "${state}" | head -n 1 | grep -q '(tainted)'; then
+              terraform -chdir=infra/terraform untaint "${address}"
+            fi
+          done
+
       - name: Build immutable production image
         env:
           IMAGE_TAG: ${{ github.sha }}
@@ -167,6 +178,11 @@ jobs:
             -var="deploy_service=true" \
             -var="image_ref=${IMAGE_REF}" \
             -out=tfplan
+
+      - name: Reject destructive production plans
+        run: |
+          terraform -chdir=infra/terraform show -json tfplan \
+            | jq -e 'all(.resource_changes[]?; (.change.actions | index("delete") | not))'
 
       - name: Apply production deployment
         run: terraform -chdir=infra/terraform apply -auto-approve tfplan
