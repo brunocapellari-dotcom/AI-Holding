@@ -27,7 +27,7 @@ jobs:
           --health-retries=10
     env:
       ENVIRONMENT: test
-      REQUIRE_ACTOR_HEADER: "false"
+      REQUIRE_VERIFIED_IDENTITY: "false"
       DATABASE_URL: postgresql+psycopg://holding:holding@localhost:5432/holding_test
     steps:
       - uses: actions/checkout@v4
