@@ -12,12 +12,14 @@ from sqlalchemy import (
     DateTime,
     Enum,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
     UniqueConstraint,
     Uuid,
     func,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -244,6 +246,13 @@ class Run(Base, TimestampMixin):
     __table_args__ = (
         UniqueConstraint("external_run_id", name="uq_run_external_run_id"),
         CheckConstraint("attempt >= 1", name="attempt_positive"),
+        Index(
+            "uq_runs_one_active_per_task",
+            "task_id",
+            unique=True,
+            postgresql_where=text("status IN ('queued', 'running')"),
+            sqlite_where=text("status IN ('queued', 'running')"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
