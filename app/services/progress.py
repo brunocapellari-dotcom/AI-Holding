@@ -20,9 +20,7 @@ def project_progress(db: Session, project_id: UUID) -> ProjectProgress:
     for milestone in milestones:
         criteria = list(
             db.scalars(
-                select(AcceptanceCriterion).where(
-                    AcceptanceCriterion.milestone_id == milestone.id
-                )
+                select(AcceptanceCriterion).where(AcceptanceCriterion.milestone_id == milestone.id)
             )
         )
         milestone_weight_total += milestone.weight
