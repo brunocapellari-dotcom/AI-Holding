@@ -19,8 +19,10 @@ class ProjectCreate(BaseModel):
     name: str = Field(min_length=2, max_length=200)
     priority: int = Field(default=3, ge=0, le=5)
     autonomy_level: int = Field(default=3, ge=0, le=6)
+    parent_project_id: UUID | None = None
     owner_agent_id: UUID | None = None
     repository: str | None = Field(default=None, max_length=240)
+    repository_path: str | None = Field(default=None, max_length=240)
     business_unit: str | None = Field(default=None, max_length=120)
     strategic_goal: str = Field(min_length=5)
     metadata_json: dict[str, object] = Field(default_factory=dict)
