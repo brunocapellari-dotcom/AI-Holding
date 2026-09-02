@@ -197,25 +197,51 @@ jobs:
           migration_status=$?
           set -e
 
-          if [ "${migration_status}" -ne 0 ]; then
-            execution="$(gcloud run jobs executions list \
-              --job="${SERVICE_NAME}-migrate" \
+          if [ "${migration_status}" -eq 0 ]; then
+            exit 0
+          fi
+
+          execution="$(gcloud run jobs executions list \
+            --job="${SERVICE_NAME}-migrate" \
+            --project="${PROJECT_ID}" \
+            --region="${REGION}" \
+            --sort-by='~metadata.creationTimestamp' \
+            --limit=1 \
+            --format='value(metadata.name)')"
+
+          if [ -n "${execution}" ]; then
+            gcloud run jobs executions describe "${execution}" \
               --project="${PROJECT_ID}" \
               --region="${REGION}" \
-              --sort-by='~metadata.creationTimestamp' \
-              --limit=1 \
-              --format='value(metadata.name)')"
-
-            if [ -n "${execution}" ]; then
-              gcloud run jobs executions describe "${execution}" \
-                --project="${PROJECT_ID}" \
-                --region="${REGION}" \
-                --format='yaml(status.conditions,status.failedCount,status.succeededCount)' \
-                || true
-            fi
-
-            exit "${migration_status}"
+              --format='yaml(status.conditions,status.failedCount,status.succeededCount)' \
+              || true
           fi
+
+          run_probe() {
+            probe="$1"
+            set +e
+            gcloud run jobs execute "${SERVICE_NAME}-migrate" \
+              --project="${PROJECT_ID}" \
+              --region="${REGION}" \
+              --args=-m,app.db_migrate,"${probe}" \
+              --wait >/dev/null 2>&1
+            probe_status=$?
+            set -e
+            return "${probe_status}"
+          }
+
+          if ! run_probe probe-connect; then
+            echo "::error title=Production database connectivity::Migration runtime cannot connect/authenticate to the private production database."
+            exit 21
+          fi
+
+          if ! run_probe probe-schema-create; then
+            echo "::error title=Production database DDL permission::Database connectivity is healthy but the migration identity cannot CREATE in schema public."
+            exit 20
+          fi
+
+          echo "::error title=Production migration SQL::Database connectivity and schema CREATE checks passed; Alembic migration still failed."
+          exit 24
 
       - name: Verify deployed service state
         run: |
