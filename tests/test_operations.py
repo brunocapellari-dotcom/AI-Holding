@@ -84,7 +84,10 @@ def test_agent_registry_lifecycle_and_duplicate_capabilities(client):
     )
     assert restored.status_code == 200
     assert len(client.get("/api/v1/agents").json()) == 1
-    assert client.post(f"/api/v1/agents/{uuid4()}/transition", json={"status": "active"}).status_code == 404
+    missing_agent = client.post(
+        f"/api/v1/agents/{uuid4()}/transition", json={"status": "active"}
+    )
+    assert missing_agent.status_code == 404
 
 
 def test_run_lifecycle_is_idempotent_and_blocks_parallel_execution(client):
@@ -185,7 +188,10 @@ def test_run_validation_rejects_bad_task_agent_and_failure_payload(client):
         f"/api/v1/runs/{run['id']}/transition",
         json={"status": "running", "error": "not valid here"},
     ).status_code == 422
-    assert client.post(f"/api/v1/runs/{uuid4()}/transition", json={"status": "running"}).status_code == 404
+    missing_run = client.post(
+        f"/api/v1/runs/{uuid4()}/transition", json={"status": "running"}
+    )
+    assert missing_run.status_code == 404
 
 
 def test_incident_lifecycle_requires_resolution_evidence(client):
