@@ -36,12 +36,7 @@ def list_projects(
 ) -> list[Project]:
     limit = min(max(limit, 1), 500)
     offset = max(offset, 0)
-    statement = (
-        select(Project)
-        .order_by(Project.priority, Project.name)
-        .limit(limit)
-        .offset(offset)
-    )
+    statement = select(Project).order_by(Project.priority, Project.name).limit(limit).offset(offset)
     return list(db.scalars(statement))
 
 
