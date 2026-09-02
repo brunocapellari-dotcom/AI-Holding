@@ -208,6 +208,7 @@ resource "google_cloud_run_v2_service" "api" {
   location            = var.region
   deletion_protection = true
   ingress             = "INGRESS_TRAFFIC_ALL"
+  custom_audiences    = ["holding-control-plane"]
 
   depends_on = [
     google_project_service.required,
@@ -259,6 +260,11 @@ resource "google_cloud_run_v2_service" "api" {
       env {
         name  = "REQUIRE_VERIFIED_IDENTITY"
         value = "true"
+      }
+
+      env {
+        name  = "VERIFIED_IDENTITY_AUDIENCE"
+        value = "holding-control-plane"
       }
 
       env {
