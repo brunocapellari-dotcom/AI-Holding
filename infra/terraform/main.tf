@@ -257,7 +257,7 @@ resource "google_cloud_run_v2_service" "api" {
       }
 
       env {
-        name  = "REQUIRE_ACTOR_HEADER"
+        name  = "REQUIRE_VERIFIED_IDENTITY"
         value = "true"
       }
 
