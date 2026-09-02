@@ -28,9 +28,7 @@ def executive_summary(db: DbSession) -> ExecutiveSummary:
         return int(db.scalar(stmt) or 0)
 
     active_project_stmt = (
-        select(Project)
-        .where(Project.status == ProjectStatus.active)
-        .order_by(Project.key)
+        select(Project).where(Project.status == ProjectStatus.active).order_by(Project.key)
     )
     active_projects = list(db.scalars(active_project_stmt))
     progresses = [project_progress(db, project.id).progress_pct for project in active_projects]
