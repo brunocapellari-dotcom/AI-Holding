@@ -108,8 +108,8 @@ class Agent(Base, TimestampMixin):
     role: Mapped[str] = mapped_column(String(160))
     status: Mapped[AgentStatus] = mapped_column(Enum(AgentStatus), default=AgentStatus.active)
     max_autonomy: Mapped[int] = mapped_column(Integer, default=3)
-    model_policy: Mapped[dict] = mapped_column(JSON, default=dict)
-    capabilities: Mapped[list] = mapped_column(JSON, default=list)
+    model_policy: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
+    capabilities: Mapped[list[object]] = mapped_column(JSON, default=list)
 
 
 class Project(Base, TimestampMixin):
@@ -131,7 +131,7 @@ class Project(Base, TimestampMixin):
     repository: Mapped[str | None] = mapped_column(String(240), nullable=True)
     business_unit: Mapped[str | None] = mapped_column(String(120), nullable=True)
     strategic_goal: Mapped[str] = mapped_column(Text)
-    metadata_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    metadata_json: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
 
     milestones: Mapped[list[Milestone]] = relationship(
@@ -183,7 +183,7 @@ class AcceptanceCriterion(Base, TimestampMixin):
         Enum(CriterionStatus), default=CriterionStatus.pending
     )
     verifier: Mapped[str | None] = mapped_column(String(160), nullable=True)
-    evidence: Mapped[list] = mapped_column(JSON, default=list)
+    evidence: Mapped[list[object]] = mapped_column(JSON, default=list)
     verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     milestone: Mapped[Milestone] = relationship(back_populates="criteria")
@@ -215,7 +215,7 @@ class Task(Base, TimestampMixin):
     blocked_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     idempotency_key: Mapped[str] = mapped_column(String(160))
-    metadata_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    metadata_json: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
 
 
 class TaskDependency(Base):
@@ -250,8 +250,8 @@ class Run(Base, TimestampMixin):
     status: Mapped[RunStatus] = mapped_column(Enum(RunStatus), default=RunStatus.queued)
     attempt: Mapped[int] = mapped_column(Integer, default=1)
     external_run_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
-    input_metadata: Mapped[dict] = mapped_column(JSON, default=dict)
-    output_metadata: Mapped[dict] = mapped_column(JSON, default=dict)
+    input_metadata: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
+    output_metadata: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -274,8 +274,8 @@ class Decision(Base, TimestampMixin):
         Enum(DecisionStatus), default=DecisionStatus.pending
     )
     requires_human: Mapped[bool] = mapped_column(Boolean, default=True)
-    options: Mapped[list] = mapped_column(JSON, default=list)
-    resolution: Mapped[dict] = mapped_column(JSON, default=dict)
+    options: Mapped[list[object]] = mapped_column(JSON, default=list)
+    resolution: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
     due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
@@ -307,9 +307,9 @@ class Incident(Base, TimestampMixin):
         Enum(IncidentStatus), default=IncidentStatus.open
     )
     source: Mapped[str] = mapped_column(String(120))
-    details: Mapped[dict] = mapped_column(JSON, default=dict)
+    details: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
     root_cause: Mapped[str | None] = mapped_column(Text, nullable=True)
-    resolution: Mapped[dict] = mapped_column(JSON, default=dict)
+    resolution: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
@@ -323,7 +323,7 @@ class AuditEvent(Base):
     action: Mapped[str] = mapped_column(String(160), index=True)
     entity_type: Mapped[str] = mapped_column(String(80), index=True)
     entity_id: Mapped[str] = mapped_column(String(80), index=True)
-    payload: Mapped[dict] = mapped_column(JSON, default=dict)
+    payload: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
     )
