@@ -1,0 +1,70 @@
+import pytest
+from fastapi import HTTPException
+
+from app.core import actor
+from app.core.actor import VerifiedGoogleIdentity
+from app.core.config import settings
+
+
+def test_production_actor_uses_verified_google_identity(monkeypatch):
+    monkeypatch.setattr(settings, "environment", "production")
+    monkeypatch.setattr(settings, "require_verified_identity", True)
+    monkeypatch.setattr(
+        actor,
+        "_verify_google_identity",
+        lambda token: VerifiedGoogleIdentity(
+            email="pmo@holding.example.gserviceaccount.com",
+            subject="123456789",
+            issuer="https://accounts.google.com",
+        ),
+    )
+
+    context = actor.get_actor(
+        authorization="Bearer signed-google-token",
+        x_actor="forged-user",
+        x_actor_type="human",
+    )
+
+    assert context.name == "pmo@holding.example.gserviceaccount.com"
+    assert context.actor_type == "service-account"
+    assert context.subject == "123456789"
+    assert context.authenticated is True
+
+
+def test_production_actor_rejects_missing_token(monkeypatch):
+    monkeypatch.setattr(settings, "environment", "production")
+    monkeypatch.setattr(settings, "require_verified_identity", True)
+
+    with pytest.raises(HTTPException) as exc_info:
+        actor.get_actor(authorization=None, x_actor="forged-user", x_actor_type="agent")
+
+    assert exc_info.value.status_code == 401
+
+
+def test_production_actor_rejects_non_bearer_token(monkeypatch):
+    monkeypatch.setattr(settings, "environment", "production")
+    monkeypatch.setattr(settings, "require_verified_identity", True)
+
+    with pytest.raises(HTTPException) as exc_info:
+        actor.get_actor(authorization="Basic abc", x_actor=None, x_actor_type=None)
+
+    assert exc_info.value.status_code == 401
+
+
+def test_local_actor_headers_are_only_advisory_outside_production(monkeypatch):
+    monkeypatch.setattr(settings, "environment", "test")
+    monkeypatch.setattr(settings, "require_verified_identity", True)
+
+    context = actor.get_actor(
+        authorization=None,
+        x_actor="test-agent",
+        x_actor_type="agent",
+    )
+
+    assert context.name == "test-agent"
+    assert context.actor_type == "agent"
+    assert context.authenticated is False
+
+
+def test_actor_type_detects_human_identity():
+    assert actor._actor_type_for_email("user@example.com") == "human"
