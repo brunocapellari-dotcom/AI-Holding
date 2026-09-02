@@ -2,25 +2,90 @@ from dataclasses import dataclass
 from typing import Annotated
 
 from fastapi import Header, HTTPException
+from google.auth.exceptions import GoogleAuthError
+from google.auth.transport.requests import Request
+from google.oauth2 import id_token
 
 from app.core.config import settings
+
+TRUSTED_GOOGLE_ISSUERS = {"accounts.google.com", "https://accounts.google.com"}
 
 
 @dataclass(frozen=True)
 class ActorContext:
     name: str
     actor_type: str
+    subject: str | None = None
+    authenticated: bool = False
+
+
+@dataclass(frozen=True)
+class VerifiedGoogleIdentity:
+    email: str
+    subject: str
+    issuer: str
+
+
+def _unauthorized(detail: str) -> HTTPException:
+    return HTTPException(status_code=401, detail=detail)
+
+
+def _verify_google_identity(token: str) -> VerifiedGoogleIdentity:
+    try:
+        claims = id_token.verify_oauth2_token(token, Request())
+    except (GoogleAuthError, ValueError) as exc:
+        raise _unauthorized("invalid Google identity token") from exc
+
+    issuer = claims.get("iss")
+    email = claims.get("email")
+    subject = claims.get("sub")
+    email_verified = claims.get("email_verified")
+
+    if not isinstance(issuer, str) or issuer not in TRUSTED_GOOGLE_ISSUERS:
+        raise _unauthorized("untrusted identity token issuer")
+    if not isinstance(email, str) or not email:
+        raise _unauthorized("identity token does not contain an email")
+    if email_verified is not True:
+        raise _unauthorized("identity token email is not verified")
+    if not isinstance(subject, str) or not subject:
+        raise _unauthorized("identity token does not contain a subject")
+
+    return VerifiedGoogleIdentity(email=email, subject=subject, issuer=issuer)
+
+
+def _actor_type_for_email(email: str) -> str:
+    if email.endswith(".gserviceaccount.com"):
+        return "service-account"
+    return "human"
+
+
+def _local_actor(x_actor: str | None, x_actor_type: str | None) -> ActorContext:
+    return ActorContext(
+        name=x_actor or "local-user",
+        actor_type=x_actor_type or "human",
+        authenticated=False,
+    )
 
 
 def get_actor(
+    authorization: Annotated[str | None, Header(alias="Authorization")] = None,
     x_actor: Annotated[str | None, Header(alias="X-Actor")] = None,
     x_actor_type: Annotated[str | None, Header(alias="X-Actor-Type")] = None,
 ) -> ActorContext:
-    if not x_actor:
-        if settings.require_actor_header and settings.environment not in {
-            "development",
-            "test",
-        }:
-            raise HTTPException(status_code=401, detail="X-Actor header is required")
-        x_actor = "local-user"
-    return ActorContext(name=x_actor, actor_type=x_actor_type or "human")
+    if settings.environment in {"development", "test"} or not settings.require_verified_identity:
+        return _local_actor(x_actor, x_actor_type)
+
+    if not authorization:
+        raise _unauthorized("Google identity token is required")
+
+    scheme, separator, token = authorization.partition(" ")
+    if separator != " " or scheme.lower() != "bearer" or not token.strip():
+        raise _unauthorized("Authorization must use Bearer authentication")
+
+    identity = _verify_google_identity(token.strip())
+    return ActorContext(
+        name=identity.email,
+        actor_type=_actor_type_for_email(identity.email),
+        subject=identity.subject,
+        authenticated=True,
+    )
