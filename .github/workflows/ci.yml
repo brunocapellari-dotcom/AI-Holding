@@ -125,16 +125,25 @@ jobs:
             -backend-config="bucket=${TF_STATE_BUCKET}" \
             -backend-config="prefix=control-plane/prod"
 
-      - name: Complete production foundation when database is absent
+      - name: Complete missing database foundation without touching runtime
         run: |
           if terraform -chdir=infra/terraform state show \
             google_sql_database_instance.postgres >/dev/null 2>&1; then
             echo "Database foundation exists; preserving deployed runtime."
           else
-            terraform -chdir=infra/terraform apply \
+            terraform -chdir=infra/terraform plan \
               -var-file=prod.tfvars \
               -var="deploy_service=false" \
-              -auto-approve
+              -target=google_sql_database_instance.postgres \
+              -target=google_sql_database.holding \
+              -target=google_sql_user.holding \
+              -target=google_secret_manager_secret_version.database_url \
+              -out=foundation.tfplan
+
+            terraform -chdir=infra/terraform show -json foundation.tfplan \
+              | jq -e 'all(.resource_changes[]?; (.change.actions | index("delete") | not))'
+
+            terraform -chdir=infra/terraform apply -auto-approve foundation.tfplan
           fi
 
       - name: Build immutable production image
