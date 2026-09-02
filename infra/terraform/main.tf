@@ -122,6 +122,7 @@ resource "google_sql_database_instance" "postgres" {
 
   settings {
     tier              = "db-custom-1-3840"
+    edition           = "ENTERPRISE"
     availability_type = "REGIONAL"
     disk_type         = "PD_SSD"
     disk_autoresize   = true
