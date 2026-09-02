@@ -1,7 +1,7 @@
 import os
 
 os.environ["ENVIRONMENT"] = "test"
-os.environ["REQUIRE_ACTOR_HEADER"] = "false"
+os.environ["REQUIRE_VERIFIED_IDENTITY"] = "false"
 os.environ["DATABASE_URL"] = "sqlite+pysqlite:///:memory:"
 
 import pytest
