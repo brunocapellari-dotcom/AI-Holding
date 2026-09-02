@@ -10,7 +10,7 @@ from google.oauth2 import id_token
 from app.core.config import settings
 
 TRUSTED_GOOGLE_ISSUERS = {"accounts.google.com", "https://accounts.google.com"}
-VerifyGoogleToken = Callable[[str, Request], Mapping[str, object]]
+VerifyGoogleToken = Callable[[str, Request, str], Mapping[str, object]]
 
 
 @dataclass(frozen=True)
@@ -34,7 +34,7 @@ def _unauthorized(detail: str) -> HTTPException:
 
 def _verified_claims(token: str) -> Mapping[str, object]:
     verifier = cast(VerifyGoogleToken, id_token.verify_oauth2_token)
-    return verifier(token, Request())
+    return verifier(token, Request(), settings.verified_identity_audience)
 
 
 def _verify_google_identity(token: str) -> VerifiedGoogleIdentity:
