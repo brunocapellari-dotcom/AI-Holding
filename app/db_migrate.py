@@ -28,7 +28,7 @@ class ProbeMode(StrEnum):
 
 def _preflight_connectivity() -> bool:
     with engine.connect() as connection:
-        return connection.scalar(text("SELECT 1")) == 1
+        return bool(connection.scalar(text("SELECT 1")) == 1)
 
 
 def _preflight_public_schema() -> bool:
