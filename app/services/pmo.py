@@ -43,7 +43,9 @@ def claim_next_task(
         )
     )
     active_run = exists(
-        select(1).select_from(Run).where(
+        select(1)
+        .select_from(Run)
+        .where(
             Run.task_id == Task.id,
             Run.status.in_(ACTIVE_RUN_STATUSES),
         )
