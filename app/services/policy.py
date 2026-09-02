@@ -73,7 +73,10 @@ def evaluate_policy(
             tuple(reasons + ["sensitive data cannot be exposed to an external party"]),
         )
 
-    if request.action_type == ActionType.deploy_production and project.status != ProjectStatus.active:
+    if (
+        request.action_type == ActionType.deploy_production
+        and project.status != ProjectStatus.active
+    ):
         return PolicyDecision(
             PolicyOutcome.deny,
             required,
