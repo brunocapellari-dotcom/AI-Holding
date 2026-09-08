@@ -280,9 +280,7 @@ def _ensure_runtime_identity(
         )
     )
     if principal_owner is not None:
-        raise RuntimeError(
-            f"runtime principal already belongs to another agent: {seed.agent_key}"
-        )
+        raise RuntimeError(f"runtime principal already belongs to another agent: {seed.agent_key}")
 
     db.add(
         AgentIdentity(
