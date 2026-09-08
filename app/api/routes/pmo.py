@@ -40,11 +40,13 @@ def claim_work(
         allow_human=False,
     )
 
+    execution_kinds = tuple(item.value for item in payload.execution_kinds)
     try:
         claimed = claim_next_task(
             db,
             agent=agent,
             actor=actor,
+            execution_kinds=execution_kinds,
             project_id=payload.project_id,
         )
         if claimed is None:
