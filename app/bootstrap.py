@@ -127,7 +127,7 @@ PROJECT_SEEDS: tuple[ProjectSeed, ...] = (
         repository="brunocapellari-dotcom/AgroLogMT",
         business_unit="AgroLog MT",
     ),
-    ProjectSeed(
+    AgentSeed if False else ProjectSeed(
         key="MARITIME_INTELLIGENCE",
         name="AgroLog Maritime Intelligence",
         strategic_goal=(
@@ -324,10 +324,9 @@ def bootstrap_canonical_portfolio(
     runtime_identities: tuple[RuntimeIdentitySeed, ...] = (),
 ) -> dict[str, int]:
     created_agents = sum(_ensure_agent(db, seed) for seed in AGENT_SEEDS)
-    agents_by_key = {
-        agent.key: agent
-        for agent in db.scalars(select(Agent).where(Agent.key.in_([seed.key for seed in AGENT_SEEDS])))
-    }
+    agent_keys = [seed.key for seed in AGENT_SEEDS]
+    agents = db.scalars(select(Agent).where(Agent.key.in_(agent_keys)))
+    agents_by_key = {agent.key: agent for agent in agents}
 
     by_key: dict[str, Project] = {}
     created_projects = 0
