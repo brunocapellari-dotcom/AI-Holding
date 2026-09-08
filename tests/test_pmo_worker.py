@@ -125,9 +125,7 @@ def test_worker_failure_marks_run_and_task_and_creates_incident():
     assert "503 Service Unavailable" in task_transitions[0]["blocked_reason"]
 
     incidents = [
-        body
-        for method, path, body in requests
-        if method == "POST" and path == "/api/v1/incidents"
+        body for method, path, body in requests if method == "POST" and path == "/api/v1/incidents"
     ]
     assert len(incidents) == 1
     assert incidents[0]["project_id"] == PROJECT_ID
