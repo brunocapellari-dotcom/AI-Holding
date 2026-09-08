@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.actor import ActorContext, get_actor
+from app.core.authorization import authorize_mutation
 from app.db.session import get_db
 from app.models.entities import AcceptanceCriterion, Agent, CriterionStatus, Milestone, Project
 from app.schemas.api import (
@@ -38,6 +39,8 @@ def list_projects(db: DbSession, limit: int = 100, offset: int = 0) -> list[Proj
 
 @router.post("", response_model=ProjectOut, status_code=status.HTTP_201_CREATED)
 def create_project(payload: ProjectCreate, db: DbSession, actor: Actor) -> Project:
+    authorize_mutation(db, actor)
+
     if payload.parent_project_id and not db.get(Project, payload.parent_project_id):
         raise HTTPException(status_code=400, detail="parent project not found")
     if payload.owner_agent_id and not db.get(Agent, payload.owner_agent_id):
@@ -80,6 +83,8 @@ def create_milestone(
     db: DbSession,
     actor: Actor,
 ) -> Milestone:
+    authorize_mutation(db, actor)
+
     project = db.get(Project, project_id)
     if not project:
         raise HTTPException(status_code=404, detail="project not found")
@@ -115,6 +120,8 @@ def create_criterion(
     db: DbSession,
     actor: Actor,
 ) -> AcceptanceCriterion:
+    authorize_mutation(db, actor)
+
     milestone = db.get(Milestone, milestone_id)
     if not milestone or milestone.project_id != project_id:
         raise HTTPException(status_code=404, detail="milestone not found in project")
@@ -149,6 +156,8 @@ def verify_criterion(
     db: DbSession,
     actor: Actor,
 ) -> AcceptanceCriterion:
+    authorize_mutation(db, actor)
+
     milestone = db.get(Milestone, milestone_id)
     criterion = db.get(AcceptanceCriterion, criterion_id)
     if (
