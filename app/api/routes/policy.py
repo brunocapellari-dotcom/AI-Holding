@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.actor import ActorContext, get_actor
+from app.core.authorization import AgentPermission, authorize_mutation
 from app.db.session import get_db
 from app.models.entities import Agent, Decision, DecisionStatus, Project
 from app.schemas.policy import PolicyEvaluationOut, PolicyEvaluationRequest, PolicyOutcome
@@ -57,6 +58,13 @@ def evaluate_action(
     agent = db.get(Agent, payload.agent_id)
     if not agent:
         raise HTTPException(status_code=404, detail="agent not found")
+
+    authorize_mutation(
+        db,
+        actor,
+        permission=AgentPermission.evaluate_own_policy,
+        expected_agent_id=agent.id,
+    )
 
     result = evaluate_policy(project, agent, payload)
     reasons = list(result.reasons)

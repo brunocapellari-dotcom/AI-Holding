@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.actor import ActorContext, get_actor
+from app.core.authorization import AgentPermission, authorize_mutation
 from app.db.session import get_db
 from app.models.entities import Agent, AgentStatus, Run, RunStatus, Task, WorkStatus
 from app.schemas.operations import RunCreate, RunOut, RunTransition
@@ -46,6 +47,8 @@ def list_runs(
 
 @router.post("", response_model=RunOut, status_code=status.HTTP_201_CREATED)
 def create_run(payload: RunCreate, db: DbSession, actor: Actor) -> Run:
+    authorize_mutation(db, actor)
+
     task = db.get(Task, payload.task_id)
     if not task:
         raise HTTPException(status_code=404, detail="task not found")
@@ -105,9 +108,17 @@ def transition_run(
     db: DbSession,
     actor: Actor,
 ) -> Run:
+    bound_agent = authorize_mutation(
+        db,
+        actor,
+        permission=AgentPermission.transition_own_run,
+    )
+
     run = db.get(Run, run_id)
     if not run:
         raise HTTPException(status_code=404, detail="run not found")
+    if bound_agent is not None and run.agent_id != bound_agent.id:
+        raise HTTPException(status_code=403, detail="agent can only transition its own run")
     if payload.status not in ALLOWED_TRANSITIONS[run.status]:
         raise HTTPException(
             status_code=409,

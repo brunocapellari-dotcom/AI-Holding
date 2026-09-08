@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.actor import ActorContext, get_actor
+from app.core.authorization import authorize_mutation
 from app.db.session import get_db
 from app.models.entities import Agent, AgentStatus
 from app.schemas.operations import AgentCreate, AgentOut, AgentTransition
@@ -33,6 +34,8 @@ def list_agents(db: DbSession, limit: int = 100, offset: int = 0) -> list[Agent]
 
 @router.post("", response_model=AgentOut, status_code=status.HTTP_201_CREATED)
 def create_agent(payload: AgentCreate, db: DbSession, actor: Actor) -> Agent:
+    authorize_mutation(db, actor)
+
     capabilities = list(dict.fromkeys(payload.capabilities))
     agent = Agent(
         key=payload.key,
@@ -69,6 +72,8 @@ def transition_agent(
     db: DbSession,
     actor: Actor,
 ) -> Agent:
+    authorize_mutation(db, actor)
+
     agent = db.get(Agent, agent_id)
     if not agent:
         raise HTTPException(status_code=404, detail="agent not found")

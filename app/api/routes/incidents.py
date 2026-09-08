@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.actor import ActorContext, get_actor
+from app.core.authorization import AgentPermission, authorize_mutation
 from app.db.session import get_db
 from app.models.entities import Incident, IncidentStatus, Project
 from app.schemas.operations import IncidentCreate, IncidentOut, IncidentTransition
@@ -46,6 +47,12 @@ def list_incidents(
 
 @router.post("", response_model=IncidentOut, status_code=status.HTTP_201_CREATED)
 def create_incident(payload: IncidentCreate, db: DbSession, actor: Actor) -> Incident:
+    authorize_mutation(
+        db,
+        actor,
+        permission=AgentPermission.create_incident,
+    )
+
     if payload.project_id and not db.get(Project, payload.project_id):
         raise HTTPException(status_code=400, detail="project not found")
 
@@ -72,6 +79,8 @@ def transition_incident(
     db: DbSession,
     actor: Actor,
 ) -> Incident:
+    authorize_mutation(db, actor)
+
     incident = db.get(Incident, incident_id)
     if not incident:
         raise HTTPException(status_code=404, detail="incident not found")
