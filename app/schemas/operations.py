@@ -4,7 +4,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.models.entities import AgentStatus, IncidentStatus, RunStatus, Severity
-from app.schemas.api import KEY_PATTERN, TaskOut
+from app.schemas.api import ExecutionKind, KEY_PATTERN, TaskOut
 
 
 class AgentCreate(BaseModel):
@@ -71,6 +71,7 @@ class RunTransition(BaseModel):
 class TaskClaimRequest(BaseModel):
     agent_id: UUID
     project_id: UUID | None = None
+    execution_kinds: list[ExecutionKind] = Field(min_length=1, max_length=10)
 
 
 class TaskClaimOut(BaseModel):
