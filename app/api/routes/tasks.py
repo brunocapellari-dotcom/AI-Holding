@@ -116,7 +116,10 @@ def transition_task(
         raise HTTPException(status_code=404, detail="task not found")
     if bound_agent is not None:
         if task.assigned_agent_id != bound_agent.id:
-            raise HTTPException(status_code=403, detail="agent can only transition its assigned task")
+            raise HTTPException(
+                status_code=403,
+                detail="agent can only transition its assigned task",
+            )
         if task.status != WorkStatus.running or payload.status not in SERVICE_AGENT_TRANSITIONS:
             raise HTTPException(
                 status_code=403,
