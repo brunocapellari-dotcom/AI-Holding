@@ -4,7 +4,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.models.entities import AgentStatus, IncidentStatus, RunStatus, Severity
-from app.schemas.api import ExecutionKind, KEY_PATTERN, TaskOut
+from app.schemas.api import KEY_PATTERN, ExecutionKind, TaskOut
 
 
 class AgentCreate(BaseModel):
