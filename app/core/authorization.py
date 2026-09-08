@@ -75,13 +75,14 @@ def authorize_mutation(
     *,
     permission: AgentPermission | None = None,
     expected_agent_id: UUID | None = None,
+    allow_human: bool = True,
 ) -> Agent | None:
-    """Authorize a write operation and return the bound agent for service identities.
+    """Authorize a write operation and return the bound service agent when applicable.
 
     Development and test environments preserve local ergonomics. In production,
-    authenticated humans are governed by the Cloud Run IAM invoker boundary.
-    Service accounts are denied by default and require both a canonical binding
-    and an explicit permission in this code-owned policy.
+    authenticated humans are governed by the Cloud Run IAM invoker boundary when
+    the route explicitly permits human operation. Service accounts are denied by
+    default and require a canonical binding plus an explicit code-owned permission.
     """
 
     if settings.environment in {"development", "test"}:
@@ -91,7 +92,9 @@ def authorize_mutation(
         raise _forbidden("authenticated identity is required")
 
     if actor.actor_type == "human":
-        return None
+        if allow_human:
+            return None
+        raise _forbidden("this mutation requires a canonical service agent")
 
     if actor.actor_type != "service-account":
         raise _forbidden("actor type is not authorized for mutations")
