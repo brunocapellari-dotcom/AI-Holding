@@ -18,6 +18,7 @@ class ActorContext:
     name: str
     actor_type: str
     subject: str | None = None
+    issuer: str | None = None
     authenticated: bool = False
 
 
@@ -97,5 +98,6 @@ def get_actor(
         name=identity.email,
         actor_type=_actor_type_for_email(identity.email),
         subject=identity.subject,
+        issuer=identity.issuer,
         authenticated=True,
     )
