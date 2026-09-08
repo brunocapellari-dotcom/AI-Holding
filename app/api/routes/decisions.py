@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.actor import ActorContext, get_actor
+from app.core.authorization import authorize_mutation
 from app.db.session import get_db
 from app.models.entities import Approval, Decision, DecisionStatus, Project
 from app.schemas.api import DecisionCreate, DecisionOut, DecisionResolve
@@ -36,6 +37,8 @@ def create_decision(
     db: DbSession,
     actor: Actor,
 ) -> Decision:
+    authorize_mutation(db, actor)
+
     if not db.get(Project, payload.project_id):
         raise HTTPException(status_code=404, detail="project not found")
     decision = Decision(**payload.model_dump())
@@ -65,6 +68,8 @@ def resolve_decision(
     db: DbSession,
     actor: Actor,
 ) -> Decision:
+    authorize_mutation(db, actor)
+
     decision = db.get(Decision, decision_id)
     if not decision:
         raise HTTPException(status_code=404, detail="decision not found")
