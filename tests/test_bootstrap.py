@@ -76,9 +76,7 @@ def test_runtime_identity_binding_is_idempotent_and_does_not_activate_agent(db_s
     assert pmo is not None
     assert pmo.status == AgentStatus.disabled
 
-    binding = db_session.scalar(
-        select(AgentIdentity).where(AgentIdentity.agent_id == pmo.id)
-    )
+    binding = db_session.scalar(select(AgentIdentity).where(AgentIdentity.agent_id == pmo.id))
     assert binding is not None
     assert binding.issuer == identity.issuer
     assert binding.subject == identity.subject
