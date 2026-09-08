@@ -205,6 +205,10 @@ class Task(Base, TimestampMixin):
         UniqueConstraint("project_id", "key", name="uq_task_project_key"),
         UniqueConstraint("idempotency_key", name="uq_task_idempotency_key"),
         CheckConstraint("priority BETWEEN 0 AND 5", name="priority_range"),
+        CheckConstraint(
+            "execution_kind IS NULL OR execution_kind IN ('control_plane_health')",
+            name="execution_kind_valid",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -222,6 +226,7 @@ class Task(Base, TimestampMixin):
     assigned_agent_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("agents.id", ondelete="SET NULL"), nullable=True, index=True
     )
+    execution_kind: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
     blocked_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     idempotency_key: Mapped[str] = mapped_column(String(160))
