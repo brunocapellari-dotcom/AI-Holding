@@ -3,7 +3,9 @@ from __future__ import annotations
 import json
 import os
 from collections.abc import Callable
+from contextlib import suppress
 from dataclasses import dataclass
+from types import TracebackType
 from typing import Any
 
 import httpx
@@ -30,7 +32,7 @@ class WorkerConfig:
     max_tasks: int = 1
 
     @classmethod
-    def from_env(cls) -> "WorkerConfig":
+    def from_env(cls) -> WorkerConfig:
         url = os.getenv("CONTROL_PLANE_URL", "").rstrip("/")
         if not url.startswith("https://"):
             raise RuntimeError("CONTROL_PLANE_URL must be an https URL")
@@ -77,12 +79,17 @@ class ControlPlaneClient:
             transport=transport,
         )
 
-    def __enter__(self) -> "ControlPlaneClient":
+    def __enter__(self) -> ControlPlaneClient:
         self._client.__enter__()
         return self
 
-    def __exit__(self, *args: object) -> None:
-        self._client.__exit__(*args)
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        self._client.__exit__(exc_type, exc_value, traceback)
 
     def _request(self, method: str, path: str, **kwargs: object) -> httpx.Response:
         response = self._client.request(method, path, **kwargs)
@@ -213,7 +220,7 @@ def process_claim(client: ControlPlaneClient, claim: dict[str, Any]) -> None:
         error = f"{type(exc).__name__}: {exc}"[:MAX_ERROR_LENGTH]
         client.transition_run(run_id, "failed", error=error)
         client.transition_task(task_id, "blocked", blocked_reason=error)
-        try:
+        with suppress(Exception):
             client.create_incident(
                 project_id=project_id,
                 title=f"PMO worker failed task {task.get('key', task_id)}",
@@ -224,8 +231,6 @@ def process_claim(client: ControlPlaneClient, claim: dict[str, Any]) -> None:
                     "error": error,
                 },
             )
-        except Exception:
-            pass
         raise
 
     client.transition_run(run_id, "succeeded", output_metadata=output)
