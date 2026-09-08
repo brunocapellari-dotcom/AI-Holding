@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.actor import ActorContext, get_actor
+from app.core.authorization import AgentPermission, authorize_mutation
 from app.db.session import get_db
 from app.models.entities import Milestone, Project, Task, TaskDependency, WorkStatus
 from app.schemas.api import TaskCreate, TaskOut, TaskTransition
@@ -25,6 +26,7 @@ ALLOWED_TRANSITIONS: dict[WorkStatus, set[WorkStatus]] = {
     WorkStatus.done: set(),
     WorkStatus.cancelled: set(),
 }
+SERVICE_AGENT_TRANSITIONS = {WorkStatus.review, WorkStatus.blocked}
 
 
 @router.get("", response_model=list[TaskOut])
@@ -45,6 +47,8 @@ def create_task(
     db: DbSession,
     actor: Actor,
 ) -> Task:
+    authorize_mutation(db, actor)
+
     project = db.get(Project, payload.project_id)
     if not project:
         raise HTTPException(status_code=404, detail="project not found")
@@ -101,9 +105,24 @@ def transition_task(
     db: DbSession,
     actor: Actor,
 ) -> Task:
+    bound_agent = authorize_mutation(
+        db,
+        actor,
+        permission=AgentPermission.transition_own_task,
+    )
+
     task = db.get(Task, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="task not found")
+    if bound_agent is not None:
+        if task.assigned_agent_id != bound_agent.id:
+            raise HTTPException(status_code=403, detail="agent can only transition its assigned task")
+        if task.status != WorkStatus.running or payload.status not in SERVICE_AGENT_TRANSITIONS:
+            raise HTTPException(
+                status_code=403,
+                detail="service agent may only move its running task to review or blocked",
+            )
+
     if payload.status not in ALLOWED_TRANSITIONS[task.status]:
         raise HTTPException(
             status_code=409,
