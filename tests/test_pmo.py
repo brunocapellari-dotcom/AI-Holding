@@ -1,5 +1,7 @@
 from uuid import uuid4
 
+EXECUTION_KINDS = ["control_plane_health"]
+
 
 def create_project(client, key: str, priority: int = 1):
     response = client.post(
@@ -38,6 +40,7 @@ def create_task(
     priority: int,
     depends_on: list[str] | None = None,
     assigned_agent_id: str | None = None,
+    execution_kind: str | None = "control_plane_health",
 ):
     response = client.post(
         "/api/v1/tasks",
@@ -47,6 +50,7 @@ def create_task(
             "title": f"Execute {key}",
             "priority": priority,
             "assigned_agent_id": assigned_agent_id,
+            "execution_kind": execution_kind,
             "depends_on": depends_on or [],
             "idempotency_key": f"pmo-{key.lower()}-0001",
         },
@@ -59,6 +63,16 @@ def create_task(
     )
     assert ready.status_code == 200, ready.text
     return ready.json()
+
+
+def claim_payload(agent_id: str, project_id: str | None = None) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "agent_id": agent_id,
+        "execution_kinds": EXECUTION_KINDS,
+    }
+    if project_id is not None:
+        payload["project_id"] = project_id
+    return payload
 
 
 def test_pmo_claim_selects_highest_priority_eligible_task_and_creates_run(client):
@@ -79,30 +93,50 @@ def test_pmo_claim_selects_highest_priority_eligible_task_and_creates_run(client
 
     claimed = client.post(
         "/api/v1/pmo/claim",
-        json={"agent_id": agent["id"]},
+        json=claim_payload(agent["id"]),
     )
     assert claimed.status_code == 200, claimed.text
     body = claimed.json()
     assert body["task"]["id"] == high["id"]
+    assert body["task"]["execution_kind"] == "control_plane_health"
     assert body["task"]["status"] == "running"
     assert body["task"]["assigned_agent_id"] == agent["id"]
     assert body["run"]["task_id"] == high["id"]
     assert body["run"]["agent_id"] == agent["id"]
     assert body["run"]["status"] == "queued"
     assert body["run"]["attempt"] == 1
+    assert body["run"]["input_metadata"]["execution_kind"] == "control_plane_health"
 
     second = client.post(
         "/api/v1/pmo/claim",
-        json={"agent_id": agent["id"]},
+        json=claim_payload(agent["id"]),
     )
     assert second.status_code == 200
     assert second.json()["task"]["id"] == low["id"]
 
     none_left = client.post(
         "/api/v1/pmo/claim",
-        json={"agent_id": agent["id"]},
+        json=claim_payload(agent["id"]),
     )
     assert none_left.status_code == 204
+
+
+def test_pmo_claim_does_not_pick_untyped_arbitrary_work(client):
+    project = create_project(client, "PMO_BOUNDED")
+    agent = create_agent(client, "BOUNDED_WORKER")
+    create_task(
+        client,
+        project_id=project["id"],
+        key="UNTYPED_TASK",
+        priority=0,
+        execution_kind=None,
+    )
+
+    response = client.post(
+        "/api/v1/pmo/claim",
+        json=claim_payload(agent["id"]),
+    )
+    assert response.status_code == 204
 
 
 def test_pmo_claim_respects_dependencies_and_project_filter(client):
@@ -132,14 +166,14 @@ def test_pmo_claim_respects_dependencies_and_project_filter(client):
 
     claim_a = client.post(
         "/api/v1/pmo/claim",
-        json={"agent_id": agent["id"], "project_id": project_a["id"]},
+        json=claim_payload(agent["id"], project_a["id"]),
     )
     assert claim_a.status_code == 200
     assert claim_a.json()["task"]["id"] == dependency["id"]
 
     still_blocked = client.post(
         "/api/v1/pmo/claim",
-        json={"agent_id": agent["id"], "project_id": project_a["id"]},
+        json=claim_payload(agent["id"], project_a["id"]),
     )
     assert still_blocked.status_code == 204
 
@@ -174,14 +208,14 @@ def test_pmo_claim_respects_dependencies_and_project_filter(client):
 
     unblocked = client.post(
         "/api/v1/pmo/claim",
-        json={"agent_id": agent["id"], "project_id": project_a["id"]},
+        json=claim_payload(agent["id"], project_a["id"]),
     )
     assert unblocked.status_code == 200
     assert unblocked.json()["task"]["id"] == blocked_by_dependency["id"]
 
     claim_b = client.post(
         "/api/v1/pmo/claim",
-        json={"agent_id": agent["id"], "project_id": project_b["id"]},
+        json=claim_payload(agent["id"], project_b["id"]),
     )
     assert claim_b.status_code == 200
     assert claim_b.json()["task"]["id"] == project_b_task["id"]
@@ -201,7 +235,7 @@ def test_pmo_claim_rejects_missing_or_inactive_agent_and_foreign_assignment(clie
 
     missing = client.post(
         "/api/v1/pmo/claim",
-        json={"agent_id": str(uuid4())},
+        json=claim_payload(str(uuid4())),
     )
     assert missing.status_code == 404
 
@@ -214,13 +248,13 @@ def test_pmo_claim_rejects_missing_or_inactive_agent_and_foreign_assignment(clie
     )
     inactive = client.post(
         "/api/v1/pmo/claim",
-        json={"agent_id": active_agent["id"]},
+        json=claim_payload(active_agent["id"]),
     )
     assert inactive.status_code == 409
 
     no_foreign_claim = client.post(
         "/api/v1/pmo/claim",
-        json={"agent_id": other_agent["id"], "project_id": project["id"]},
+        json=claim_payload(other_agent["id"], project["id"]),
     )
     assert no_foreign_claim.status_code == 200
     assert no_foreign_claim.json()["task"]["assigned_agent_id"] == other_agent["id"]
