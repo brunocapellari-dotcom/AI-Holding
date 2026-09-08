@@ -127,7 +127,7 @@ PROJECT_SEEDS: tuple[ProjectSeed, ...] = (
         repository="brunocapellari-dotcom/AgroLogMT",
         business_unit="AgroLog MT",
     ),
-    AgentSeed if False else ProjectSeed(
+    ProjectSeed(
         key="MARITIME_INTELLIGENCE",
         name="AgroLog Maritime Intelligence",
         strategic_goal=(
