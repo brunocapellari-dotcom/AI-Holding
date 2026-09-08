@@ -68,6 +68,7 @@ def _seed_runtime(db_session):
         title="Authorized claim test",
         status=WorkStatus.ready,
         priority=0,
+        execution_kind="control_plane_health",
         idempotency_key="authz-route-ready-0001",
     )
     db_session.add(task)
@@ -149,7 +150,10 @@ def test_human_operator_cannot_use_service_only_claim_endpoint(client, db_sessio
     try:
         response = client.post(
             "/api/v1/pmo/claim",
-            json={"agent_id": str(pmo.id)},
+            json={
+                "agent_id": str(pmo.id),
+                "execution_kinds": ["control_plane_health"],
+            },
         )
         assert response.status_code == 403
         assert "canonical service agent" in response.json()["detail"]
