@@ -100,6 +100,7 @@ jobs:
       PROJECT_NUMBER: "868946857614"
       REGION: southamerica-east1
       SERVICE_NAME: holding-control-plane
+      PMO_SERVICE_ACCOUNT: holding-pmo-worker@ai-holding-prod-bc.iam.gserviceaccount.com
       TF_STATE_BUCKET: ai-holding-prod-bc-tfstate
       WIF_PROVIDER: projects/868946857614/locations/global/workloadIdentityPools/github-actions/providers/ai-holding-main
       DEPLOY_SERVICE_ACCOUNT: github-deployer@ai-holding-prod-bc.iam.gserviceaccount.com
@@ -150,7 +151,8 @@ jobs:
         run: |
           for address in \
             'google_cloud_run_v2_service.api[0]' \
-            'google_cloud_run_v2_job.migrate[0]'; do
+            'google_cloud_run_v2_job.migrate[0]' \
+            'google_cloud_run_v2_job.bootstrap[0]'; do
             state="$(terraform -chdir=infra/terraform state show "${address}" 2>/dev/null || true)"
             if printf '%s\n' "${state}" | head -n 1 | grep -q '(tainted)'; then
               terraform -chdir=infra/terraform untaint "${address}"
@@ -243,11 +245,33 @@ jobs:
           echo "::error title=Production migration SQL::Database connectivity and schema CREATE checks passed; Alembic migration still failed."
           exit 24
 
-      - name: Verify deployed service state
+      - name: Bootstrap canonical portfolio and PMO identity binding
+        run: |
+          gcloud run jobs execute "${SERVICE_NAME}-bootstrap" \
+            --project="${PROJECT_ID}" \
+            --region="${REGION}" \
+            --wait
+
+          actual_subject="$(gcloud iam service-accounts describe "${PMO_SERVICE_ACCOUNT}" \
+            --project="${PROJECT_ID}" \
+            --format='value(uniqueId)')"
+          expected_subject="$(terraform -chdir=infra/terraform output -raw pmo_runtime_subject)"
+          test -n "${actual_subject}"
+          test "${actual_subject}" = "${expected_subject}"
+
+      - name: Verify deployed service state and PMO least privilege
         run: |
           URL="$(gcloud run services describe "${SERVICE_NAME}" \
             --project="${PROJECT_ID}" \
             --region="${REGION}" \
             --format='value(status.url)')"
           test -n "${URL}"
+
+          gcloud run services get-iam-policy "${SERVICE_NAME}" \
+            --project="${PROJECT_ID}" \
+            --region="${REGION}" \
+            --format=json \
+            | jq -e --arg member "serviceAccount:${PMO_SERVICE_ACCOUNT}" \
+              'any(.bindings[]?; .role == "roles/run.invoker" and any(.members[]?; . == $member))'
+
           echo "Production Control Plane deployed at ${URL}"

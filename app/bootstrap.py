@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.session import SessionLocal
+from app.models.agent_identity import AgentIdentity
 from app.models.entities import Agent, AgentStatus, Project, ProjectStatus
 
 
@@ -31,6 +33,14 @@ class ProjectSeed:
     repository: str | None = None
     repository_path: str | None = None
     business_unit: str | None = None
+
+
+@dataclass(frozen=True)
+class RuntimeIdentitySeed:
+    agent_key: str
+    issuer: str
+    subject: str
+    email: str
 
 
 AGENT_SEEDS: tuple[AgentSeed, ...] = (
@@ -244,24 +254,104 @@ def _ensure_project(db: Session, seed: ProjectSeed, by_key: dict[str, Project]) 
     return True
 
 
-def bootstrap_canonical_portfolio(db: Session) -> dict[str, int]:
+def _ensure_runtime_identity(
+    db: Session,
+    seed: RuntimeIdentitySeed,
+    agents_by_key: dict[str, Agent],
+) -> bool:
+    agent = agents_by_key.get(seed.agent_key)
+    if agent is None:
+        raise RuntimeError(f"runtime identity references unknown agent {seed.agent_key}")
+
+    existing = db.scalar(select(AgentIdentity).where(AgentIdentity.agent_id == agent.id))
+    if existing is not None:
+        if (
+            existing.issuer != seed.issuer
+            or existing.subject != seed.subject
+            or existing.email != seed.email
+        ):
+            raise RuntimeError(f"runtime identity drift detected for {seed.agent_key}")
+        return False
+
+    principal_owner = db.scalar(
+        select(AgentIdentity).where(
+            AgentIdentity.issuer == seed.issuer,
+            AgentIdentity.subject == seed.subject,
+        )
+    )
+    if principal_owner is not None:
+        raise RuntimeError(f"runtime principal already belongs to another agent: {seed.agent_key}")
+
+    db.add(
+        AgentIdentity(
+            agent_id=agent.id,
+            issuer=seed.issuer,
+            subject=seed.subject,
+            email=seed.email,
+        )
+    )
+    db.flush()
+    return True
+
+
+def _runtime_identity_seeds_from_env() -> tuple[RuntimeIdentitySeed, ...]:
+    values = {
+        "issuer": os.getenv("PMO_IDENTITY_ISSUER"),
+        "subject": os.getenv("PMO_IDENTITY_SUBJECT"),
+        "email": os.getenv("PMO_IDENTITY_EMAIL"),
+    }
+    configured = [value for value in values.values() if value]
+    if not configured:
+        return ()
+    if len(configured) != len(values):
+        raise RuntimeError("PMO runtime identity configuration must be complete")
+
+    return (
+        RuntimeIdentitySeed(
+            agent_key="PMO_IA",
+            issuer=values["issuer"] or "",
+            subject=values["subject"] or "",
+            email=values["email"] or "",
+        ),
+    )
+
+
+def bootstrap_canonical_portfolio(
+    db: Session,
+    *,
+    runtime_identities: tuple[RuntimeIdentitySeed, ...] = (),
+) -> dict[str, int]:
     created_agents = sum(_ensure_agent(db, seed) for seed in AGENT_SEEDS)
+    agent_keys = [seed.key for seed in AGENT_SEEDS]
+    agents = db.scalars(select(Agent).where(Agent.key.in_(agent_keys)))
+    agents_by_key = {agent.key: agent for agent in agents}
+
     by_key: dict[str, Project] = {}
     created_projects = 0
     for seed in PROJECT_SEEDS:
         created_projects += int(_ensure_project(db, seed, by_key))
+
+    created_identities = sum(
+        _ensure_runtime_identity(db, seed, agents_by_key) for seed in runtime_identities
+    )
     db.commit()
     return {
         "created_agents": created_agents,
         "created_projects": created_projects,
+        "created_identities": created_identities,
         "canonical_agents": len(AGENT_SEEDS),
         "canonical_projects": len(PROJECT_SEEDS),
+        "canonical_identities": len(runtime_identities),
     }
 
 
 def main() -> None:
+    runtime_identities = _runtime_identity_seeds_from_env()
     with SessionLocal() as db:
-        result = bootstrap_canonical_portfolio(db)
+        result = bootstrap_canonical_portfolio(
+            db,
+            runtime_identities=runtime_identities,
+        )
     print(json.dumps(result, sort_keys=True))
 
 

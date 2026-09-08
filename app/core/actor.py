@@ -9,7 +9,8 @@ from google.oauth2 import id_token
 
 from app.core.config import settings
 
-TRUSTED_GOOGLE_ISSUERS = {"accounts.google.com", "https://accounts.google.com"}
+CANONICAL_GOOGLE_ISSUER = "https://accounts.google.com"
+TRUSTED_GOOGLE_ISSUERS = {"accounts.google.com", CANONICAL_GOOGLE_ISSUER}
 VerifyGoogleToken = Callable[[str, Request, str], Mapping[str, object]]
 
 
@@ -58,7 +59,11 @@ def _verify_google_identity(token: str) -> VerifiedGoogleIdentity:
     if not isinstance(subject, str) or not subject:
         raise _unauthorized("identity token does not contain a subject")
 
-    return VerifiedGoogleIdentity(email=email, subject=subject, issuer=issuer)
+    return VerifiedGoogleIdentity(
+        email=email,
+        subject=subject,
+        issuer=CANONICAL_GOOGLE_ISSUER,
+    )
 
 
 def _actor_type_for_email(email: str) -> str:
