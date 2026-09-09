@@ -6,8 +6,9 @@ import sys
 from collections.abc import Callable
 from contextlib import suppress
 from dataclasses import dataclass
+from enum import StrEnum
 from types import TracebackType
-from typing import Any
+from typing import Any, TypeVar
 
 import httpx
 from google.auth.transport.requests import Request
@@ -24,6 +25,44 @@ MAX_DIAGNOSTIC_BODY_LENGTH = 2000
 
 TokenProvider = Callable[[str], str]
 Executor = Callable[["ControlPlaneClient", dict[str, Any]], dict[str, object]]
+T = TypeVar("T")
+
+
+class WorkerStage(StrEnum):
+    config = "config"
+    token = "token"
+    claim = "claim"
+    run_start = "run_start"
+    execute = "execute"
+    run_finish = "run_finish"
+    task_finish = "task_finish"
+
+
+STAGE_EXIT_CODES: dict[WorkerStage, int] = {
+    WorkerStage.config: 39,
+    WorkerStage.token: 40,
+    WorkerStage.claim: 41,
+    WorkerStage.run_start: 42,
+    WorkerStage.execute: 43,
+    WorkerStage.run_finish: 44,
+    WorkerStage.task_finish: 45,
+}
+
+
+class WorkerStageError(RuntimeError):
+    def __init__(self, stage: WorkerStage, cause: Exception) -> None:
+        self.stage = stage
+        self.cause = cause
+        super().__init__(f"PMO worker failed during {stage.value}")
+
+
+def _at_stage(stage: WorkerStage, operation: Callable[[], T]) -> T:
+    try:
+        return operation()
+    except WorkerStageError:
+        raise
+    except Exception as exc:
+        raise WorkerStageError(stage, exc) from exc
 
 
 @dataclass(frozen=True)
@@ -72,15 +111,17 @@ class ControlPlaneClient:
         transport: httpx.BaseTransport | None = None,
     ) -> None:
         self.config = config
-        token = token_provider(config.audience)
+        token = _at_stage(
+            WorkerStage.token,
+            lambda: token_provider(config.audience),
+        )
         bearer = f"Bearer {token}"
         self._client = httpx.Client(
             base_url=config.control_plane_url,
             headers={
                 # Cloud Run validates X-Serverless-Authorization at the IAM boundary.
-                # The regular Authorization header is preserved for the Control Plane,
-                # which independently verifies the same Google identity token and binds
-                # its subject to the canonical agent identity.
+                # Authorization remains available to the Control Plane for independent
+                # Google-token verification and canonical agent identity binding.
                 "Authorization": bearer,
                 "X-Serverless-Authorization": bearer,
                 "User-Agent": "ai-holding-pmo-worker/1.0",
@@ -118,18 +159,10 @@ class ControlPlaneClient:
         response.raise_for_status()
         return response
 
-    def resolve_agent_id(self) -> str:
-        agents = self._request("GET", "/api/v1/agents", params={"limit": 500}).json()
-        for agent in agents:
-            if agent.get("key") == self.config.agent_key:
-                return str(agent["id"])
-        raise RuntimeError(f"canonical agent {self.config.agent_key} was not found")
-
-    def claim(self, agent_id: str) -> dict[str, Any] | None:
+    def claim(self) -> dict[str, Any] | None:
         response = self._client.post(
             "/api/v1/pmo/claim",
             json={
-                "agent_id": agent_id,
                 "execution_kinds": [item.value for item in SUPPORTED_EXECUTION_KINDS],
             },
         )
@@ -234,39 +267,79 @@ def _execution_kind(task: dict[str, Any]) -> ExecutionKind:
         raise RuntimeError(f"unsupported task execution kind: {raw!r}") from exc
 
 
+def _record_execution_failure(
+    client: ControlPlaneClient,
+    *,
+    task: dict[str, Any],
+    run_id: str,
+    failure: WorkerStageError,
+) -> None:
+    task_id = str(task["id"])
+    project_id = str(task["project_id"])
+    error = f"{failure.stage.value}:{type(failure.cause).__name__}"[:MAX_ERROR_LENGTH]
+    with suppress(Exception):
+        client.transition_run(run_id, "failed", error=error)
+    with suppress(Exception):
+        client.transition_task(task_id, "blocked", blocked_reason=error)
+    with suppress(Exception):
+        client.create_incident(
+            project_id=project_id,
+            title=f"PMO worker failed task {task.get('key', task_id)}",
+            details={
+                "task_id": task_id,
+                "run_id": run_id,
+                "execution_kind": task.get("execution_kind"),
+                "failure_stage": failure.stage.value,
+                "error_type": type(failure.cause).__name__,
+            },
+        )
+
+
 def process_claim(client: ControlPlaneClient, claim: dict[str, Any]) -> None:
     task = dict(claim["task"])
     run = dict(claim["run"])
     task_id = str(task["id"])
     run_id = str(run["id"])
-    project_id = str(task["project_id"])
 
-    client.transition_run(run_id, "running")
+    _at_stage(
+        WorkerStage.run_start,
+        lambda: client.transition_run(run_id, "running"),
+    )
     try:
         kind = _execution_kind(task)
         executor = EXECUTORS.get(kind)
         if executor is None:
             raise RuntimeError(f"worker does not implement execution kind {kind.value}")
-        output = executor(client, task)
-    except Exception as exc:
-        error = f"{type(exc).__name__}: {exc}"[:MAX_ERROR_LENGTH]
-        client.transition_run(run_id, "failed", error=error)
-        client.transition_task(task_id, "blocked", blocked_reason=error)
-        with suppress(Exception):
-            client.create_incident(
-                project_id=project_id,
-                title=f"PMO worker failed task {task.get('key', task_id)}",
-                details={
-                    "task_id": task_id,
-                    "run_id": run_id,
-                    "execution_kind": task.get("execution_kind"),
-                    "error": error,
-                },
-            )
+        output = _at_stage(
+            WorkerStage.execute,
+            lambda: executor(client, task),
+        )
+    except WorkerStageError as failure:
+        _record_execution_failure(
+            client,
+            task=task,
+            run_id=run_id,
+            failure=failure,
+        )
         raise
+    except Exception as exc:
+        failure = WorkerStageError(WorkerStage.execute, exc)
+        _record_execution_failure(
+            client,
+            task=task,
+            run_id=run_id,
+            failure=failure,
+        )
+        raise failure from exc
 
-    client.transition_run(run_id, "succeeded", output_metadata=output)
-    client.transition_task(task_id, "review")
+    _at_stage(
+        WorkerStage.run_finish,
+        lambda: client.transition_run(run_id, "succeeded", output_metadata=output),
+    )
+    _at_stage(
+        WorkerStage.task_finish,
+        lambda: client.transition_task(task_id, "review"),
+    )
 
 
 def run_once(
@@ -281,9 +354,8 @@ def run_once(
         token_provider=token_provider,
         transport=transport,
     ) as client:
-        agent_id = client.resolve_agent_id()
         for _ in range(config.max_tasks):
-            claim = client.claim(agent_id)
+            claim = _at_stage(WorkerStage.claim, client.claim)
             if claim is None:
                 break
             process_claim(client, claim)
@@ -293,7 +365,6 @@ def run_once(
 
 def _http_error_diagnostic(exc: httpx.HTTPStatusError) -> dict[str, object]:
     return {
-        "event": "pmo_worker_http_error",
         "method": exc.request.method,
         "path": exc.request.url.path,
         "status_code": exc.response.status_code,
@@ -301,12 +372,25 @@ def _http_error_diagnostic(exc: httpx.HTTPStatusError) -> dict[str, object]:
     }
 
 
+def _stage_error_diagnostic(exc: WorkerStageError) -> dict[str, object]:
+    diagnostic: dict[str, object] = {
+        "event": "pmo_worker_stage_error",
+        "stage": exc.stage.value,
+        "exit_code": STAGE_EXIT_CODES[exc.stage],
+        "cause_type": type(exc.cause).__name__,
+    }
+    if isinstance(exc.cause, httpx.HTTPStatusError):
+        diagnostic.update(_http_error_diagnostic(exc.cause))
+    return diagnostic
+
+
 def main() -> None:
     try:
-        result = run_once(WorkerConfig.from_env())
-    except httpx.HTTPStatusError as exc:
-        print(json.dumps(_http_error_diagnostic(exc), sort_keys=True), file=sys.stderr)
-        raise
+        config = _at_stage(WorkerStage.config, WorkerConfig.from_env)
+        result = run_once(config)
+    except WorkerStageError as exc:
+        print(json.dumps(_stage_error_diagnostic(exc), sort_keys=True), file=sys.stderr)
+        raise SystemExit(STAGE_EXIT_CODES[exc.stage]) from exc
     print(json.dumps(result, sort_keys=True))
 
 
