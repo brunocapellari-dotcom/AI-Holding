@@ -3,7 +3,7 @@ import json
 import httpx
 import pytest
 
-from app.pmo_worker import WorkerConfig, run_once
+from app.pmo_worker import WorkerConfig, _http_error_diagnostic, run_once
 
 AGENT_ID = "11111111-1111-1111-1111-111111111111"
 PROJECT_ID = "22222222-2222-2222-2222-222222222222"
@@ -37,6 +37,7 @@ def test_worker_completes_bounded_health_execution_and_sends_evidence():
         body = json.loads(request.content) if request.content else None
         requests.append((request.method, request.url.path, body))
         assert request.headers["Authorization"] == "Bearer test-token"
+        assert request.headers["X-Serverless-Authorization"] == "Bearer test-token"
 
         if request.method == "GET" and request.url.path == "/api/v1/agents":
             return httpx.Response(200, json=[{"id": AGENT_ID, "key": "PMO_IA"}])
@@ -142,3 +143,29 @@ def test_worker_configuration_fails_closed(monkeypatch):
     monkeypatch.setenv("PMO_MAX_TASKS", "11")
     with pytest.raises(RuntimeError, match="between 1 and 10"):
         WorkerConfig.from_env()
+
+
+def test_http_error_diagnostic_excludes_authorization_and_query_string():
+    request = httpx.Request(
+        "POST",
+        "https://holding.example/api/v1/pmo/claim?secret=query-value",
+        headers={"Authorization": "Bearer sensitive-token"},
+    )
+    response = httpx.Response(
+        403,
+        text='{"detail":"forbidden"}',
+        request=request,
+    )
+    error = httpx.HTTPStatusError("forbidden", request=request, response=response)
+
+    diagnostic = _http_error_diagnostic(error)
+
+    assert diagnostic == {
+        "event": "pmo_worker_http_error",
+        "method": "POST",
+        "path": "/api/v1/pmo/claim",
+        "status_code": 403,
+        "response": '{"detail":"forbidden"}',
+    }
+    assert "sensitive-token" not in json.dumps(diagnostic)
+    assert "query-value" not in json.dumps(diagnostic)
