@@ -8,7 +8,7 @@ from contextlib import suppress
 from dataclasses import dataclass
 from enum import StrEnum
 from types import TracebackType
-from typing import Any, TypeVar
+from typing import Any
 
 import httpx
 from google.auth.transport.requests import Request
@@ -25,7 +25,6 @@ MAX_DIAGNOSTIC_BODY_LENGTH = 2000
 
 TokenProvider = Callable[[str], str]
 Executor = Callable[["ControlPlaneClient", dict[str, Any]], dict[str, object]]
-T = TypeVar("T")
 
 
 class WorkerStage(StrEnum):
@@ -56,7 +55,7 @@ class WorkerStageError(RuntimeError):
         super().__init__(f"PMO worker failed during {stage.value}")
 
 
-def _at_stage(stage: WorkerStage, operation: Callable[[], T]) -> T:
+def _at_stage[T](stage: WorkerStage, operation: Callable[[], T]) -> T:
     try:
         return operation()
     except WorkerStageError:
