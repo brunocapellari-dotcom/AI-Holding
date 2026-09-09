@@ -7,6 +7,12 @@ resource "google_service_account" "pmo_worker" {
   }
 }
 
+resource "google_service_account_iam_member" "deployer_act_as_pmo_worker" {
+  service_account_id = google_service_account.pmo_worker.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${local.deployer_service_account}"
+}
+
 resource "google_cloud_run_v2_service_iam_member" "pmo_invoker" {
   count    = var.deploy_service ? 1 : 0
   project  = var.project_id
@@ -90,8 +96,68 @@ resource "google_cloud_run_v2_job" "bootstrap" {
   }
 }
 
+resource "google_cloud_run_v2_job" "pmo_worker" {
+  count               = var.deploy_service ? 1 : 0
+  name                = "${var.service_name}-pmo-worker"
+  location            = var.region
+  deletion_protection = true
+
+  depends_on = [
+    google_project_service.required,
+    google_cloud_run_v2_service_iam_member.pmo_invoker,
+    google_service_account_iam_member.deployer_act_as_pmo_worker,
+  ]
+
+  lifecycle {
+    prevent_destroy = true
+
+    precondition {
+      condition     = !var.deploy_service || startswith(var.image_ref, "${var.region}-docker.pkg.dev/${var.project_id}/")
+      error_message = "image_ref must be an immutable Artifact Registry reference in the production project when deploy_service=true."
+    }
+  }
+
+  template {
+    template {
+      service_account = google_service_account.pmo_worker.email
+      timeout         = "300s"
+      max_retries     = 0
+
+      containers {
+        image   = var.image_ref
+        command = ["python"]
+        args    = ["-m", "app.pmo_worker"]
+
+        env {
+          name  = "CONTROL_PLANE_URL"
+          value = google_cloud_run_v2_service.api[0].uri
+        }
+
+        env {
+          name  = "CONTROL_PLANE_AUDIENCE"
+          value = "holding-control-plane"
+        }
+
+        env {
+          name  = "PMO_AGENT_KEY"
+          value = "PMO_IA"
+        }
+
+        env {
+          name  = "PMO_MAX_TASKS"
+          value = "1"
+        }
+      }
+    }
+  }
+}
+
 output "bootstrap_job" {
   value = var.deploy_service ? google_cloud_run_v2_job.bootstrap[0].name : null
+}
+
+output "pmo_worker_job" {
+  value = var.deploy_service ? google_cloud_run_v2_job.pmo_worker[0].name : null
 }
 
 output "pmo_runtime_service_account" {

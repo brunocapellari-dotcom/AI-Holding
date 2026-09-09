@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from uuid import UUID
 
 from sqlalchemy import exists, func, or_, select
@@ -27,11 +28,13 @@ def claim_next_task(
     *,
     agent: Agent,
     actor: ActorContext,
+    execution_kinds: Sequence[str],
     project_id: UUID | None = None,
 ) -> tuple[Task, Run] | None:
-    if agent.status != AgentStatus.active:
+    if agent.status != AgentStatus.active or not execution_kinds:
         return None
 
+    supported_kinds = tuple(dict.fromkeys(execution_kinds))
     dependency = aliased(Task)
     incomplete_dependency = exists(
         select(1)
@@ -56,6 +59,7 @@ def claim_next_task(
         .join(Project, Project.id == Task.project_id)
         .where(
             Task.status == WorkStatus.ready,
+            Task.execution_kind.in_(supported_kinds),
             Project.status == ProjectStatus.active,
             or_(Task.assigned_agent_id.is_(None), Task.assigned_agent_id == agent.id),
             ~incomplete_dependency,
@@ -86,7 +90,10 @@ def claim_next_task(
         agent_id=agent.id,
         status=RunStatus.queued,
         attempt=last_attempt + 1,
-        input_metadata={"claim_source": "pmo"},
+        input_metadata={
+            "claim_source": "pmo",
+            "execution_kind": task.execution_kind,
+        },
     )
     db.add(run)
     db.flush()
@@ -102,6 +109,7 @@ def claim_next_task(
             "project_id": str(task.project_id),
             "run_id": str(run.id),
             "attempt": run.attempt,
+            "execution_kind": task.execution_kind,
         },
     )
     return task, run
