@@ -3,7 +3,14 @@ import json
 import httpx
 import pytest
 
-from app.pmo_worker import WorkerConfig, _http_error_diagnostic, run_once
+from app.pmo_worker import (
+    STAGE_EXIT_CODES,
+    WorkerConfig,
+    WorkerStage,
+    WorkerStageError,
+    _stage_error_diagnostic,
+    run_once,
+)
 
 AGENT_ID = "11111111-1111-1111-1111-111111111111"
 PROJECT_ID = "22222222-2222-2222-2222-222222222222"
@@ -39,13 +46,8 @@ def test_worker_completes_bounded_health_execution_and_sends_evidence():
         assert request.headers["Authorization"] == "Bearer test-token"
         assert request.headers["X-Serverless-Authorization"] == "Bearer test-token"
 
-        if request.method == "GET" and request.url.path == "/api/v1/agents":
-            return httpx.Response(200, json=[{"id": AGENT_ID, "key": "PMO_IA"}])
         if request.method == "POST" and request.url.path == "/api/v1/pmo/claim":
-            assert body == {
-                "agent_id": AGENT_ID,
-                "execution_kinds": ["control_plane_health"],
-            }
+            assert body == {"execution_kinds": ["control_plane_health"]}
             claim_count += 1
             if claim_count == 1:
                 return httpx.Response(200, json=claim_payload())
@@ -66,6 +68,7 @@ def test_worker_completes_bounded_health_execution_and_sends_evidence():
     )
 
     assert result == {"processed": 1}
+    assert not any(path == "/api/v1/agents" for _, path, _ in requests)
     run_transitions = [
         body
         for method, path, body in requests
@@ -92,8 +95,6 @@ def test_worker_failure_marks_run_and_task_and_creates_incident():
     def handler(request: httpx.Request) -> httpx.Response:
         body = json.loads(request.content) if request.content else None
         requests.append((request.method, request.url.path, body))
-        if request.method == "GET" and request.url.path == "/api/v1/agents":
-            return httpx.Response(200, json=[{"id": AGENT_ID, "key": "PMO_IA"}])
         if request.method == "POST" and request.url.path == "/api/v1/pmo/claim":
             return httpx.Response(200, json=claim_payload())
         if request.method == "GET" and request.url.path == "/healthz":
@@ -102,12 +103,15 @@ def test_worker_failure_marks_run_and_task_and_creates_incident():
             return httpx.Response(503, json={"status": "not-ready"})
         return httpx.Response(200, json={"ok": True})
 
-    with pytest.raises(httpx.HTTPStatusError):
+    with pytest.raises(WorkerStageError) as caught:
         run_once(
             WorkerConfig(control_plane_url="https://holding.example"),
             token_provider=lambda audience: "test-token",
             transport=httpx.MockTransport(handler),
         )
+
+    assert caught.value.stage == WorkerStage.execute
+    assert isinstance(caught.value.cause, httpx.HTTPStatusError)
 
     run_transitions = [
         body
@@ -115,15 +119,17 @@ def test_worker_failure_marks_run_and_task_and_creates_incident():
         if method == "POST" and path == f"/api/v1/runs/{RUN_ID}/transition"
     ]
     assert [item["status"] for item in run_transitions] == ["running", "failed"]
-    assert "503 Service Unavailable" in run_transitions[1]["error"]
+    assert run_transitions[1]["error"] == "execute:HTTPStatusError"
 
     task_transitions = [
         body
         for method, path, body in requests
         if method == "POST" and path == f"/api/v1/tasks/{TASK_ID}/transition"
     ]
-    assert task_transitions[0]["status"] == "blocked"
-    assert "503 Service Unavailable" in task_transitions[0]["blocked_reason"]
+    assert task_transitions[0] == {
+        "status": "blocked",
+        "blocked_reason": "execute:HTTPStatusError",
+    }
 
     incidents = [
         body for method, path, body in requests if method == "POST" and path == "/api/v1/incidents"
@@ -132,6 +138,49 @@ def test_worker_failure_marks_run_and_task_and_creates_incident():
     assert incidents[0]["project_id"] == PROJECT_ID
     assert incidents[0]["severity"] == "sev3"
     assert incidents[0]["details"]["task_id"] == TASK_ID
+    assert incidents[0]["details"]["failure_stage"] == "execute"
+
+
+def test_worker_claim_failure_has_deterministic_stage_and_safe_diagnostic():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(403, text='{"detail":"forbidden"}')
+
+    with pytest.raises(WorkerStageError) as caught:
+        run_once(
+            WorkerConfig(control_plane_url="https://holding.example"),
+            token_provider=lambda audience: "test-token",
+            transport=httpx.MockTransport(handler),
+        )
+
+    assert caught.value.stage == WorkerStage.claim
+    diagnostic = _stage_error_diagnostic(caught.value)
+    assert diagnostic == {
+        "event": "pmo_worker_stage_error",
+        "stage": "claim",
+        "exit_code": STAGE_EXIT_CODES[WorkerStage.claim],
+        "cause_type": "HTTPStatusError",
+        "method": "POST",
+        "path": "/api/v1/pmo/claim",
+        "status_code": 403,
+        "response": '{"detail":"forbidden"}',
+    }
+    serialized = json.dumps(diagnostic)
+    assert "test-token" not in serialized
+
+
+def test_worker_token_failure_has_deterministic_stage():
+    def failed_token_provider(audience: str) -> str:
+        raise RuntimeError("metadata unavailable")
+
+    with pytest.raises(WorkerStageError) as caught:
+        run_once(
+            WorkerConfig(control_plane_url="https://holding.example"),
+            token_provider=failed_token_provider,
+        )
+
+    assert caught.value.stage == WorkerStage.token
+    assert STAGE_EXIT_CODES[caught.value.stage] == 40
+    assert _stage_error_diagnostic(caught.value)["cause_type"] == "RuntimeError"
 
 
 def test_worker_configuration_fails_closed(monkeypatch):
@@ -143,29 +192,3 @@ def test_worker_configuration_fails_closed(monkeypatch):
     monkeypatch.setenv("PMO_MAX_TASKS", "11")
     with pytest.raises(RuntimeError, match="between 1 and 10"):
         WorkerConfig.from_env()
-
-
-def test_http_error_diagnostic_excludes_authorization_and_query_string():
-    request = httpx.Request(
-        "POST",
-        "https://holding.example/api/v1/pmo/claim?secret=query-value",
-        headers={"Authorization": "Bearer sensitive-token"},
-    )
-    response = httpx.Response(
-        403,
-        text='{"detail":"forbidden"}',
-        request=request,
-    )
-    error = httpx.HTTPStatusError("forbidden", request=request, response=response)
-
-    diagnostic = _http_error_diagnostic(error)
-
-    assert diagnostic == {
-        "event": "pmo_worker_http_error",
-        "method": "POST",
-        "path": "/api/v1/pmo/claim",
-        "status_code": 403,
-        "response": '{"detail":"forbidden"}',
-    }
-    assert "sensitive-token" not in json.dumps(diagnostic)
-    assert "query-value" not in json.dumps(diagnostic)
