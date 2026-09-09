@@ -28,7 +28,10 @@ def _claiming_agent(db: Session, actor: ActorContext, payload: TaskClaimRequest)
         if bound_agent is None:
             raise HTTPException(status_code=403, detail="canonical service agent is required")
         if payload.agent_id is not None and payload.agent_id != bound_agent.id:
-            raise HTTPException(status_code=403, detail="service-account cannot claim as another agent")
+            raise HTTPException(
+                status_code=403,
+                detail="service-account cannot claim as another agent",
+            )
         return bound_agent
 
     if payload.agent_id is None:
