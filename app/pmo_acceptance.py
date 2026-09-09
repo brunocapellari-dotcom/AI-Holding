@@ -169,6 +169,27 @@ def _open_worker_incidents(db: Session, task: Task) -> list[Incident]:
     return [item for item in candidates if item.details.get("task_id") == str(task.id)]
 
 
+def _fail_acceptance(
+    db: Session,
+    *,
+    agent: Agent,
+    context: AcceptanceContext,
+    errors: list[str],
+) -> None:
+    if agent.status != AgentStatus.disabled:
+        agent.status = AgentStatus.disabled
+    record_audit(
+        db,
+        actor=ACCEPTANCE_ACTOR,
+        action="pmo.production_acceptance.failed",
+        entity_type="agent",
+        entity_id=str(agent.id),
+        payload={"release_key": context.release_key, "errors": errors},
+    )
+    db.commit()
+    raise RuntimeError("; ".join(errors))
+
+
 def finalize_acceptance(db: Session, release_id: str) -> dict[str, object]:
     context = acceptance_context(release_id)
     agent, _ = _canonical_entities(db)
@@ -195,21 +216,16 @@ def finalize_acceptance(db: Session, release_id: str) -> dict[str, object]:
             errors.append("production acceptance produced an unresolved PMO worker incident")
 
     if errors:
-        if agent.status != AgentStatus.disabled:
-            agent.status = AgentStatus.disabled
-        record_audit(
-            db,
-            actor=ACCEPTANCE_ACTOR,
-            action="pmo.production_acceptance.failed",
-            entity_type="agent",
-            entity_id=str(agent.id),
-            payload={"release_key": context.release_key, "errors": errors},
-        )
-        db.commit()
-        raise RuntimeError("; ".join(errors))
+        _fail_acceptance(db, agent=agent, context=context, errors=errors)
 
-    assert task is not None
-    assert run is not None
+    if task is None or run is None:
+        _fail_acceptance(
+            db,
+            agent=agent,
+            context=context,
+            errors=["production acceptance reached an inconsistent internal state"],
+        )
+
     if task.status == WorkStatus.review:
         task.status = WorkStatus.done
         task.blocked_reason = None
