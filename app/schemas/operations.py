@@ -69,7 +69,9 @@ class RunTransition(BaseModel):
 
 
 class TaskClaimRequest(BaseModel):
-    agent_id: UUID
+    # Production service agents are resolved from their verified runtime identity.
+    # agent_id remains available for local/test operation and explicit diagnostics.
+    agent_id: UUID | None = None
     project_id: UUID | None = None
     execution_kinds: list[ExecutionKind] = Field(min_length=1, max_length=10)
 
