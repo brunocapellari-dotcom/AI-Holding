@@ -1,3 +1,5 @@
+from uuid import UUID
+
 import pytest
 
 from app.models.agent_identity import AgentIdentity
@@ -75,7 +77,7 @@ def test_prepare_is_idempotent_and_activates_only_canonical_pmo(db_session):
 def test_finalize_requires_succeeded_run_and_structured_health_evidence(db_session):
     agent, _ = seed_canonical_runtime(db_session)
     prepared = prepare_acceptance(db_session, RELEASE_ID)
-    task = db_session.get(Task, prepared["task_id"])
+    task = db_session.get(Task, UUID(str(prepared["task_id"])))
     assert task is not None
     task.status = WorkStatus.review
     run = Run(
@@ -109,7 +111,7 @@ def test_finalize_requires_succeeded_run_and_structured_health_evidence(db_sessi
 def test_finalize_fails_closed_and_disables_pmo_on_bad_evidence(db_session):
     agent, _ = seed_canonical_runtime(db_session)
     prepared = prepare_acceptance(db_session, RELEASE_ID)
-    task = db_session.get(Task, prepared["task_id"])
+    task = db_session.get(Task, UUID(str(prepared["task_id"])))
     assert task is not None
     task.status = WorkStatus.review
     db_session.add(
@@ -142,7 +144,7 @@ def test_finalize_fails_closed_and_disables_pmo_on_bad_evidence(db_session):
 def test_finalize_rejects_unresolved_worker_incident(db_session):
     agent, project = seed_canonical_runtime(db_session)
     prepared = prepare_acceptance(db_session, RELEASE_ID)
-    task = db_session.get(Task, prepared["task_id"])
+    task = db_session.get(Task, UUID(str(prepared["task_id"])))
     assert task is not None
     task.status = WorkStatus.review
     db_session.add_all(
