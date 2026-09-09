@@ -53,9 +53,11 @@ class WorkerConfig:
 
 
 def google_identity_token(audience: str) -> str:
-    token = id_token.fetch_id_token(Request(), audience)
-    if not token:
-        raise RuntimeError("Google identity token provider returned an empty token")
+    token: object = id_token.fetch_id_token(  # type: ignore[no-untyped-call]
+        Request(), audience
+    )
+    if not isinstance(token, str) or not token:
+        raise RuntimeError("Google identity token provider returned an invalid token")
     return token
 
 
@@ -91,8 +93,20 @@ class ControlPlaneClient:
     ) -> None:
         self._client.__exit__(exc_type, exc_value, traceback)
 
-    def _request(self, method: str, path: str, **kwargs: object) -> httpx.Response:
-        response = self._client.request(method, path, **kwargs)
+    def _request(
+        self,
+        method: str,
+        path: str,
+        *,
+        params: dict[str, str | int | float | bool | None] | None = None,
+        json_body: object | None = None,
+    ) -> httpx.Response:
+        response = self._client.request(
+            method,
+            path,
+            params=params,
+            json=json_body,
+        )
         response.raise_for_status()
         return response
 
@@ -130,7 +144,11 @@ class ControlPlaneClient:
         }
         if error is not None:
             payload["error"] = error[:MAX_ERROR_LENGTH]
-        self._request("POST", f"/api/v1/runs/{run_id}/transition", json=payload)
+        self._request(
+            "POST",
+            f"/api/v1/runs/{run_id}/transition",
+            json_body=payload,
+        )
 
     def transition_task(
         self,
@@ -142,7 +160,11 @@ class ControlPlaneClient:
         payload: dict[str, object] = {"status": status}
         if blocked_reason is not None:
             payload["blocked_reason"] = blocked_reason[:MAX_ERROR_LENGTH]
-        self._request("POST", f"/api/v1/tasks/{task_id}/transition", json=payload)
+        self._request(
+            "POST",
+            f"/api/v1/tasks/{task_id}/transition",
+            json_body=payload,
+        )
 
     def create_incident(
         self,
@@ -154,7 +176,7 @@ class ControlPlaneClient:
         self._request(
             "POST",
             "/api/v1/incidents",
-            json={
+            json_body={
                 "project_id": project_id,
                 "severity": "sev3",
                 "title": title[:240],
@@ -196,9 +218,11 @@ EXECUTORS: dict[ExecutionKind, Executor] = {
 
 def _execution_kind(task: dict[str, Any]) -> ExecutionKind:
     raw = task.get("execution_kind")
+    if not isinstance(raw, str):
+        raise RuntimeError(f"unsupported task execution kind: {raw!r}")
     try:
         return ExecutionKind(raw)
-    except (TypeError, ValueError) as exc:
+    except ValueError as exc:
         raise RuntimeError(f"unsupported task execution kind: {raw!r}") from exc
 
 
