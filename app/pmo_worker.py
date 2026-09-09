@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from collections.abc import Callable
 from contextlib import suppress
 from dataclasses import dataclass
@@ -19,6 +20,7 @@ DEFAULT_AGENT_KEY = "PMO_IA"
 SUPPORTED_EXECUTION_KINDS = (ExecutionKind.control_plane_health,)
 REQUEST_TIMEOUT_SECONDS = 20.0
 MAX_ERROR_LENGTH = 8000
+MAX_DIAGNOSTIC_BODY_LENGTH = 2000
 
 TokenProvider = Callable[[str], str]
 Executor = Callable[["ControlPlaneClient", dict[str, Any]], dict[str, object]]
@@ -71,10 +73,16 @@ class ControlPlaneClient:
     ) -> None:
         self.config = config
         token = token_provider(config.audience)
+        bearer = f"Bearer {token}"
         self._client = httpx.Client(
             base_url=config.control_plane_url,
             headers={
-                "Authorization": f"Bearer {token}",
+                # Cloud Run validates X-Serverless-Authorization at the IAM boundary.
+                # The regular Authorization header is preserved for the Control Plane,
+                # which independently verifies the same Google identity token and binds
+                # its subject to the canonical agent identity.
+                "Authorization": bearer,
+                "X-Serverless-Authorization": bearer,
                 "User-Agent": "ai-holding-pmo-worker/1.0",
             },
             timeout=REQUEST_TIMEOUT_SECONDS,
@@ -283,8 +291,22 @@ def run_once(
     return {"processed": processed}
 
 
+def _http_error_diagnostic(exc: httpx.HTTPStatusError) -> dict[str, object]:
+    return {
+        "event": "pmo_worker_http_error",
+        "method": exc.request.method,
+        "path": exc.request.url.path,
+        "status_code": exc.response.status_code,
+        "response": exc.response.text[:MAX_DIAGNOSTIC_BODY_LENGTH],
+    }
+
+
 def main() -> None:
-    result = run_once(WorkerConfig.from_env())
+    try:
+        result = run_once(WorkerConfig.from_env())
+    except httpx.HTTPStatusError as exc:
+        print(json.dumps(_http_error_diagnostic(exc), sort_keys=True), file=sys.stderr)
+        raise
     print(json.dumps(result, sort_keys=True))
 
 
