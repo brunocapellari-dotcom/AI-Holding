@@ -303,6 +303,33 @@ jobs:
 
       - name: Run controlled PMO production acceptance
         run: |
+          describe_latest_execution() {
+            job="$1"
+            execution="$(gcloud run jobs executions list \
+              --job="${job}" \
+              --project="${PROJECT_ID}" \
+              --region="${REGION}" \
+              --sort-by='~metadata.creationTimestamp' \
+              --limit=1 \
+              --format='value(metadata.name)' 2>/dev/null || true)"
+            if [ -n "${execution}" ]; then
+              gcloud run jobs executions describe "${execution}" \
+                --project="${PROJECT_ID}" \
+                --region="${REGION}" \
+                --format='yaml(metadata.name,status.conditions,status.failedCount,status.succeededCount)' \
+                || true
+            fi
+          }
+
+          read_recent_job_logs() {
+            job="$1"
+            gcloud run jobs logs read "${job}" \
+              --project="${PROJECT_ID}" \
+              --region="${REGION}" \
+              --limit=100 \
+              || true
+          }
+
           gcloud run jobs execute "${SERVICE_NAME}-pmo-acceptance" \
             --project="${PROJECT_ID}" \
             --region="${REGION}" \
@@ -315,7 +342,15 @@ jobs:
             --region="${REGION}" \
             --wait
           worker_status=$?
+          set -e
 
+          if [ "${worker_status}" -ne 0 ]; then
+            echo "PMO worker failed; collecting sanitized execution diagnostics."
+            describe_latest_execution "${SERVICE_NAME}-pmo-worker"
+            read_recent_job_logs "${SERVICE_NAME}-pmo-worker"
+          fi
+
+          set +e
           gcloud run jobs execute "${SERVICE_NAME}-pmo-acceptance" \
             --project="${PROJECT_ID}" \
             --region="${REGION}" \
@@ -323,6 +358,11 @@ jobs:
             --wait
           acceptance_status=$?
           set -e
+
+          if [ "${acceptance_status}" -ne 0 ]; then
+            describe_latest_execution "${SERVICE_NAME}-pmo-acceptance"
+            read_recent_job_logs "${SERVICE_NAME}-pmo-acceptance"
+          fi
 
           if [ "${worker_status}" -ne 0 ] || [ "${acceptance_status}" -ne 0 ]; then
             echo "::error title=PMO production acceptance::PMO worker acceptance failed closed; PMO is disabled by the acceptance gate."
