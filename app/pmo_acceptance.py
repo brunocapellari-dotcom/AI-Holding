@@ -5,6 +5,7 @@ import json
 import os
 import sys
 from dataclasses import dataclass
+from typing import NoReturn
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -175,7 +176,7 @@ def _fail_acceptance(
     agent: Agent,
     context: AcceptanceContext,
     errors: list[str],
-) -> None:
+) -> NoReturn:
     if agent.status != AgentStatus.disabled:
         agent.status = AgentStatus.disabled
     record_audit(
