@@ -147,12 +147,14 @@ jobs:
             terraform -chdir=infra/terraform apply -auto-approve foundation.tfplan
           fi
 
-      - name: Recover resources tainted by failed first bootstrap
+      - name: Recover resources tainted by interrupted deployments
         run: |
           for address in \
             'google_cloud_run_v2_service.api[0]' \
             'google_cloud_run_v2_job.migrate[0]' \
-            'google_cloud_run_v2_job.bootstrap[0]'; do
+            'google_cloud_run_v2_job.bootstrap[0]' \
+            'google_cloud_run_v2_job.pmo_worker[0]' \
+            'google_cloud_run_v2_job.pmo_acceptance[0]'; do
             state="$(terraform -chdir=infra/terraform state show "${address}" 2>/dev/null || true)"
             if printf '%s\n' "${state}" | head -n 1 | grep -q '(tainted)'; then
               terraform -chdir=infra/terraform untaint "${address}"
@@ -186,8 +188,27 @@ jobs:
           terraform -chdir=infra/terraform show -json tfplan \
             | jq -e 'all(.resource_changes[]?; (.change.actions | index("delete") | not))'
 
-      - name: Apply production deployment
-        run: terraform -chdir=infra/terraform apply -auto-approve tfplan
+      - name: Apply production deployment with one bounded recovery attempt
+        run: |
+          set +e
+          terraform -chdir=infra/terraform apply -auto-approve tfplan
+          apply_status=$?
+          set -e
+
+          if [ "${apply_status}" -eq 0 ]; then
+            exit 0
+          fi
+
+          echo "Initial apply failed after a non-destructive plan; waiting for control-plane propagation before one bounded retry."
+          sleep 30
+          terraform -chdir=infra/terraform plan \
+            -var-file=prod.tfvars \
+            -var="deploy_service=true" \
+            -var="image_ref=${IMAGE_REF}" \
+            -out=tfplan-retry
+          terraform -chdir=infra/terraform show -json tfplan-retry \
+            | jq -e 'all(.resource_changes[]?; (.change.actions | index("delete") | not))'
+          terraform -chdir=infra/terraform apply -auto-approve tfplan-retry
 
       - name: Run database migrations in private network
         run: |
@@ -267,11 +288,43 @@ jobs:
             --format='value(status.url)')"
           test -n "${URL}"
 
-          gcloud run services get-iam-policy "${SERVICE_NAME}" \
+          policy="$(gcloud run services get-iam-policy "${SERVICE_NAME}" \
             --project="${PROJECT_ID}" \
             --region="${REGION}" \
-            --format=json \
+            --format=json)"
+
+          printf '%s\n' "${policy}" \
+            | jq -e '[.bindings[]?.members[]?] | all(. != "allUsers" and . != "allAuthenticatedUsers")'
+          printf '%s\n' "${policy}" \
             | jq -e --arg member "serviceAccount:${PMO_SERVICE_ACCOUNT}" \
               'any(.bindings[]?; .role == "roles/run.invoker" and any(.members[]?; . == $member))'
 
           echo "Production Control Plane deployed at ${URL}"
+
+      - name: Run controlled PMO production acceptance
+        run: |
+          gcloud run jobs execute "${SERVICE_NAME}-pmo-acceptance" \
+            --project="${PROJECT_ID}" \
+            --region="${REGION}" \
+            --args=prepare \
+            --wait
+
+          set +e
+          gcloud run jobs execute "${SERVICE_NAME}-pmo-worker" \
+            --project="${PROJECT_ID}" \
+            --region="${REGION}" \
+            --wait
+          worker_status=$?
+
+          gcloud run jobs execute "${SERVICE_NAME}-pmo-acceptance" \
+            --project="${PROJECT_ID}" \
+            --region="${REGION}" \
+            --args=finalize \
+            --wait
+          acceptance_status=$?
+          set -e
+
+          if [ "${worker_status}" -ne 0 ] || [ "${acceptance_status}" -ne 0 ]; then
+            echo "::error title=PMO production acceptance::PMO worker acceptance failed closed; PMO is disabled by the acceptance gate."
+            exit 30
+          fi
