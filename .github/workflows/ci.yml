@@ -66,6 +66,10 @@ jobs:
           terraform -chdir=infra/terraform validate
       - name: Container build verification
         run: docker build --pull --tag holding-control-plane:ci .
+      - name: Production runtime entrypoint imports
+        run: |
+          docker run --rm holding-control-plane:ci python -c \
+            "import app.main, app.db_migrate, app.bootstrap, app.pmo_worker, app.pmo_acceptance"
       - name: Generate CycloneDX SBOM
         uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
         with:
