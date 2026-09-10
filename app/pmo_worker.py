@@ -33,6 +33,8 @@ class WorkerStage(StrEnum):
     claim = "claim"
     run_start = "run_start"
     execute = "execute"
+    healthz = "healthz"
+    readyz = "readyz"
     run_finish = "run_finish"
     task_finish = "task_finish"
 
@@ -45,6 +47,8 @@ STAGE_EXIT_CODES: dict[WorkerStage, int] = {
     WorkerStage.execute: 43,
     WorkerStage.run_finish: 44,
     WorkerStage.task_finish: 45,
+    WorkerStage.healthz: 46,
+    WorkerStage.readyz: 47,
 }
 
 
@@ -225,19 +229,22 @@ class ControlPlaneClient:
             },
         )
 
+    def _health_check(self, path: str, stage: WorkerStage) -> dict[str, object]:
+        response = _at_stage(stage, lambda: self._request("GET", path))
+        try:
+            body: object = response.json()
+        except json.JSONDecodeError:
+            body = response.text[:1000]
+        return {
+            "status_code": response.status_code,
+            "body": body,
+        }
+
     def health_evidence(self) -> dict[str, object]:
-        evidence: dict[str, object] = {}
-        for path in ("/healthz", "/readyz"):
-            response = self._request("GET", path)
-            try:
-                body: object = response.json()
-            except json.JSONDecodeError:
-                body = response.text[:1000]
-            evidence[path] = {
-                "status_code": response.status_code,
-                "body": body,
-            }
-        return evidence
+        return {
+            "/healthz": self._health_check("/healthz", WorkerStage.healthz),
+            "/readyz": self._health_check("/readyz", WorkerStage.readyz),
+        }
 
 
 def execute_control_plane_health(
@@ -276,6 +283,18 @@ def _record_execution_failure(
     task_id = str(task["id"])
     project_id = str(task["project_id"])
     error = f"{failure.stage.value}:{type(failure.cause).__name__}"[:MAX_ERROR_LENGTH]
+    diagnostic = _stage_error_diagnostic(failure)
+    incident_details: dict[str, object] = {
+        "task_id": task_id,
+        "run_id": run_id,
+        "execution_kind": task.get("execution_kind"),
+        "failure_stage": failure.stage.value,
+        "error_type": type(failure.cause).__name__,
+    }
+    for key in ("method", "path", "status_code"):
+        if key in diagnostic:
+            incident_details[key] = diagnostic[key]
+
     with suppress(Exception):
         client.transition_run(run_id, "failed", error=error)
     with suppress(Exception):
@@ -284,13 +303,7 @@ def _record_execution_failure(
         client.create_incident(
             project_id=project_id,
             title=f"PMO worker failed task {task.get('key', task_id)}",
-            details={
-                "task_id": task_id,
-                "run_id": run_id,
-                "execution_kind": task.get("execution_kind"),
-                "failure_stage": failure.stage.value,
-                "error_type": type(failure.cause).__name__,
-            },
+            details=incident_details,
         )
 
 

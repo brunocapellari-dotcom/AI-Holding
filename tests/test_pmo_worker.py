@@ -89,7 +89,7 @@ def test_worker_completes_bounded_health_execution_and_sends_evidence():
     assert task_transitions == [{"status": "review"}]
 
 
-def test_worker_failure_marks_run_and_task_and_creates_incident():
+def test_worker_readyz_failure_has_specific_stage_and_records_safe_incident():
     requests: list[tuple[str, str, dict[str, object] | None]] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -110,8 +110,9 @@ def test_worker_failure_marks_run_and_task_and_creates_incident():
             transport=httpx.MockTransport(handler),
         )
 
-    assert caught.value.stage == WorkerStage.execute
+    assert caught.value.stage == WorkerStage.readyz
     assert isinstance(caught.value.cause, httpx.HTTPStatusError)
+    assert STAGE_EXIT_CODES[caught.value.stage] == 47
 
     run_transitions = [
         body
@@ -119,7 +120,7 @@ def test_worker_failure_marks_run_and_task_and_creates_incident():
         if method == "POST" and path == f"/api/v1/runs/{RUN_ID}/transition"
     ]
     assert [item["status"] for item in run_transitions] == ["running", "failed"]
-    assert run_transitions[1]["error"] == "execute:HTTPStatusError"
+    assert run_transitions[1]["error"] == "readyz:HTTPStatusError"
 
     task_transitions = [
         body
@@ -128,7 +129,7 @@ def test_worker_failure_marks_run_and_task_and_creates_incident():
     ]
     assert task_transitions[0] == {
         "status": "blocked",
-        "blocked_reason": "execute:HTTPStatusError",
+        "blocked_reason": "readyz:HTTPStatusError",
     }
 
     incidents = [
@@ -138,7 +139,32 @@ def test_worker_failure_marks_run_and_task_and_creates_incident():
     assert incidents[0]["project_id"] == PROJECT_ID
     assert incidents[0]["severity"] == "sev3"
     assert incidents[0]["details"]["task_id"] == TASK_ID
-    assert incidents[0]["details"]["failure_stage"] == "execute"
+    assert incidents[0]["details"]["failure_stage"] == "readyz"
+    assert incidents[0]["details"]["path"] == "/readyz"
+    assert incidents[0]["details"]["status_code"] == 503
+    assert "response" not in incidents[0]["details"]
+
+
+def test_worker_healthz_failure_has_specific_stage():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST" and request.url.path == "/api/v1/pmo/claim":
+            return httpx.Response(200, json=claim_payload())
+        if request.method == "GET" and request.url.path == "/healthz":
+            return httpx.Response(502, json={"status": "bad-gateway"})
+        return httpx.Response(200, json={"ok": True})
+
+    with pytest.raises(WorkerStageError) as caught:
+        run_once(
+            WorkerConfig(control_plane_url="https://holding.example"),
+            token_provider=lambda audience: "test-token",
+            transport=httpx.MockTransport(handler),
+        )
+
+    assert caught.value.stage == WorkerStage.healthz
+    assert STAGE_EXIT_CODES[caught.value.stage] == 46
+    diagnostic = _stage_error_diagnostic(caught.value)
+    assert diagnostic["path"] == "/healthz"
+    assert diagnostic["status_code"] == 502
 
 
 def test_worker_claim_failure_has_deterministic_stage_and_safe_diagnostic():
