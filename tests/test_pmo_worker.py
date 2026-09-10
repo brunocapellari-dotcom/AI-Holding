@@ -9,6 +9,7 @@ from app.pmo_worker import (
     WorkerStage,
     WorkerStageError,
     _stage_error_diagnostic,
+    _worker_exit_code,
     run_once,
 )
 
@@ -113,6 +114,7 @@ def test_worker_readyz_failure_has_specific_stage_and_records_safe_incident():
     assert caught.value.stage == WorkerStage.readyz
     assert isinstance(caught.value.cause, httpx.HTTPStatusError)
     assert STAGE_EXIT_CODES[caught.value.stage] == 47
+    assert _worker_exit_code(caught.value) == 75
 
     run_transitions = [
         body
@@ -145,7 +147,7 @@ def test_worker_readyz_failure_has_specific_stage_and_records_safe_incident():
     assert "response" not in incidents[0]["details"]
 
 
-def test_worker_healthz_failure_has_specific_stage():
+def test_worker_healthz_failure_encodes_server_error_class():
     def handler(request: httpx.Request) -> httpx.Response:
         if request.method == "POST" and request.url.path == "/api/v1/pmo/claim":
             return httpx.Response(200, json=claim_payload())
@@ -162,9 +164,31 @@ def test_worker_healthz_failure_has_specific_stage():
 
     assert caught.value.stage == WorkerStage.healthz
     assert STAGE_EXIT_CODES[caught.value.stage] == 46
+    assert _worker_exit_code(caught.value) == 65
     diagnostic = _stage_error_diagnostic(caught.value)
+    assert diagnostic["exit_code"] == 65
     assert diagnostic["path"] == "/healthz"
     assert diagnostic["status_code"] == 502
+
+
+def test_worker_healthz_failure_encodes_forbidden_class():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST" and request.url.path == "/api/v1/pmo/claim":
+            return httpx.Response(200, json=claim_payload())
+        if request.method == "GET" and request.url.path == "/healthz":
+            return httpx.Response(403, json={"detail": "forbidden"})
+        return httpx.Response(200, json={"ok": True})
+
+    with pytest.raises(WorkerStageError) as caught:
+        run_once(
+            WorkerConfig(control_plane_url="https://holding.example"),
+            token_provider=lambda audience: "test-token",
+            transport=httpx.MockTransport(handler),
+        )
+
+    assert caught.value.stage == WorkerStage.healthz
+    assert _worker_exit_code(caught.value) == 62
+    assert _stage_error_diagnostic(caught.value)["status_code"] == 403
 
 
 def test_worker_claim_failure_has_deterministic_stage_and_safe_diagnostic():
