@@ -88,8 +88,8 @@ def test_finalize_requires_succeeded_run_and_structured_health_evidence(db_sessi
         output_metadata={
             "execution_kind": "control_plane_health",
             "evidence": {
-                "/healthz": {"status_code": 200, "body": {"status": "ok"}},
-                "/readyz": {"status_code": 200, "body": {"status": "ready"}},
+                "/health": {"status_code": 200, "body": {"status": "ok"}},
+                "/ready": {"status_code": 200, "body": {"status": "ready"}},
             },
         },
     )
@@ -123,15 +123,15 @@ def test_finalize_fails_closed_and_disables_pmo_on_bad_evidence(db_session):
             output_metadata={
                 "execution_kind": "control_plane_health",
                 "evidence": {
-                    "/healthz": {"status_code": 200},
-                    "/readyz": {"status_code": 503},
+                    "/health": {"status_code": 200},
+                    "/ready": {"status_code": 503},
                 },
             },
         )
     )
     db_session.commit()
 
-    with pytest.raises(RuntimeError, match="readyz"):
+    with pytest.raises(RuntimeError, match="ready"):
         finalize_acceptance(db_session, RELEASE_ID)
 
     assert agent.status == AgentStatus.disabled
@@ -157,8 +157,8 @@ def test_finalize_rejects_unresolved_worker_incident(db_session):
                 output_metadata={
                     "execution_kind": "control_plane_health",
                     "evidence": {
-                        "/healthz": {"status_code": 200},
-                        "/readyz": {"status_code": 200},
+                        "/health": {"status_code": 200},
+                        "/ready": {"status_code": 200},
                     },
                 },
             ),

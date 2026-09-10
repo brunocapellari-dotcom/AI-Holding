@@ -34,8 +34,8 @@ class WorkerStage(StrEnum):
     run_start = "run_start"
     dispatch = "dispatch"
     execute = "execute"
-    healthz = "healthz"
-    readyz = "readyz"
+    health = "health"
+    ready = "ready"
     run_finish = "run_finish"
     task_finish = "task_finish"
 
@@ -48,8 +48,8 @@ STAGE_EXIT_CODES: dict[WorkerStage, int] = {
     WorkerStage.execute: 43,
     WorkerStage.run_finish: 44,
     WorkerStage.task_finish: 45,
-    WorkerStage.healthz: 46,
-    WorkerStage.readyz: 47,
+    WorkerStage.health: 46,
+    WorkerStage.ready: 47,
     WorkerStage.dispatch: 48,
 }
 
@@ -244,8 +244,8 @@ class ControlPlaneClient:
 
     def health_evidence(self) -> dict[str, object]:
         return {
-            "/healthz": self._health_check("/healthz", WorkerStage.healthz),
-            "/readyz": self._health_check("/readyz", WorkerStage.readyz),
+            "/health": self._health_check("/health", WorkerStage.health),
+            "/ready": self._health_check("/ready", WorkerStage.ready),
         }
 
 
@@ -386,7 +386,7 @@ def _http_error_diagnostic(exc: httpx.HTTPStatusError) -> dict[str, object]:
 
 
 def _health_failure_exit_code(stage: WorkerStage, cause: Exception) -> int:
-    base = 60 if stage == WorkerStage.healthz else 70
+    base = 60 if stage == WorkerStage.health else 70
     if isinstance(cause, httpx.HTTPStatusError):
         status_code = cause.response.status_code
         if status_code == 401:
@@ -406,7 +406,7 @@ def _health_failure_exit_code(stage: WorkerStage, cause: Exception) -> int:
 
 
 def _worker_exit_code(exc: WorkerStageError) -> int:
-    if exc.stage in {WorkerStage.healthz, WorkerStage.readyz}:
+    if exc.stage in {WorkerStage.health, WorkerStage.ready}:
         return _health_failure_exit_code(exc.stage, exc.cause)
     return STAGE_EXIT_CODES[exc.stage]
 

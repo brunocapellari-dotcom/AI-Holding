@@ -53,9 +53,9 @@ def test_worker_completes_bounded_health_execution_and_sends_evidence():
             if claim_count == 1:
                 return httpx.Response(200, json=claim_payload())
             return httpx.Response(204)
-        if request.method == "GET" and request.url.path == "/healthz":
+        if request.method == "GET" and request.url.path == "/health":
             return httpx.Response(200, json={"status": "ok"})
-        if request.method == "GET" and request.url.path == "/readyz":
+        if request.method == "GET" and request.url.path == "/ready":
             return httpx.Response(200, json={"status": "ready"})
         return httpx.Response(200, json={"ok": True})
 
@@ -79,8 +79,8 @@ def test_worker_completes_bounded_health_execution_and_sends_evidence():
     assert run_transitions[1]["status"] == "succeeded"
     output = run_transitions[1]["output_metadata"]
     assert output["execution_kind"] == "control_plane_health"
-    assert output["evidence"]["/healthz"]["status_code"] == 200
-    assert output["evidence"]["/readyz"]["status_code"] == 200
+    assert output["evidence"]["/health"]["status_code"] == 200
+    assert output["evidence"]["/ready"]["status_code"] == 200
 
     task_transitions = [
         body
@@ -90,7 +90,7 @@ def test_worker_completes_bounded_health_execution_and_sends_evidence():
     assert task_transitions == [{"status": "review"}]
 
 
-def test_worker_readyz_failure_has_specific_stage_and_records_safe_incident():
+def test_worker_ready_failure_has_specific_stage_and_records_safe_incident():
     requests: list[tuple[str, str, dict[str, object] | None]] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -98,9 +98,9 @@ def test_worker_readyz_failure_has_specific_stage_and_records_safe_incident():
         requests.append((request.method, request.url.path, body))
         if request.method == "POST" and request.url.path == "/api/v1/pmo/claim":
             return httpx.Response(200, json=claim_payload())
-        if request.method == "GET" and request.url.path == "/healthz":
+        if request.method == "GET" and request.url.path == "/health":
             return httpx.Response(200, json={"status": "ok"})
-        if request.method == "GET" and request.url.path == "/readyz":
+        if request.method == "GET" and request.url.path == "/ready":
             return httpx.Response(503, json={"status": "not-ready"})
         return httpx.Response(200, json={"ok": True})
 
@@ -111,7 +111,7 @@ def test_worker_readyz_failure_has_specific_stage_and_records_safe_incident():
             transport=httpx.MockTransport(handler),
         )
 
-    assert caught.value.stage == WorkerStage.readyz
+    assert caught.value.stage == WorkerStage.ready
     assert isinstance(caught.value.cause, httpx.HTTPStatusError)
     assert STAGE_EXIT_CODES[caught.value.stage] == 47
     assert _worker_exit_code(caught.value) == 75
@@ -122,7 +122,7 @@ def test_worker_readyz_failure_has_specific_stage_and_records_safe_incident():
         if method == "POST" and path == f"/api/v1/runs/{RUN_ID}/transition"
     ]
     assert [item["status"] for item in run_transitions] == ["running", "failed"]
-    assert run_transitions[1]["error"] == "readyz:HTTPStatusError"
+    assert run_transitions[1]["error"] == "ready:HTTPStatusError"
 
     task_transitions = [
         body
@@ -131,7 +131,7 @@ def test_worker_readyz_failure_has_specific_stage_and_records_safe_incident():
     ]
     assert task_transitions[0] == {
         "status": "blocked",
-        "blocked_reason": "readyz:HTTPStatusError",
+        "blocked_reason": "ready:HTTPStatusError",
     }
 
     incidents = [
@@ -141,17 +141,17 @@ def test_worker_readyz_failure_has_specific_stage_and_records_safe_incident():
     assert incidents[0]["project_id"] == PROJECT_ID
     assert incidents[0]["severity"] == "sev3"
     assert incidents[0]["details"]["task_id"] == TASK_ID
-    assert incidents[0]["details"]["failure_stage"] == "readyz"
-    assert incidents[0]["details"]["path"] == "/readyz"
+    assert incidents[0]["details"]["failure_stage"] == "ready"
+    assert incidents[0]["details"]["path"] == "/ready"
     assert incidents[0]["details"]["status_code"] == 503
     assert "response" not in incidents[0]["details"]
 
 
-def test_worker_healthz_failure_encodes_server_error_class():
+def test_worker_health_failure_encodes_server_error_class():
     def handler(request: httpx.Request) -> httpx.Response:
         if request.method == "POST" and request.url.path == "/api/v1/pmo/claim":
             return httpx.Response(200, json=claim_payload())
-        if request.method == "GET" and request.url.path == "/healthz":
+        if request.method == "GET" and request.url.path == "/health":
             return httpx.Response(502, json={"status": "bad-gateway"})
         return httpx.Response(200, json={"ok": True})
 
@@ -162,20 +162,20 @@ def test_worker_healthz_failure_encodes_server_error_class():
             transport=httpx.MockTransport(handler),
         )
 
-    assert caught.value.stage == WorkerStage.healthz
+    assert caught.value.stage == WorkerStage.health
     assert STAGE_EXIT_CODES[caught.value.stage] == 46
     assert _worker_exit_code(caught.value) == 65
     diagnostic = _stage_error_diagnostic(caught.value)
     assert diagnostic["exit_code"] == 65
-    assert diagnostic["path"] == "/healthz"
+    assert diagnostic["path"] == "/health"
     assert diagnostic["status_code"] == 502
 
 
-def test_worker_healthz_failure_encodes_forbidden_class():
+def test_worker_health_failure_encodes_forbidden_class():
     def handler(request: httpx.Request) -> httpx.Response:
         if request.method == "POST" and request.url.path == "/api/v1/pmo/claim":
             return httpx.Response(200, json=claim_payload())
-        if request.method == "GET" and request.url.path == "/healthz":
+        if request.method == "GET" and request.url.path == "/health":
             return httpx.Response(403, json={"detail": "forbidden"})
         return httpx.Response(200, json={"ok": True})
 
@@ -186,7 +186,7 @@ def test_worker_healthz_failure_encodes_forbidden_class():
             transport=httpx.MockTransport(handler),
         )
 
-    assert caught.value.stage == WorkerStage.healthz
+    assert caught.value.stage == WorkerStage.health
     assert _worker_exit_code(caught.value) == 62
     assert _stage_error_diagnostic(caught.value)["status_code"] == 403
 
