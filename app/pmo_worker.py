@@ -225,19 +225,29 @@ class ControlPlaneClient:
             },
         )
 
-    def health_evidence(self) -> dict[str, object]:
-        evidence: dict[str, object] = {}
-        for path in ("/healthz", "/readyz"):
-            response = self._request("GET", path)
-            try:
-                body: object = response.json()
-            except json.JSONDecodeError:
-                body = response.text[:1000]
-            evidence[path] = {
-                "status_code": response.status_code,
-                "body": body,
+    def _health_probe_evidence(self, path: str) -> dict[str, object]:
+        try:
+            response = self._client.get(path)
+        except httpx.RequestError as exc:
+            return {
+                "status_code": None,
+                "error_type": type(exc).__name__,
             }
-        return evidence
+
+        try:
+            body: object = response.json()
+        except json.JSONDecodeError:
+            body = response.text[:1000]
+        return {
+            "status_code": response.status_code,
+            "body": body,
+        }
+
+    def health_evidence(self) -> dict[str, object]:
+        return {
+            path: self._health_probe_evidence(path)
+            for path in ("/healthz", "/readyz")
+        }
 
 
 def execute_control_plane_health(
