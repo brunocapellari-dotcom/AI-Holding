@@ -29,6 +29,7 @@ from app.services.audit import record_audit
 PMO_AGENT_KEY = "PMO_IA"
 HOLDING_PROJECT_KEY = "AI_HOLDING"
 EXECUTION_KIND = "control_plane_health"
+ACCEPTANCE_IDEMPOTENCY_PREFIX = "prod-pmo-acceptance-"
 ACCEPTANCE_ACTOR = ActorContext(
     name="production-acceptance-job",
     actor_type="system",
@@ -52,7 +53,7 @@ def acceptance_context(release_id: str) -> AcceptanceContext:
     return AcceptanceContext(
         release_id=normalized,
         release_key=release_key,
-        idempotency_key=f"prod-pmo-acceptance-{release_key}",
+        idempotency_key=f"{ACCEPTANCE_IDEMPOTENCY_PREFIX}{release_key}",
         task_key=f"PMO_PROD_HEALTH_{release_key.upper()}",
     )
 
@@ -70,9 +71,67 @@ def _canonical_entities(db: Session) -> tuple[Agent, Project]:
     return agent, project
 
 
+def _supersede_stale_acceptance_tasks(
+    db: Session,
+    *,
+    agent: Agent,
+    project: Project,
+    context: AcceptanceContext,
+) -> int:
+    stale_tasks = list(
+        db.scalars(
+            select(Task).where(
+                Task.project_id == project.id,
+                Task.assigned_agent_id == agent.id,
+                Task.execution_kind == EXECUTION_KIND,
+                Task.idempotency_key.like(f"{ACCEPTANCE_IDEMPOTENCY_PREFIX}%"),
+                Task.idempotency_key != context.idempotency_key,
+                Task.status.in_(
+                    (
+                        WorkStatus.planned,
+                        WorkStatus.ready,
+                        WorkStatus.running,
+                        WorkStatus.review,
+                    )
+                ),
+            )
+        )
+    )
+    for task in stale_tasks:
+        if task.status == WorkStatus.running:
+            raise RuntimeError(
+                f"prior production acceptance is still running: {task.idempotency_key}"
+            )
+
+    superseded = 0
+    for task in stale_tasks:
+        previous_status = task.status
+        task.status = WorkStatus.cancelled
+        task.blocked_reason = f"superseded by production acceptance {context.release_key}"
+        record_audit(
+            db,
+            actor=ACCEPTANCE_ACTOR,
+            action="pmo.production_acceptance.superseded",
+            entity_type="task",
+            entity_id=str(task.id),
+            payload={
+                "previous_status": previous_status.value,
+                "replacement_release_key": context.release_key,
+            },
+        )
+        superseded += 1
+    return superseded
+
+
 def prepare_acceptance(db: Session, release_id: str) -> dict[str, object]:
     context = acceptance_context(release_id)
     agent, project = _canonical_entities(db)
+    superseded_tasks = _supersede_stale_acceptance_tasks(
+        db,
+        agent=agent,
+        project=project,
+        context=context,
+    )
 
     if agent.status == AgentStatus.degraded:
         raise RuntimeError("PMO_IA is degraded and cannot enter production acceptance")
@@ -123,6 +182,7 @@ def prepare_acceptance(db: Session, release_id: str) -> dict[str, object]:
             "project_id": str(project.id),
             "release_key": context.release_key,
             "task_status": task.status.value,
+            "superseded_tasks": superseded_tasks,
         },
     )
     db.commit()
@@ -132,6 +192,7 @@ def prepare_acceptance(db: Session, release_id: str) -> dict[str, object]:
         "task_status": task.status.value,
         "agent_id": str(agent.id),
         "agent_status": agent.status.value,
+        "superseded_tasks": superseded_tasks,
     }
 
 

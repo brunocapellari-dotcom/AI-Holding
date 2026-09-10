@@ -32,6 +32,7 @@ class WorkerStage(StrEnum):
     identity_fetch = "identity_fetch"
     claim = "claim"
     run_start = "run_start"
+    dispatch = "dispatch"
     execute = "execute"
     healthz = "healthz"
     readyz = "readyz"
@@ -49,6 +50,7 @@ STAGE_EXIT_CODES: dict[WorkerStage, int] = {
     WorkerStage.task_finish: 45,
     WorkerStage.healthz: 46,
     WorkerStage.readyz: 47,
+    WorkerStage.dispatch: 48,
 }
 
 
@@ -233,7 +235,7 @@ class ControlPlaneClient:
         response = _at_stage(stage, lambda: self._request("GET", path))
         try:
             body: object = response.json()
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, UnicodeDecodeError):
             body = response.text[:1000]
         return {
             "status_code": response.status_code,
@@ -271,6 +273,14 @@ def _execution_kind(task: dict[str, Any]) -> ExecutionKind:
         return ExecutionKind(raw)
     except ValueError as exc:
         raise RuntimeError(f"unsupported task execution kind: {raw!r}") from exc
+
+
+def _executor_for_task(task: dict[str, Any]) -> Executor:
+    kind = _execution_kind(task)
+    executor = EXECUTORS.get(kind)
+    if executor is None:
+        raise RuntimeError(f"worker does not implement execution kind {kind.value}")
+    return executor
 
 
 def _record_execution_failure(
@@ -318,10 +328,10 @@ def process_claim(client: ControlPlaneClient, claim: dict[str, Any]) -> None:
         lambda: client.transition_run(run_id, "running"),
     )
     try:
-        kind = _execution_kind(task)
-        executor = EXECUTORS.get(kind)
-        if executor is None:
-            raise RuntimeError(f"worker does not implement execution kind {kind.value}")
+        executor = _at_stage(
+            WorkerStage.dispatch,
+            lambda: _executor_for_task(task),
+        )
         output = _at_stage(
             WorkerStage.execute,
             lambda: executor(client, task),
@@ -334,15 +344,6 @@ def process_claim(client: ControlPlaneClient, claim: dict[str, Any]) -> None:
             failure=failure,
         )
         raise
-    except Exception as exc:
-        wrapped_failure = WorkerStageError(WorkerStage.execute, exc)
-        _record_execution_failure(
-            client,
-            task=task,
-            run_id=run_id,
-            failure=wrapped_failure,
-        )
-        raise wrapped_failure from exc
 
     _at_stage(
         WorkerStage.run_finish,
