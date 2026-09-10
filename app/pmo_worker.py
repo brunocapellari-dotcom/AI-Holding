@@ -322,14 +322,14 @@ def process_claim(client: ControlPlaneClient, claim: dict[str, Any]) -> None:
         )
         raise
     except Exception as exc:
-        failure = WorkerStageError(WorkerStage.execute, exc)
+        wrapped_failure = WorkerStageError(WorkerStage.execute, exc)
         _record_execution_failure(
             client,
             task=task,
             run_id=run_id,
-            failure=failure,
+            failure=wrapped_failure,
         )
-        raise failure from exc
+        raise wrapped_failure from exc
 
     _at_stage(
         WorkerStage.run_finish,
