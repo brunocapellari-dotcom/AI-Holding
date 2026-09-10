@@ -44,13 +44,13 @@ async def request_context(request: Request, call_next: RequestResponseEndpoint) 
         request_id_ctx.reset(token)
 
 
-@app.get("/healthz", tags=["system"])
-def healthz() -> dict[str, str]:
+@app.get("/health", tags=["system"])
+def health() -> dict[str, str]:
     return {"status": "ok", "service": "holding-control-plane"}
 
 
-@app.get("/readyz", tags=["system"])
-def readyz() -> dict[str, str]:
+@app.get("/ready", tags=["system"])
+def ready() -> dict[str, str]:
     with engine.connect() as conn:
         conn.execute(text("SELECT 1"))
     return {"status": "ready"}
