@@ -384,11 +384,37 @@ def _http_error_diagnostic(exc: httpx.HTTPStatusError) -> dict[str, object]:
     }
 
 
+def _health_failure_exit_code(stage: WorkerStage, cause: Exception) -> int:
+    base = 60 if stage == WorkerStage.healthz else 70
+    if isinstance(cause, httpx.HTTPStatusError):
+        status_code = cause.response.status_code
+        if status_code == 401:
+            return base + 1
+        if status_code == 403:
+            return base + 2
+        if status_code == 404:
+            return base + 3
+        if status_code == 429:
+            return base + 4
+        if 500 <= status_code <= 599:
+            return base + 5
+        return base + 6
+    if isinstance(cause, httpx.TransportError):
+        return base + 7
+    return STAGE_EXIT_CODES[stage]
+
+
+def _worker_exit_code(exc: WorkerStageError) -> int:
+    if exc.stage in {WorkerStage.healthz, WorkerStage.readyz}:
+        return _health_failure_exit_code(exc.stage, exc.cause)
+    return STAGE_EXIT_CODES[exc.stage]
+
+
 def _stage_error_diagnostic(exc: WorkerStageError) -> dict[str, object]:
     diagnostic: dict[str, object] = {
         "event": "pmo_worker_stage_error",
         "stage": exc.stage.value,
-        "exit_code": STAGE_EXIT_CODES[exc.stage],
+        "exit_code": _worker_exit_code(exc),
         "cause_type": type(exc.cause).__name__,
     }
     if isinstance(exc.cause, httpx.HTTPStatusError):
@@ -402,7 +428,7 @@ def main() -> None:
         result = run_once(config)
     except WorkerStageError as exc:
         print(json.dumps(_stage_error_diagnostic(exc), sort_keys=True), file=sys.stderr)
-        raise SystemExit(STAGE_EXIT_CODES[exc.stage]) from exc
+        raise SystemExit(_worker_exit_code(exc)) from exc
     print(json.dumps(result, sort_keys=True))
 
 
