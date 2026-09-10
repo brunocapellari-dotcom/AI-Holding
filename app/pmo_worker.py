@@ -29,7 +29,7 @@ Executor = Callable[["ControlPlaneClient", dict[str, Any]], dict[str, object]]
 
 class WorkerStage(StrEnum):
     config = "config"
-    token = "token"
+    identity_fetch = "identity_fetch"
     claim = "claim"
     run_start = "run_start"
     execute = "execute"
@@ -39,7 +39,7 @@ class WorkerStage(StrEnum):
 
 STAGE_EXIT_CODES: dict[WorkerStage, int] = {
     WorkerStage.config: 39,
-    WorkerStage.token: 40,
+    WorkerStage.identity_fetch: 40,
     WorkerStage.claim: 41,
     WorkerStage.run_start: 42,
     WorkerStage.execute: 43,
@@ -111,7 +111,7 @@ class ControlPlaneClient:
     ) -> None:
         self.config = config
         token = _at_stage(
-            WorkerStage.token,
+            WorkerStage.identity_fetch,
             lambda: token_provider(config.audience),
         )
         bearer = f"Bearer {token}"
