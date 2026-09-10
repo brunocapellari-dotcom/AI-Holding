@@ -213,7 +213,7 @@ def _evidence_errors(run: Run) -> list[str]:
     evidence = output.get("evidence")
     if not isinstance(evidence, dict):
         return [*errors, "run output has no structured health evidence"]
-    for path in ("/healthz", "/readyz"):
+    for path in ("/health", "/ready"):
         item = evidence.get(path)
         if not isinstance(item, dict) or item.get("status_code") != 200:
             errors.append(f"{path} did not return accepted evidence")
