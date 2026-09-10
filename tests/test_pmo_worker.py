@@ -168,7 +168,7 @@ def test_worker_claim_failure_has_deterministic_stage_and_safe_diagnostic():
     assert "test-token" not in serialized
 
 
-def test_worker_token_failure_has_deterministic_stage():
+def test_worker_identity_fetch_failure_has_deterministic_stage():
     def failed_token_provider(audience: str) -> str:
         raise RuntimeError("metadata unavailable")
 
@@ -178,7 +178,7 @@ def test_worker_token_failure_has_deterministic_stage():
             token_provider=failed_token_provider,
         )
 
-    assert caught.value.stage == WorkerStage.token
+    assert caught.value.stage == WorkerStage.identity_fetch
     assert STAGE_EXIT_CODES[caught.value.stage] == 40
     assert _stage_error_diagnostic(caught.value)["cause_type"] == "RuntimeError"
 
