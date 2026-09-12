@@ -6,7 +6,14 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-RUN useradd --system --uid 10001 --create-home appuser
+# The upstream slim image can lag Debian security point releases even when the
+# tag itself is freshly pulled. Apply only published package upgrades during
+# the immutable image build, then remove package indexes from the runtime.
+RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --system --uid 10001 --create-home appuser
+
 COPY pyproject.toml README.md ./
 COPY app ./app
 COPY alembic ./alembic
