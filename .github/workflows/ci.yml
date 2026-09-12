@@ -105,6 +105,7 @@ jobs:
       REGION: southamerica-east1
       SERVICE_NAME: holding-control-plane
       PMO_SERVICE_ACCOUNT: holding-pmo-worker@ai-holding-prod-bc.iam.gserviceaccount.com
+      PMO_SCHEDULER_JOB: holding-control-plane-pmo-schedule
       TF_STATE_BUCKET: ai-holding-prod-bc-tfstate
       WIF_PROVIDER: projects/868946857614/locations/global/workloadIdentityPools/github-actions/providers/ai-holding-main
       DEPLOY_SERVICE_ACCOUNT: github-deployer@ai-holding-prod-bc.iam.gserviceaccount.com
@@ -129,6 +130,32 @@ jobs:
           terraform -chdir=infra/terraform init \
             -backend-config="bucket=${TF_STATE_BUCKET}" \
             -backend-config="prefix=control-plane/prod"
+
+      - name: Pause PMO scheduler during production rollout
+        run: |
+          if terraform -chdir=infra/terraform state show \
+            'google_cloud_scheduler_job.pmo_worker[0]' >/dev/null 2>&1; then
+            scheduler_state="$(gcloud scheduler jobs describe "${PMO_SCHEDULER_JOB}" \
+              --project="${PROJECT_ID}" \
+              --location="${REGION}" \
+              --format='value(state)')"
+            case "${scheduler_state}" in
+              ENABLED)
+                gcloud scheduler jobs pause "${PMO_SCHEDULER_JOB}" \
+                  --project="${PROJECT_ID}" \
+                  --location="${REGION}"
+                ;;
+              PAUSED)
+                echo "PMO scheduler already paused."
+                ;;
+              *)
+                echo "::error title=PMO scheduler state::Unexpected scheduler state before rollout: ${scheduler_state}"
+                exit 25
+                ;;
+            esac
+          else
+            echo "PMO scheduler is not provisioned yet; first rollout remains fail-closed."
+          fi
 
       - name: Complete missing database foundation without touching runtime
         run: |
@@ -305,7 +332,7 @@ jobs:
 
           echo "Production Control Plane deployed at ${URL}"
 
-      - name: Run controlled PMO production acceptance
+      - name: Run controlled PMO production acceptance through scheduler
         run: |
           describe_latest_execution() {
             job="$1"
@@ -334,22 +361,69 @@ jobs:
               || true
           }
 
+          latest_worker_execution() {
+            gcloud run jobs executions list \
+              --job="${SERVICE_NAME}-pmo-worker" \
+              --project="${PROJECT_ID}" \
+              --region="${REGION}" \
+              --sort-by='~metadata.creationTimestamp' \
+              --limit=1 \
+              --format='value(metadata.name)' 2>/dev/null || true
+          }
+
+          wait_for_new_worker_execution() {
+            previous_execution="$1"
+            for _ in $(seq 1 48); do
+              current_execution="$(latest_worker_execution)"
+              if [ -n "${current_execution}" ] && [ "${current_execution}" != "${previous_execution}" ]; then
+                execution_json="$(gcloud run jobs executions describe "${current_execution}" \
+                  --project="${PROJECT_ID}" \
+                  --region="${REGION}" \
+                  --format=json)"
+                completion_time="$(printf '%s' "${execution_json}" \
+                  | jq -r '.status.completionTime // .completionTime // empty')"
+                failed_count="$(printf '%s' "${execution_json}" \
+                  | jq -r '.status.failedCount // .failedCount // 0')"
+                succeeded_count="$(printf '%s' "${execution_json}" \
+                  | jq -r '.status.succeededCount // .succeededCount // 0')"
+
+                if [ -n "${completion_time}" ]; then
+                  if [ "${failed_count}" = "0" ] && [ "${succeeded_count}" != "0" ]; then
+                    echo "Scheduler-triggered PMO execution ${current_execution} succeeded."
+                    return 0
+                  fi
+                  echo "Scheduler-triggered PMO execution ${current_execution} failed."
+                  return 1
+                fi
+              fi
+              sleep 5
+            done
+            echo "Timed out waiting for scheduler-triggered PMO execution."
+            return 1
+          }
+
           gcloud run jobs execute "${SERVICE_NAME}-pmo-acceptance" \
             --project="${PROJECT_ID}" \
             --region="${REGION}" \
             --args=prepare \
             --wait
 
+          previous_execution="$(latest_worker_execution)"
           set +e
-          gcloud run jobs execute "${SERVICE_NAME}-pmo-worker" \
+          gcloud scheduler jobs run "${PMO_SCHEDULER_JOB}" \
             --project="${PROJECT_ID}" \
-            --region="${REGION}" \
-            --wait
-          worker_status=$?
+            --location="${REGION}"
+          trigger_status=$?
+          if [ "${trigger_status}" -eq 0 ]; then
+            wait_for_new_worker_execution "${previous_execution}"
+            worker_status=$?
+          else
+            worker_status="${trigger_status}"
+          fi
           set -e
 
           if [ "${worker_status}" -ne 0 ]; then
-            echo "PMO worker failed; collecting sanitized execution diagnostics."
+            echo "PMO scheduler/worker failed; collecting sanitized execution diagnostics."
             describe_latest_execution "${SERVICE_NAME}-pmo-worker"
             read_recent_job_logs "${SERVICE_NAME}-pmo-worker"
           fi
@@ -369,6 +443,34 @@ jobs:
           fi
 
           if [ "${worker_status}" -ne 0 ] || [ "${acceptance_status}" -ne 0 ]; then
-            echo "::error title=PMO production acceptance::PMO worker acceptance failed closed; PMO is disabled by the acceptance gate."
+            echo "::error title=PMO production acceptance::Scheduler-backed PMO acceptance failed closed; PMO scheduling remains paused."
             exit 30
           fi
+
+      - name: Resume PMO scheduler after production acceptance
+        run: |
+          scheduler_state="$(gcloud scheduler jobs describe "${PMO_SCHEDULER_JOB}" \
+            --project="${PROJECT_ID}" \
+            --location="${REGION}" \
+            --format='value(state)')"
+          case "${scheduler_state}" in
+            PAUSED)
+              gcloud scheduler jobs resume "${PMO_SCHEDULER_JOB}" \
+                --project="${PROJECT_ID}" \
+                --location="${REGION}"
+              ;;
+            ENABLED)
+              echo "PMO scheduler already enabled after acceptance."
+              ;;
+            *)
+              echo "::error title=PMO scheduler state::Cannot enable scheduler from state: ${scheduler_state}"
+              exit 31
+              ;;
+          esac
+
+          final_state="$(gcloud scheduler jobs describe "${PMO_SCHEDULER_JOB}" \
+            --project="${PROJECT_ID}" \
+            --location="${REGION}" \
+            --format='value(state)')"
+          test "${final_state}" = "ENABLED"
+          echo "PMO scheduler enabled after successful production acceptance."
