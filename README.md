@@ -31,7 +31,8 @@ Este repositório não é protótipo. Ele contém o núcleo definitivo para regi
 
 ## Arquitetura-alvo
 
-- Cloud Run: API privada do Control Plane
+- Cloud Run: API privada do Control Plane e jobs operacionais
+- Cloud Scheduler: gatilho recorrente do PMO com identidade dedicada e privilégio mínimo
 - Cloud SQL PostgreSQL: estado operacional
 - Secret Manager: credenciais
 - Artifact Registry: imagens de produção
@@ -39,6 +40,8 @@ Este repositório não é protótipo. Ele contém o núcleo definitivo para regi
 - GitHub Actions: qualidade e entrega
 - BigQuery: dados analíticos das unidades; não substitui o PostgreSQL operacional
 - Hermes + Llama: Assistente Executivo, acima do Control Plane
+
+O scheduler de produção é fail-closed: permanece pausado durante cada rollout, o caminho real Scheduler → Cloud Run Job → Control Plane é validado na aceitação de produção e a recorrência só é retomada depois que migrações, bootstrap, verificações de IAM e aceitação do PMO terminam com sucesso.
 
 ## Organização dos projetos
 
