@@ -48,6 +48,7 @@ provider "google" {
 locals {
   required_services = toset([
     "artifactregistry.googleapis.com",
+    "cloudscheduler.googleapis.com",
     "compute.googleapis.com",
     "run.googleapis.com",
     "secretmanager.googleapis.com",
