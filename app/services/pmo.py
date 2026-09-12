@@ -18,9 +18,32 @@ from app.models.entities import (
     TaskDependency,
     WorkStatus,
 )
+from app.schemas.policy import PolicyEvaluationRequest, PolicyOutcome
 from app.services.audit import record_audit
+from app.services.execution_policy import execution_policy_profile
+from app.services.policy import PolicyDecision, evaluate_policy
 
 ACTIVE_RUN_STATUSES = (RunStatus.queued, RunStatus.running)
+MAX_POLICY_CANDIDATES = 25
+
+
+def _policy_decision(project: Project, agent: Agent, task: Task) -> PolicyDecision | None:
+    profile = execution_policy_profile(task.execution_kind)
+    if profile is None:
+        return None
+
+    request = PolicyEvaluationRequest(
+        action_key=f"TASK_{task.id.hex.upper()}",
+        project_id=project.id,
+        agent_id=agent.id,
+        action_type=profile.action_type,
+        summary=f"Execute task {task.key}",
+        risk_level=profile.risk_level,
+        irreversible=profile.irreversible,
+        external_party_effect=profile.external_party_effect,
+        sensitive_data=profile.sensitive_data,
+    )
+    return evaluate_policy(project, agent, request)
 
 
 def claim_next_task(
@@ -70,14 +93,27 @@ def claim_next_task(
             Task.due_at.asc().nulls_last(),
             Task.created_at.asc(),
         )
-        .limit(1)
+        .limit(MAX_POLICY_CANDIDATES)
         .with_for_update(skip_locked=True)
     )
     if project_id is not None:
         statement = statement.where(Task.project_id == project_id)
 
-    task = db.scalar(statement)
-    if task is None:
+    candidates = list(db.scalars(statement))
+    task: Task | None = None
+    policy: PolicyDecision | None = None
+    for candidate in candidates:
+        project = db.get(Project, candidate.project_id)
+        if project is None:
+            continue
+        candidate_policy = _policy_decision(project, agent, candidate)
+        if candidate_policy is None or candidate_policy.outcome != PolicyOutcome.allow:
+            continue
+        task = candidate
+        policy = candidate_policy
+        break
+
+    if task is None or policy is None:
         return None
 
     last_attempt = db.scalar(select(func.max(Run.attempt)).where(Run.task_id == task.id)) or 0
@@ -93,6 +129,11 @@ def claim_next_task(
         input_metadata={
             "claim_source": "pmo",
             "execution_kind": task.execution_kind,
+            "policy": {
+                "outcome": policy.outcome.value,
+                "required_autonomy": policy.required_autonomy,
+                "effective_autonomy": policy.effective_autonomy,
+            },
         },
     )
     db.add(run)
@@ -110,6 +151,9 @@ def claim_next_task(
             "run_id": str(run.id),
             "attempt": run.attempt,
             "execution_kind": task.execution_kind,
+            "policy_outcome": policy.outcome.value,
+            "policy_required_autonomy": policy.required_autonomy,
+            "policy_effective_autonomy": policy.effective_autonomy,
         },
     )
     return task, run
