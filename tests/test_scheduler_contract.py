@@ -3,6 +3,7 @@ from pathlib import Path
 
 SCHEDULER_TERRAFORM = Path("infra/terraform/pmo_scheduler.tf")
 WORKFLOW = Path(".github/workflows/ci.yml")
+BOOTSTRAP = Path("infra/bootstrap/bootstrap_gcp_wif.sh")
 
 
 def test_scheduler_is_fail_closed_and_uses_dedicated_invoker():
@@ -29,6 +30,9 @@ def test_deployment_resumes_scheduler_only_after_acceptance():
     assert 'test "${final_state}" = "ENABLED"' in workflow
 
 
-def test_scheduler_api_is_managed_by_terraform():
+def test_scheduler_api_and_deployer_permission_are_declared():
     terraform = Path("infra/terraform/main.tf").read_text()
+    bootstrap = BOOTSTRAP.read_text()
+
     assert '"cloudscheduler.googleapis.com"' in terraform
+    assert "roles/cloudscheduler.admin" in bootstrap
