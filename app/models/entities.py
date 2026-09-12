@@ -209,6 +209,10 @@ class Task(Base, TimestampMixin):
             "execution_kind IS NULL OR execution_kind IN ('control_plane_health')",
             name="execution_kind_valid",
         ),
+        CheckConstraint(
+            "NOT auto_start OR execution_kind IS NOT NULL",
+            name="auto_start_requires_execution_kind",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -227,6 +231,12 @@ class Task(Base, TimestampMixin):
         ForeignKey("agents.id", ondelete="SET NULL"), nullable=True, index=True
     )
     execution_kind: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
+    auto_start: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+        server_default=text("false"),
+    )
     blocked_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     idempotency_key: Mapped[str] = mapped_column(String(160))
