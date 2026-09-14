@@ -25,7 +25,7 @@ from app.db.base import Base
 class Routine(Base):
     __tablename__ = "routines"
     __table_args__ = (
-        UniqueConstraint("project_id", "key", name="project_key"),
+        UniqueConstraint("project_id", "key", name="uq_routines_project_key"),
         CheckConstraint("priority BETWEEN 0 AND 5", name="priority_range"),
         CheckConstraint(
             "interval_minutes BETWEEN 5 AND 10080",
