@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -318,7 +318,7 @@ def _ensure_routine(
             priority=seed.priority,
             assigned_agent_id=agent.id,
             enabled=True,
-            next_due_at=datetime.now(timezone.utc),
+            next_due_at=datetime.now(UTC),
             metadata_json={"bootstrap_source": "canonical-routines-v1"},
         )
     )
