@@ -12,6 +12,7 @@ from app.pmo_worker import (
     _worker_exit_code,
     run_once,
 )
+from app.schemas.api import ExecutionKind
 
 AGENT_ID = "11111111-1111-1111-1111-111111111111"
 PROJECT_ID = "22222222-2222-2222-2222-222222222222"
@@ -19,13 +20,16 @@ TASK_ID = "33333333-3333-3333-3333-333333333333"
 RUN_ID = "44444444-4444-4444-4444-444444444444"
 
 
-def claim_payload() -> dict[str, object]:
+def claim_payload(
+    execution_kind: str = "control_plane_health",
+    task_key: str = "CONTROL_PLANE_HEALTH",
+) -> dict[str, object]:
     return {
         "task": {
             "id": TASK_ID,
-            "key": "CONTROL_PLANE_HEALTH",
+            "key": task_key,
             "project_id": PROJECT_ID,
-            "execution_kind": "control_plane_health",
+            "execution_kind": execution_kind,
         },
         "run": {
             "id": RUN_ID,
@@ -88,6 +92,100 @@ def test_worker_completes_bounded_health_execution_and_sends_evidence():
         if method == "POST" and path == f"/api/v1/tasks/{TASK_ID}/transition"
     ]
     assert task_transitions == [{"status": "review"}]
+
+
+@pytest.mark.parametrize(
+    ("execution_kind", "path", "task_key"),
+    [
+        (
+            ExecutionKind.knowledge_gap_scan,
+            "/api/v1/knowledge/gaps",
+            "KNOWLEDGE_GAP_SCAN",
+        ),
+        (
+            ExecutionKind.knowledge_outcome_review,
+            "/api/v1/knowledge/outcome-review",
+            "KNOWLEDGE_OUTCOME_REVIEW",
+        ),
+    ],
+)
+def test_worker_executes_read_only_knowledge_maintenance(
+    execution_kind: ExecutionKind,
+    path: str,
+    task_key: str,
+) -> None:
+    requests: list[tuple[str, str, dict[str, object] | None]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content) if request.content else None
+        requests.append((request.method, request.url.path, body))
+        if request.method == "POST" and request.url.path == "/api/v1/pmo/claim":
+            assert body == {"execution_kinds": [execution_kind.value]}
+            return httpx.Response(
+                200,
+                json=claim_payload(execution_kind.value, task_key),
+            )
+        if request.method == "GET" and request.url.path == path:
+            assert request.url.params["limit"] == "100"
+            return httpx.Response(
+                200,
+                json=[
+                    {"id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"},
+                    {"id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"},
+                ],
+            )
+        return httpx.Response(200, json={"ok": True})
+
+    result = run_once(
+        WorkerConfig(
+            control_plane_url="https://holding.example",
+            execution_kinds=(execution_kind,),
+        ),
+        token_provider=lambda audience: "test-token",
+        transport=httpx.MockTransport(handler),
+    )
+
+    assert result == {"processed": 1}
+    run_transitions = [
+        body
+        for method, request_path, body in requests
+        if method == "POST" and request_path == f"/api/v1/runs/{RUN_ID}/transition"
+    ]
+    output = run_transitions[1]["output_metadata"]
+    assert output == {
+        "execution_kind": execution_kind.value,
+        "task_key": task_key,
+        "candidate_count": 2,
+        "claim_ids": [
+            "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+        ],
+    }
+
+
+def test_worker_rejects_invalid_knowledge_queue_shape() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST" and request.url.path == "/api/v1/pmo/claim":
+            return httpx.Response(
+                200,
+                json=claim_payload("knowledge_gap_scan", "KNOWLEDGE_GAP_SCAN"),
+            )
+        if request.method == "GET" and request.url.path == "/api/v1/knowledge/gaps":
+            return httpx.Response(200, json={"unexpected": "object"})
+        return httpx.Response(200, json={"ok": True})
+
+    with pytest.raises(WorkerStageError) as caught:
+        run_once(
+            WorkerConfig(
+                control_plane_url="https://holding.example",
+                execution_kinds=(ExecutionKind.knowledge_gap_scan,),
+            ),
+            token_provider=lambda audience: "test-token",
+            transport=httpx.MockTransport(handler),
+        )
+
+    assert caught.value.stage == WorkerStage.execute
+    assert isinstance(caught.value.cause, RuntimeError)
 
 
 def test_worker_ready_failure_has_specific_stage_and_records_safe_incident():
@@ -241,4 +339,26 @@ def test_worker_configuration_fails_closed(monkeypatch):
     monkeypatch.setenv("CONTROL_PLANE_URL", "https://holding.example")
     monkeypatch.setenv("PMO_MAX_TASKS", "11")
     with pytest.raises(RuntimeError, match="between 1 and 10"):
+        WorkerConfig.from_env()
+
+
+def test_worker_execution_kinds_are_configurable_and_deduplicated(monkeypatch):
+    monkeypatch.setenv("CONTROL_PLANE_URL", "https://holding.example")
+    monkeypatch.setenv(
+        "WORKER_EXECUTION_KINDS",
+        "knowledge_gap_scan,knowledge_outcome_review,knowledge_gap_scan",
+    )
+
+    config = WorkerConfig.from_env()
+    assert config.execution_kinds == (
+        ExecutionKind.knowledge_gap_scan,
+        ExecutionKind.knowledge_outcome_review,
+    )
+
+    monkeypatch.setenv("WORKER_EXECUTION_KINDS", "unknown_kind")
+    with pytest.raises(RuntimeError, match="unsupported execution kind"):
+        WorkerConfig.from_env()
+
+    monkeypatch.setenv("WORKER_EXECUTION_KINDS", " , ")
+    with pytest.raises(RuntimeError, match="at least one"):
         WorkerConfig.from_env()
