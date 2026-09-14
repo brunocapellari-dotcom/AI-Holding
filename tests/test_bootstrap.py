@@ -90,6 +90,33 @@ def test_bootstrap_seeds_bounded_health_routine_without_enabling_agent(db_sessio
     assert pmo.status == AgentStatus.disabled
 
 
+def test_bootstrap_seeds_knowledge_maintenance_without_activating_agent(db_session):
+    bootstrap_canonical_portfolio(db_session)
+    knowledge_agent = db_session.scalar(select(Agent).where(Agent.key == "KNOWLEDGE_IA"))
+    second_brain = db_session.scalar(select(Project).where(Project.key == "SECOND_BRAIN"))
+    routines = {
+        item.key: item
+        for item in db_session.scalars(
+            select(Routine).where(
+                Routine.key.in_(("KNOWLEDGE_GAP_SCAN", "KNOWLEDGE_OUTCOME_REVIEW"))
+            )
+        )
+    }
+
+    assert knowledge_agent is not None
+    assert second_brain is not None
+    assert knowledge_agent.status == AgentStatus.disabled
+    assert routines["KNOWLEDGE_GAP_SCAN"].project_id == second_brain.id
+    assert routines["KNOWLEDGE_GAP_SCAN"].assigned_agent_id == knowledge_agent.id
+    assert routines["KNOWLEDGE_GAP_SCAN"].execution_kind == "knowledge_gap_scan"
+    assert routines["KNOWLEDGE_GAP_SCAN"].interval_minutes == 360
+    assert routines["KNOWLEDGE_OUTCOME_REVIEW"].project_id == second_brain.id
+    assert routines["KNOWLEDGE_OUTCOME_REVIEW"].assigned_agent_id == knowledge_agent.id
+    assert routines["KNOWLEDGE_OUTCOME_REVIEW"].execution_kind == "knowledge_outcome_review"
+    assert routines["KNOWLEDGE_OUTCOME_REVIEW"].interval_minutes == 1440
+    assert all(item.enabled for item in routines.values())
+
+
 def test_runtime_identity_binding_is_idempotent_and_does_not_activate_agent(db_session):
     identity = RuntimeIdentitySeed(
         agent_key="PMO_IA",
