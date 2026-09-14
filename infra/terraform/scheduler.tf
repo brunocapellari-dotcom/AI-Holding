@@ -1,13 +1,8 @@
-resource "google_project_service" "cloudscheduler" {
-  service            = "cloudscheduler.googleapis.com"
-  disable_on_destroy = false
-}
-
 resource "google_service_account" "worker_scheduler" {
   account_id   = "holding-worker-scheduler"
   display_name = "Holding Worker Scheduler"
 
-  depends_on = [google_project_service.cloudscheduler]
+  depends_on = [google_project_service.required]
 
   lifecycle {
     prevent_destroy = true
@@ -45,6 +40,7 @@ resource "google_cloud_scheduler_job" "pmo_worker" {
   region      = var.region
   schedule    = "*/10 * * * *"
   time_zone   = "Etc/UTC"
+  paused      = true
 
   http_target {
     http_method = "POST"
@@ -66,8 +62,12 @@ resource "google_cloud_scheduler_job" "pmo_worker" {
 
   attempt_deadline = "120s"
 
+  lifecycle {
+    ignore_changes = [paused]
+  }
+
   depends_on = [
-    google_project_service.cloudscheduler,
+    google_project_service.required,
     google_cloud_run_v2_job_iam_member.scheduler_pmo_invoker,
     google_service_account_iam_member.deployer_act_as_worker_scheduler,
   ]
@@ -80,6 +80,7 @@ resource "google_cloud_scheduler_job" "knowledge_worker" {
   region      = var.region
   schedule    = "0 * * * *"
   time_zone   = "Etc/UTC"
+  paused      = true
 
   http_target {
     http_method = "POST"
@@ -101,8 +102,12 @@ resource "google_cloud_scheduler_job" "knowledge_worker" {
 
   attempt_deadline = "120s"
 
+  lifecycle {
+    ignore_changes = [paused]
+  }
+
   depends_on = [
-    google_project_service.cloudscheduler,
+    google_project_service.required,
     google_cloud_run_v2_job_iam_member.scheduler_knowledge_invoker,
     google_service_account_iam_member.deployer_act_as_worker_scheduler,
   ]
