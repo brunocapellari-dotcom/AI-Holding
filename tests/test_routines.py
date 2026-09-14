@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 
@@ -26,7 +26,7 @@ def canonical_entities(db_session):
 
 def test_due_routine_materializes_one_task_and_skips_stale_intervals(db_session):
     pmo, holding, routine = canonical_entities(db_session)
-    scheduled_for = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
+    scheduled_for = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
     now = scheduled_for + timedelta(minutes=25)
     routine.next_due_at = scheduled_for
     db_session.commit()
@@ -65,7 +65,7 @@ def test_due_routine_materializes_one_task_and_skips_stale_intervals(db_session)
 def test_claim_cycle_materializes_promotes_and_claims_due_routine(db_session):
     pmo, _, routine = canonical_entities(db_session)
     pmo.status = AgentStatus.active
-    routine.next_due_at = datetime.now(timezone.utc) - timedelta(minutes=1)
+    routine.next_due_at = datetime.now(UTC) - timedelta(minutes=1)
     db_session.commit()
 
     claimed = claim_next_task(
@@ -86,7 +86,7 @@ def test_claim_cycle_materializes_promotes_and_claims_due_routine(db_session):
 
 def test_disabled_routine_and_paused_project_do_not_materialize(db_session):
     _, holding, routine = canonical_entities(db_session)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     routine.next_due_at = now - timedelta(minutes=1)
     routine.enabled = False
     db_session.commit()
@@ -117,7 +117,7 @@ def test_disabled_routine_and_paused_project_do_not_materialize(db_session):
 
 def test_routine_materialization_respects_execution_kind_filter(db_session):
     _, _, routine = canonical_entities(db_session)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     routine.next_due_at = now - timedelta(minutes=1)
     db_session.commit()
 
