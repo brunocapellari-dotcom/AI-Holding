@@ -22,6 +22,10 @@ class AgentPermission(StrEnum):
     transition_own_run = "transition_own_run"
     evaluate_own_policy = "evaluate_own_policy"
     create_incident = "create_incident"
+    submit_knowledge = "submit_knowledge"
+    promote_knowledge = "promote_knowledge"
+    submit_knowledge_outcome = "submit_knowledge_outcome"
+    export_knowledge = "export_knowledge"
 
 
 AGENT_PERMISSIONS: dict[str, frozenset[AgentPermission]] = {
@@ -32,6 +36,20 @@ AGENT_PERMISSIONS: dict[str, frozenset[AgentPermission]] = {
             AgentPermission.transition_own_run,
             AgentPermission.evaluate_own_policy,
             AgentPermission.create_incident,
+        }
+    ),
+    "KNOWLEDGE_IA": frozenset(
+        {
+            AgentPermission.submit_knowledge,
+            AgentPermission.submit_knowledge_outcome,
+            AgentPermission.export_knowledge,
+        }
+    ),
+    "AUDITOR_IA": frozenset(
+        {
+            AgentPermission.promote_knowledge,
+            AgentPermission.submit_knowledge_outcome,
+            AgentPermission.export_knowledge,
         }
     ),
 }
