@@ -136,7 +136,9 @@ def transition_run(
         run.output_metadata = payload.output_metadata
         run.error = payload.error
 
-    if payload.status == RunStatus.succeeded:
+    output_metadata = dict(run.output_metadata or {})
+    knowledge_submitted = "knowledge" in output_metadata
+    if payload.status == RunStatus.succeeded and knowledge_submitted:
         task = db.get(Task, run.task_id)
         if task is not None:
             knowledge_claim_ids: list[UUID] = []
@@ -153,7 +155,6 @@ def transition_run(
             except SQLAlchemyError:
                 capture_failed = True
 
-            output_metadata = dict(run.output_metadata or {})
             output_metadata["knowledge_capture"] = {
                 "status": "failed" if capture_failed else "captured",
                 "created_claims": len(knowledge_claim_ids),
