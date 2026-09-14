@@ -29,18 +29,18 @@ def upgrade() -> None:
         "tasks",
         EXECUTION_KIND_CHECK,
     )
-    op.drop_constraint("ck_routines_execution_kind_valid", "routines", type_="check")
+    op.drop_constraint(op.f("ck_routines_execution_kind_valid"), "routines", type_="check")
     op.create_check_constraint(
-        "ck_routines_execution_kind_valid",
+        op.f("ck_routines_execution_kind_valid"),
         "routines",
         ROUTINE_EXECUTION_KIND_CHECK,
     )
 
 
 def downgrade() -> None:
-    op.drop_constraint("ck_routines_execution_kind_valid", "routines", type_="check")
+    op.drop_constraint(op.f("ck_routines_execution_kind_valid"), "routines", type_="check")
     op.create_check_constraint(
-        "ck_routines_execution_kind_valid",
+        op.f("ck_routines_execution_kind_valid"),
         "routines",
         "execution_kind IN ('control_plane_health')",
     )
