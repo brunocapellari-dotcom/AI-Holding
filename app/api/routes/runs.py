@@ -141,13 +141,14 @@ def transition_run(
         if task is not None:
             knowledge_claim_ids: list[UUID] = []
             capture_failed = False
+            actor_agent_id = bound_agent.id if bound_agent is not None else run.agent_id
             try:
                 with db.begin_nested():
                     knowledge_claim_ids = capture_run_learning(
                         db,
                         run=run,
                         task=task,
-                        actor_agent_id=(bound_agent.id if bound_agent is not None else run.agent_id),
+                        actor_agent_id=actor_agent_id,
                     )
             except SQLAlchemyError:
                 capture_failed = True
