@@ -35,10 +35,10 @@ resource "google_cloud_scheduler_job" "pmo_worker" {
   attempt_deadline = "30s"
 
   retry_config {
-    retry_count          = 1
-    min_backoff_duration = "30s"
-    max_backoff_duration = "60s"
-    max_doublings        = 1
+    # A periodic scheduler must not replay a trigger automatically: a retry can
+    # create a second worker execution after the first request already reached
+    # the Cloud Run Jobs API. The next scheduled interval is the safe retry.
+    retry_count = 0
   }
 
   http_target {
