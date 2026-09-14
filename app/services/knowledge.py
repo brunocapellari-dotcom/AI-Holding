@@ -234,15 +234,13 @@ def render_claim_markdown(claim: KnowledgeClaim) -> str:
         f'lifecycle: "{claim.lifecycle_status}"',
         f'epistemic_status: "{claim.epistemic_status}"',
         f"confidence: {claim.confidence}",
-        f'source: {json.dumps(claim.source_name, ensure_ascii=False)}',
+        f"source: {json.dumps(claim.source_name, ensure_ascii=False)}",
         f"tags: {json.dumps(tags, ensure_ascii=False)}",
     ]
     if claim.project_id:
         frontmatter.append(f'project_id: "{claim.project_id}"')
     if claim.source_uri:
-        frontmatter.append(
-            f"source_uri: {json.dumps(claim.source_uri, ensure_ascii=False)}"
-        )
+        frontmatter.append(f"source_uri: {json.dumps(claim.source_uri, ensure_ascii=False)}")
     if claim.source_published_at:
         frontmatter.append(f'source_published_at: "{claim.source_published_at.isoformat()}"')
     if claim.valid_from:
@@ -295,9 +293,7 @@ def render_claim_markdown(claim: KnowledgeClaim) -> str:
 
 
 def _slug(value: str, *, fallback: str) -> str:
-    normalized = (
-        unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode("ascii")
-    )
+    normalized = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode("ascii")
     slug = re.sub(r"[^a-zA-Z0-9._-]+", "-", normalized).strip("-._").lower()
     return (slug[:80] or fallback).strip("-._") or fallback
 
