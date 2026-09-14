@@ -4,7 +4,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.core.actor import ActorContext, get_actor
@@ -13,6 +13,7 @@ from app.db.session import get_db
 from app.models.entities import Agent, AgentStatus, Run, RunStatus, Task, WorkStatus
 from app.schemas.operations import RunCreate, RunOut, RunTransition
 from app.services.audit import record_audit
+from app.services.knowledge_autonomy import capture_run_learning
 
 router = APIRouter(prefix="/runs", tags=["runs"])
 DbSession = Annotated[Session, Depends(get_db)]
@@ -134,6 +135,41 @@ def transition_run(
         run.finished_at = now
         run.output_metadata = payload.output_metadata
         run.error = payload.error
+
+    if payload.status == RunStatus.succeeded:
+        task = db.get(Task, run.task_id)
+        if task is not None:
+            knowledge_claim_ids: list[UUID] = []
+            capture_failed = False
+            try:
+                with db.begin_nested():
+                    knowledge_claim_ids = capture_run_learning(
+                        db,
+                        run=run,
+                        task=task,
+                        actor_agent_id=(bound_agent.id if bound_agent is not None else run.agent_id),
+                    )
+            except SQLAlchemyError:
+                capture_failed = True
+
+            output_metadata = dict(run.output_metadata or {})
+            output_metadata["knowledge_capture"] = {
+                "status": "failed" if capture_failed else "captured",
+                "created_claims": len(knowledge_claim_ids),
+            }
+            run.output_metadata = output_metadata
+            if knowledge_claim_ids:
+                record_audit(
+                    db,
+                    actor=actor,
+                    action="run.knowledge_captured",
+                    entity_type="run",
+                    entity_id=str(run.id),
+                    payload={
+                        "task_id": str(task.id),
+                        "knowledge_claim_ids": [str(item) for item in knowledge_claim_ids],
+                    },
+                )
 
     record_audit(
         db,
