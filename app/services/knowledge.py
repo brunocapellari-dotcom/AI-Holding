@@ -20,7 +20,6 @@ from app.models.knowledge import (
 )
 from app.schemas.knowledge import KnowledgeClaimIngest, KnowledgeOutcomeCreate
 
-
 ALLOWED_TRANSITIONS: dict[str, set[str]] = {
     KnowledgeLifecycle.raw.value: {
         KnowledgeLifecycle.candidate.value,
