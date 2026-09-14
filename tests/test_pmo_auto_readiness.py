@@ -6,7 +6,9 @@ def create_project(client, key: str):
             "name": f"Project {key}",
             "priority": 1,
             "autonomy_level": 4,
-            "strategic_goal": "Advance explicitly autonomous work without manual readiness transitions.",
+            "strategic_goal": (
+                "Advance explicitly autonomous work without manual readiness transitions."
+            ),
         },
     )
     assert response.status_code == 201, response.text
