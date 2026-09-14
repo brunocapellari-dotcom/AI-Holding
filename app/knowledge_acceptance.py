@@ -16,7 +16,6 @@ from app.models.agent_identity import AgentIdentity
 from app.models.entities import (
     Agent,
     AgentStatus,
-    AuditEvent,
     Incident,
     IncidentStatus,
     Project,
@@ -145,9 +144,7 @@ def prepare_acceptance(db: Session, release_id: str) -> dict[str, object]:
             key=context.task_key,
             project_id=project.id,
             title=f"Production Knowledge IA acceptance {context.release_key}",
-            description=(
-                "Bounded read-only gap scan acceptance for the Knowledge IA runtime."
-            ),
+            description="Bounded read-only gap scan acceptance for the Knowledge IA runtime.",
             status=WorkStatus.ready,
             priority=0,
             assigned_agent_id=agent.id,
