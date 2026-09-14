@@ -30,6 +30,8 @@ from app.services.knowledge import (
     retrieve_context,
     transition_claim,
 )
+from app.services.knowledge_gap import find_knowledge_gaps
+from app.services.knowledge_outcome_review import find_outcome_review_candidates
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
 DbSession = Annotated[Session, Depends(get_db)]
@@ -72,6 +74,36 @@ def list_claims(
     statement = statement.order_by(KnowledgeClaim.updated_at.desc()).limit(min(max(limit, 1), 500))
     statement = statement.offset(max(offset, 0))
     return list(db.scalars(statement))
+
+
+@router.get("/gaps", response_model=list[KnowledgeClaimOut])
+def get_knowledge_gaps(
+    db: DbSession,
+    namespace: str | None = None,
+    project_id: UUID | None = None,
+    limit: int = 100,
+) -> list[KnowledgeClaim]:
+    return find_knowledge_gaps(
+        db,
+        namespace=namespace,
+        project_id=project_id,
+        limit=limit,
+    )
+
+
+@router.get("/outcome-review", response_model=list[KnowledgeClaimOut])
+def get_outcome_review_queue(
+    db: DbSession,
+    namespace: str | None = None,
+    project_id: UUID | None = None,
+    limit: int = 100,
+) -> list[KnowledgeClaim]:
+    return find_outcome_review_candidates(
+        db,
+        namespace=namespace,
+        project_id=project_id,
+        limit=limit,
+    )
 
 
 @router.get("/claims/{claim_id}", response_model=KnowledgeClaimOut)
