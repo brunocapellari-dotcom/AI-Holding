@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import select
@@ -31,7 +31,7 @@ def _next_future_due(
 
 
 def _task_identity(routine: Routine, scheduled_for: datetime) -> tuple[str, str]:
-    slot = scheduled_for.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    slot = scheduled_for.astimezone(UTC).strftime("%Y%m%dT%H%M%SZ")
     task_key = f"RTN_{routine.id.hex[:12].upper()}_{slot}"
     idempotency_key = f"routine:{routine.id}:{slot}"
     return task_key, idempotency_key
@@ -48,7 +48,7 @@ def materialize_due_routines(
     if not execution_kinds:
         return []
 
-    effective_now = now or datetime.now(timezone.utc)
+    effective_now = now or datetime.now(UTC)
     supported_kinds = tuple(dict.fromkeys(execution_kinds))
     statement = (
         select(Routine)
