@@ -22,6 +22,7 @@ from app.schemas.policy import PolicyEvaluationRequest, PolicyOutcome
 from app.services.audit import record_audit
 from app.services.execution_policy import execution_policy_profile
 from app.services.policy import PolicyDecision, evaluate_policy
+from app.services.routines import materialize_due_routines
 
 ACTIVE_RUN_STATUSES = (RunStatus.queued, RunStatus.running)
 MAX_POLICY_CANDIDATES = 25
@@ -124,6 +125,12 @@ def claim_next_task(
         return None
 
     supported_kinds = tuple(dict.fromkeys(execution_kinds))
+    materialize_due_routines(
+        db,
+        actor=actor,
+        execution_kinds=supported_kinds,
+        project_id=project_id,
+    )
     promote_auto_ready_tasks(
         db,
         actor=actor,

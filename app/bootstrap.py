@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -10,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.db.session import SessionLocal
 from app.models.agent_identity import AgentIdentity
 from app.models.entities import Agent, AgentStatus, Project, ProjectStatus
+from app.models.routine import Routine
 
 
 @dataclass(frozen=True)
@@ -33,6 +35,17 @@ class ProjectSeed:
     repository: str | None = None
     repository_path: str | None = None
     business_unit: str | None = None
+
+
+@dataclass(frozen=True)
+class RoutineSeed:
+    key: str
+    project_key: str
+    assigned_agent_key: str
+    title: str
+    execution_kind: str
+    interval_minutes: int
+    priority: int
 
 
 @dataclass(frozen=True)
@@ -196,6 +209,19 @@ PROJECT_SEEDS: tuple[ProjectSeed, ...] = (
 )
 
 
+ROUTINE_SEEDS: tuple[RoutineSeed, ...] = (
+    RoutineSeed(
+        key="CONTROL_PLANE_HEALTH",
+        project_key="AI_HOLDING",
+        assigned_agent_key="PMO_IA",
+        title="Verify production Control Plane health",
+        execution_kind="control_plane_health",
+        interval_minutes=10,
+        priority=5,
+    ),
+)
+
+
 def _ensure_agent(db: Session, seed: AgentSeed) -> bool:
     existing = db.scalar(select(Agent).where(Agent.key == seed.key))
     if existing:
@@ -251,6 +277,52 @@ def _ensure_project(db: Session, seed: ProjectSeed, by_key: dict[str, Project]) 
     db.add(project)
     db.flush()
     by_key[seed.key] = project
+    return True
+
+
+def _ensure_routine(
+    db: Session,
+    seed: RoutineSeed,
+    projects_by_key: dict[str, Project],
+    agents_by_key: dict[str, Agent],
+) -> bool:
+    project = projects_by_key.get(seed.project_key)
+    if project is None:
+        raise RuntimeError(f"routine references unknown project {seed.project_key}")
+    agent = agents_by_key.get(seed.assigned_agent_key)
+    if agent is None:
+        raise RuntimeError(f"routine references unknown agent {seed.assigned_agent_key}")
+
+    existing = db.scalar(
+        select(Routine).where(
+            Routine.project_id == project.id,
+            Routine.key == seed.key,
+        )
+    )
+    if existing is not None:
+        if (
+            existing.execution_kind != seed.execution_kind
+            or existing.interval_minutes != seed.interval_minutes
+            or existing.assigned_agent_id != agent.id
+        ):
+            raise RuntimeError(f"routine identity drift detected for {seed.key}")
+        return False
+
+    db.add(
+        Routine(
+            project_id=project.id,
+            key=seed.key,
+            title=seed.title,
+            execution_kind=seed.execution_kind,
+            interval_minutes=seed.interval_minutes,
+            priority=seed.priority,
+            assigned_agent_id=agent.id,
+            enabled=True,
+            next_due_at=datetime.now(UTC),
+            metadata_json={"bootstrap_source": "canonical-routines-v1"},
+        )
+    )
+    db.flush()
     return True
 
 
@@ -326,11 +398,14 @@ def bootstrap_canonical_portfolio(
     agents = db.scalars(select(Agent).where(Agent.key.in_(agent_keys)))
     agents_by_key = {agent.key: agent for agent in agents}
 
-    by_key: dict[str, Project] = {}
+    projects_by_key: dict[str, Project] = {}
     created_projects = 0
     for seed in PROJECT_SEEDS:
-        created_projects += int(_ensure_project(db, seed, by_key))
+        created_projects += int(_ensure_project(db, seed, projects_by_key))
 
+    created_routines = sum(
+        _ensure_routine(db, seed, projects_by_key, agents_by_key) for seed in ROUTINE_SEEDS
+    )
     created_identities = sum(
         _ensure_runtime_identity(db, seed, agents_by_key) for seed in runtime_identities
     )
@@ -338,9 +413,11 @@ def bootstrap_canonical_portfolio(
     return {
         "created_agents": created_agents,
         "created_projects": created_projects,
+        "created_routines": created_routines,
         "created_identities": created_identities,
         "canonical_agents": len(AGENT_SEEDS),
         "canonical_projects": len(PROJECT_SEEDS),
+        "canonical_routines": len(ROUTINE_SEEDS),
         "canonical_identities": len(runtime_identities),
     }
 
