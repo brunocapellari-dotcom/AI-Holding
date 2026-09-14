@@ -245,6 +245,24 @@ ROUTINE_SEEDS: tuple[RoutineSeed, ...] = (
         interval_minutes=10,
         priority=5,
     ),
+    RoutineSeed(
+        key="KNOWLEDGE_GAP_SCAN",
+        project_key="SECOND_BRAIN",
+        assigned_agent_key="KNOWLEDGE_IA",
+        title="Scan shared knowledge for freshness and evidence gaps",
+        execution_kind="knowledge_gap_scan",
+        interval_minutes=360,
+        priority=2,
+    ),
+    RoutineSeed(
+        key="KNOWLEDGE_OUTCOME_REVIEW",
+        project_key="SECOND_BRAIN",
+        assigned_agent_key="KNOWLEDGE_IA",
+        title="Review matured forecasts and inferences for missing outcomes",
+        execution_kind="knowledge_outcome_review",
+        interval_minutes=1440,
+        priority=2,
+    ),
 )
 
 
