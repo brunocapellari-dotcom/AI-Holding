@@ -4,6 +4,7 @@ import hashlib
 import json
 import re
 import unicodedata
+from collections.abc import Iterable
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID
@@ -42,7 +43,9 @@ def fingerprint_statement(statement: str) -> str:
     return hashlib.sha256(normalize_statement(statement).encode("utf-8")).hexdigest()
 
 
-def _merge_json_objects(existing: list[object], incoming: list[object]) -> tuple[list[object], int]:
+def _merge_json_objects(
+    existing: list[object], incoming: Iterable[object]
+) -> tuple[list[object], int]:
     merged = list(existing or [])
     seen = {json.dumps(item, sort_keys=True, ensure_ascii=False, default=str) for item in merged}
     added = 0
@@ -82,7 +85,8 @@ def ingest_claim(
         if existing.source_published_at is None and payload.source_published_at:
             existing.source_published_at = payload.source_published_at
         metadata = dict(existing.metadata_json or {})
-        conflicts = list(metadata.get("ingest_conflicts", []))
+        conflicts_raw = metadata.get("ingest_conflicts", [])
+        conflicts = list(conflicts_raw) if isinstance(conflicts_raw, list) else []
         if existing.epistemic_status != payload.epistemic_status.value:
             conflicts.append(
                 {
@@ -212,7 +216,9 @@ def retrieve_context(
         statement = statement.where(KnowledgeClaim.project_id == project_id)
     if q:
         statement = statement.where(KnowledgeClaim.statement.ilike(f"%{q.strip()}%"))
-    statement = statement.order_by(KnowledgeClaim.confidence.desc(), KnowledgeClaim.updated_at.desc())
+    statement = statement.order_by(
+        KnowledgeClaim.confidence.desc(), KnowledgeClaim.updated_at.desc()
+    )
     return list(db.scalars(statement.limit(min(max(limit, 1), 100))))
 
 
@@ -231,7 +237,9 @@ def render_claim_markdown(claim: KnowledgeClaim) -> str:
     if claim.project_id:
         frontmatter.append(f'project_id: "{claim.project_id}"')
     if claim.source_uri:
-        frontmatter.append(f"source_uri: {json.dumps(claim.source_uri, ensure_ascii=False)}")
+        frontmatter.append(
+            f"source_uri: {json.dumps(claim.source_uri, ensure_ascii=False)}"
+        )
     if claim.source_published_at:
         frontmatter.append(f'source_published_at: "{claim.source_published_at.isoformat()}"')
     if claim.valid_from:
@@ -284,7 +292,9 @@ def render_claim_markdown(claim: KnowledgeClaim) -> str:
 
 
 def _slug(value: str, *, fallback: str) -> str:
-    normalized = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode("ascii")
+    normalized = (
+        unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode("ascii")
+    )
     slug = re.sub(r"[^a-zA-Z0-9._-]+", "-", normalized).strip("-._").lower()
     return (slug[:80] or fallback).strip("-._") or fallback
 
