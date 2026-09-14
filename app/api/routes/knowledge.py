@@ -43,7 +43,9 @@ def _claim_or_404(db: Session, claim_id: UUID) -> KnowledgeClaim:
     return claim
 
 
-def _validate_references(db: Session, project_id: UUID | None, agent_id: UUID | None) -> None:
+def _validate_references(
+    db: Session, project_id: UUID | None, agent_id: UUID | None
+) -> None:
     if project_id is not None and db.get(Project, project_id) is None:
         raise HTTPException(status_code=404, detail="project not found")
     if agent_id is not None and db.get(Agent, agent_id) is None:
@@ -66,10 +68,14 @@ def list_claims(
     if project_id:
         statement = statement.where(KnowledgeClaim.project_id == project_id)
     if lifecycle_status:
-        statement = statement.where(KnowledgeClaim.lifecycle_status == lifecycle_status.value)
+        statement = statement.where(
+            KnowledgeClaim.lifecycle_status == lifecycle_status.value
+        )
     if q:
         statement = statement.where(KnowledgeClaim.statement.ilike(f"%{q.strip()}%"))
-    statement = statement.order_by(KnowledgeClaim.updated_at.desc()).limit(min(max(limit, 1), 500))
+    statement = statement.order_by(KnowledgeClaim.updated_at.desc()).limit(
+        min(max(limit, 1), 500)
+    )
     statement = statement.offset(max(offset, 0))
     return list(db.scalars(statement))
 
@@ -89,18 +95,20 @@ def create_or_merge_claim(
     db: DbSession,
     actor: Actor,
 ) -> KnowledgeIngestResult:
-    _validate_references(db, payload.project_id, payload.created_by_agent_id)
     bound_agent = authorize_mutation(
         db,
         actor,
         permission=AgentPermission.submit_knowledge,
         expected_agent_id=payload.created_by_agent_id,
     )
+    _validate_references(db, payload.project_id, payload.created_by_agent_id)
     try:
         claim, created, merged_evidence = ingest_claim(
             db,
             payload,
-            created_by_agent_id=bound_agent.id if bound_agent else payload.created_by_agent_id,
+            created_by_agent_id=(
+                bound_agent.id if bound_agent else payload.created_by_agent_id
+            ),
         )
         record_audit(
             db,
@@ -118,8 +126,15 @@ def create_or_merge_claim(
         db.refresh(claim)
     except IntegrityError as exc:
         db.rollback()
-        raise HTTPException(status_code=409, detail="knowledge claim conflicts with stored state") from exc
-    return KnowledgeIngestResult(claim=KnowledgeClaimOut.model_validate(claim), created=created, merged_evidence=merged_evidence)
+        raise HTTPException(
+            status_code=409,
+            detail="knowledge claim conflicts with stored state",
+        ) from exc
+    return KnowledgeIngestResult(
+        claim=KnowledgeClaimOut.model_validate(claim),
+        created=created,
+        merged_evidence=merged_evidence,
+    )
 
 
 @router.post("/claims/{claim_id}/transition", response_model=KnowledgeClaimOut)
@@ -153,7 +168,9 @@ def promote_claim(
         payload={
             "from": old_status,
             "to": claim.lifecycle_status,
-            "supersedes_id": str(payload.supersedes_id) if payload.supersedes_id else None,
+            "supersedes_id": (
+                str(payload.supersedes_id) if payload.supersedes_id else None
+            ),
         },
     )
     db.commit()
@@ -169,7 +186,13 @@ def get_context(
     project_id: UUID | None = None,
     limit: int = 20,
 ) -> list[KnowledgeClaim]:
-    return retrieve_context(db, namespace=namespace, q=q, project_id=project_id, limit=limit)
+    return retrieve_context(
+        db,
+        namespace=namespace,
+        q=q,
+        project_id=project_id,
+        limit=limit,
+    )
 
 
 @router.post(
@@ -183,19 +206,21 @@ def create_outcome(
     db: DbSession,
     actor: Actor,
 ) -> KnowledgeOutcome:
-    _validate_references(db, payload.project_id, payload.created_by_agent_id)
     bound_agent = authorize_mutation(
         db,
         actor,
         permission=AgentPermission.submit_knowledge_outcome,
         expected_agent_id=payload.created_by_agent_id,
     )
+    _validate_references(db, payload.project_id, payload.created_by_agent_id)
     claim = _claim_or_404(db, claim_id)
     outcome = record_outcome(
         db,
         claim,
         payload,
-        created_by_agent_id=bound_agent.id if bound_agent else payload.created_by_agent_id,
+        created_by_agent_id=(
+            bound_agent.id if bound_agent else payload.created_by_agent_id
+        ),
     )
     record_audit(
         db,
@@ -224,7 +249,10 @@ def list_outcomes(claim_id: UUID, db: DbSession) -> list[KnowledgeOutcome]:
 @router.get("/claims/{claim_id}/markdown", response_model=KnowledgeMarkdownOut)
 def render_markdown(claim_id: UUID, db: DbSession) -> KnowledgeMarkdownOut:
     claim = _claim_or_404(db, claim_id)
-    return KnowledgeMarkdownOut(claim_id=claim.id, markdown=render_claim_markdown(claim))
+    return KnowledgeMarkdownOut(
+        claim_id=claim.id,
+        markdown=render_claim_markdown(claim),
+    )
 
 
 @router.post("/claims/{claim_id}/export", response_model=KnowledgeExportOut)
