@@ -3,10 +3,20 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import or_, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.knowledge import KnowledgeClaim, KnowledgeLifecycle
+
+GAP_SCAN_CANDIDATE_LIMIT = 500
+LOW_CONFIDENCE_THRESHOLD = 60
+
+
+def _is_expired(value: datetime | None, now: datetime) -> bool:
+    if value is None:
+        return False
+    comparable = value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+    return comparable < now
 
 
 def find_knowledge_gaps(
@@ -16,14 +26,9 @@ def find_knowledge_gaps(
     project_id: UUID | None = None,
     limit: int = 100,
 ) -> list[KnowledgeClaim]:
-    now = datetime.now(UTC)
+    effective_limit = min(max(limit, 1), GAP_SCAN_CANDIDATE_LIMIT)
     statement = select(KnowledgeClaim).where(
-        KnowledgeClaim.lifecycle_status != KnowledgeLifecycle.superseded.value,
-        or_(
-            KnowledgeClaim.valid_until < now,
-            KnowledgeClaim.confidence < 0.6,
-            KnowledgeClaim.evidence == [],
-        ),
+        KnowledgeClaim.lifecycle_status != KnowledgeLifecycle.superseded.value
     )
     if namespace:
         statement = statement.where(KnowledgeClaim.namespace == namespace)
@@ -32,5 +37,17 @@ def find_knowledge_gaps(
     statement = statement.order_by(
         KnowledgeClaim.confidence.asc(),
         KnowledgeClaim.updated_at.asc(),
-    ).limit(min(max(limit, 1), 500))
-    return list(db.scalars(statement))
+    ).limit(GAP_SCAN_CANDIDATE_LIMIT)
+
+    now = datetime.now(UTC)
+    gaps: list[KnowledgeClaim] = []
+    for claim in db.scalars(statement):
+        if (
+            claim.confidence < LOW_CONFIDENCE_THRESHOLD
+            or not claim.evidence
+            or _is_expired(claim.valid_until, now)
+        ):
+            gaps.append(claim)
+            if len(gaps) >= effective_limit:
+                break
+    return gaps
