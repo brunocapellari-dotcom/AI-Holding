@@ -13,7 +13,11 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.models.knowledge import KnowledgeClaim, KnowledgeLifecycle, KnowledgeOutcome
+from app.models.knowledge import (
+    KnowledgeClaim,
+    KnowledgeLifecycle,
+    KnowledgeOutcome,
+)
 from app.schemas.knowledge import KnowledgeClaimIngest, KnowledgeOutcomeCreate
 
 
