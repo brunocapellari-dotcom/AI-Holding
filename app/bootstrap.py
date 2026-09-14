@@ -173,6 +173,7 @@ PROJECT_SEEDS: tuple[ProjectSeed, ...] = (
         ),
         priority=3,
         autonomy_level=1,
+        repository="brunocapellari-dotcom/Mercado-Financeiro",
         business_unit="Capital Strategies",
     ),
     ProjectSeed(
@@ -255,6 +256,10 @@ def _ensure_project(db: Session, seed: ProjectSeed, by_key: dict[str, Project]) 
             raise RuntimeError(f"project identity drift detected for {seed.key}")
         if seed.repository and existing.repository not in {None, seed.repository}:
             raise RuntimeError(f"repository drift detected for {seed.key}")
+        if seed.repository and existing.repository is None:
+            existing.repository = seed.repository
+        if seed.repository_path and existing.repository_path is None:
+            existing.repository_path = seed.repository_path
         expected_parent_id = parent.id if parent else None
         if existing.parent_project_id != expected_parent_id:
             raise RuntimeError(f"project hierarchy drift detected for {seed.key}")
