@@ -74,6 +74,7 @@ ROLES=(
   roles/servicenetworking.networksAdmin
   roles/artifactregistry.admin
   roles/cloudsql.admin
+  roles/cloudscheduler.admin
   roles/secretmanager.admin
   roles/run.admin
   roles/iam.serviceAccountAdmin
