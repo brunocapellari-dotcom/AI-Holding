@@ -10,10 +10,10 @@ def test_scheduler_is_fail_closed_and_uses_dedicated_invoker():
 
     assert 'account_id   = "holding-pmo-scheduler"' in terraform
     assert 'role     = "roles/run.invoker"' in terraform
-    assert 'paused           = true' in terraform
+    assert "paused           = true" in terraform
     assert 'schedule         = "*/10 * * * *"' in terraform
-    assert 'oauth_token {' in terraform
-    assert 'service_account_email = google_service_account.pmo_scheduler.email' in terraform
+    assert "oauth_token {" in terraform
+    assert "service_account_email = google_service_account.pmo_scheduler.email" in terraform
     assert ':run"' in terraform
 
 
@@ -26,8 +26,7 @@ def test_deployment_resumes_scheduler_only_after_acceptance():
 
     assert pause < acceptance < resume
     assert (
-        "Scheduler-backed PMO acceptance failed closed; PMO scheduling remains paused."
-        in workflow
+        "Scheduler-backed PMO acceptance failed closed; PMO scheduling remains paused." in workflow
     )
     assert 'test "${final_state}" = "ENABLED"' in workflow
 
