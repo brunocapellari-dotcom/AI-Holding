@@ -40,6 +40,10 @@ AGENT_PERMISSIONS: dict[str, frozenset[AgentPermission]] = {
     ),
     "KNOWLEDGE_IA": frozenset(
         {
+            AgentPermission.claim_work,
+            AgentPermission.transition_own_task,
+            AgentPermission.transition_own_run,
+            AgentPermission.create_incident,
             AgentPermission.submit_knowledge,
             AgentPermission.submit_knowledge_outcome,
             AgentPermission.export_knowledge,
