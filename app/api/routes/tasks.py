@@ -91,7 +91,12 @@ def create_task(
         action="task.created",
         entity_type="task",
         entity_id=str(task.id),
-        payload={"project_id": str(task.project_id), "dependencies": len(dependency_ids)},
+        payload={
+            "project_id": str(task.project_id),
+            "dependencies": len(dependency_ids),
+            "execution_kind": task.execution_kind,
+            "auto_start": task.auto_start,
+        },
     )
     db.commit()
     db.refresh(task)

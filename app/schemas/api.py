@@ -2,7 +2,7 @@ from datetime import date, datetime
 from enum import StrEnum
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.models.entities import (
     CriterionStatus,
@@ -86,10 +86,17 @@ class TaskCreate(BaseModel):
     priority: int = Field(default=3, ge=0, le=5)
     assigned_agent_id: UUID | None = None
     execution_kind: ExecutionKind | None = None
+    auto_start: bool = False
     depends_on: list[UUID] = Field(default_factory=list)
     due_at: datetime | None = None
     idempotency_key: str = Field(min_length=8, max_length=160)
     metadata_json: dict[str, object] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def validate_auto_start(self) -> "TaskCreate":
+        if self.auto_start and self.execution_kind is None:
+            raise ValueError("execution_kind is required when auto_start=true")
+        return self
 
 
 class TaskOut(BaseModel):
@@ -103,6 +110,7 @@ class TaskOut(BaseModel):
     priority: int
     assigned_agent_id: UUID | None
     execution_kind: ExecutionKind | None
+    auto_start: bool
     due_at: datetime | None
     status: WorkStatus
     blocked_reason: str | None

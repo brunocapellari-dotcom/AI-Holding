@@ -25,6 +25,7 @@ from app.services.policy import PolicyDecision, evaluate_policy
 
 ACTIVE_RUN_STATUSES = (RunStatus.queued, RunStatus.running)
 MAX_POLICY_CANDIDATES = 25
+MAX_AUTO_READY_CANDIDATES = 100
 
 
 def _policy_decision(project: Project, agent: Agent, task: Task) -> PolicyDecision | None:
@@ -46,6 +47,71 @@ def _policy_decision(project: Project, agent: Agent, task: Task) -> PolicyDecisi
     return evaluate_policy(project, agent, request)
 
 
+def promote_auto_ready_tasks(
+    db: Session,
+    *,
+    actor: ActorContext,
+    execution_kinds: Sequence[str],
+    project_id: UUID | None = None,
+) -> list[UUID]:
+    if not execution_kinds:
+        return []
+
+    supported_kinds = tuple(dict.fromkeys(execution_kinds))
+    dependency = aliased(Task)
+    incomplete_dependency = exists(
+        select(1)
+        .select_from(TaskDependency)
+        .join(dependency, dependency.id == TaskDependency.depends_on_task_id)
+        .where(
+            TaskDependency.task_id == Task.id,
+            dependency.status != WorkStatus.done,
+        )
+    )
+
+    statement = (
+        select(Task)
+        .join(Project, Project.id == Task.project_id)
+        .where(
+            Task.status == WorkStatus.planned,
+            Task.auto_start.is_(True),
+            Task.execution_kind.in_(supported_kinds),
+            Project.status == ProjectStatus.active,
+            ~incomplete_dependency,
+        )
+        .order_by(
+            Task.priority.asc(),
+            Task.due_at.asc().nulls_last(),
+            Task.created_at.asc(),
+        )
+        .limit(MAX_AUTO_READY_CANDIDATES)
+        .with_for_update(skip_locked=True)
+    )
+    if project_id is not None:
+        statement = statement.where(Task.project_id == project_id)
+
+    promoted: list[UUID] = []
+    for task in db.scalars(statement):
+        task.status = WorkStatus.ready
+        task.blocked_reason = None
+        promoted.append(task.id)
+        record_audit(
+            db,
+            actor=actor,
+            action="task.auto_ready",
+            entity_type="task",
+            entity_id=str(task.id),
+            payload={
+                "project_id": str(task.project_id),
+                "execution_kind": task.execution_kind,
+            },
+        )
+
+    if promoted:
+        db.flush()
+    return promoted
+
+
 def claim_next_task(
     db: Session,
     *,
@@ -58,6 +124,13 @@ def claim_next_task(
         return None
 
     supported_kinds = tuple(dict.fromkeys(execution_kinds))
+    promote_auto_ready_tasks(
+        db,
+        actor=actor,
+        execution_kinds=supported_kinds,
+        project_id=project_id,
+    )
+
     dependency = aliased(Task)
     incomplete_dependency = exists(
         select(1)
