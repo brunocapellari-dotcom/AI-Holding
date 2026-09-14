@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 SCHEDULER_TERRAFORM = Path("infra/terraform/pmo_scheduler.tf")
 WORKFLOW = Path(".github/workflows/ci.yml")
 BOOTSTRAP = Path("infra/bootstrap/bootstrap_gcp_wif.sh")
@@ -26,7 +25,10 @@ def test_deployment_resumes_scheduler_only_after_acceptance():
     resume = workflow.index("Resume PMO scheduler after production acceptance")
 
     assert pause < acceptance < resume
-    assert "Scheduler-backed PMO acceptance failed closed; PMO scheduling remains paused." in workflow
+    assert (
+        "Scheduler-backed PMO acceptance failed closed; PMO scheduling remains paused."
+        in workflow
+    )
     assert 'test "${final_state}" = "ENABLED"' in workflow
 
 
