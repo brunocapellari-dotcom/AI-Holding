@@ -4,12 +4,14 @@ from sqlalchemy import select
 from app.bootstrap import (
     AGENT_SEEDS,
     PROJECT_SEEDS,
+    ROUTINE_SEEDS,
     RuntimeIdentitySeed,
     _runtime_identity_seeds_from_env,
     bootstrap_canonical_portfolio,
 )
 from app.models.agent_identity import AgentIdentity
 from app.models.entities import Agent, AgentStatus, Project, ProjectStatus
+from app.models.routine import Routine
 
 
 def test_canonical_bootstrap_is_idempotent_and_preserves_runtime_state(db_session):
@@ -17,9 +19,11 @@ def test_canonical_bootstrap_is_idempotent_and_preserves_runtime_state(db_sessio
     assert first == {
         "created_agents": len(AGENT_SEEDS),
         "created_projects": len(PROJECT_SEEDS),
+        "created_routines": len(ROUTINE_SEEDS),
         "created_identities": 0,
         "canonical_agents": len(AGENT_SEEDS),
         "canonical_projects": len(PROJECT_SEEDS),
+        "canonical_routines": len(ROUTINE_SEEDS),
         "canonical_identities": 0,
     }
 
@@ -31,14 +35,22 @@ def test_canonical_bootstrap_is_idempotent_and_preserves_runtime_state(db_sessio
     agrolog = db_session.scalar(select(Project).where(Project.key == "AGROLOG_MT"))
     assert agrolog is not None
     agrolog.priority = 0
+
+    routine = db_session.scalar(select(Routine).where(Routine.key == "CONTROL_PLANE_HEALTH"))
+    assert routine is not None
+    original_due = routine.next_due_at
+    routine.enabled = False
     db_session.commit()
 
     second = bootstrap_canonical_portfolio(db_session)
     assert second["created_agents"] == 0
     assert second["created_projects"] == 0
+    assert second["created_routines"] == 0
     assert second["created_identities"] == 0
     assert pmo.status == AgentStatus.active
     assert agrolog.priority == 0
+    assert routine.enabled is False
+    assert routine.next_due_at == original_due
 
 
 def test_canonical_hierarchy_keeps_pecuaria_and_maritime_inside_agrolog(db_session):
@@ -58,6 +70,24 @@ def test_bootstrap_does_not_claim_unprovisioned_agents_are_active(db_session):
     assert agents
     assert all(agent.status == AgentStatus.disabled for agent in agents)
     assert all(agent.model_policy == {"status": "unconfigured"} for agent in agents)
+
+
+def test_bootstrap_seeds_bounded_health_routine_without_enabling_agent(db_session):
+    bootstrap_canonical_portfolio(db_session)
+    routine = db_session.scalar(select(Routine).where(Routine.key == "CONTROL_PLANE_HEALTH"))
+    pmo = db_session.scalar(select(Agent).where(Agent.key == "PMO_IA"))
+    holding = db_session.scalar(select(Project).where(Project.key == "AI_HOLDING"))
+
+    assert routine is not None
+    assert pmo is not None
+    assert holding is not None
+    assert routine.project_id == holding.id
+    assert routine.assigned_agent_id == pmo.id
+    assert routine.execution_kind == "control_plane_health"
+    assert routine.interval_minutes == 10
+    assert routine.priority == 5
+    assert routine.enabled is True
+    assert pmo.status == AgentStatus.disabled
 
 
 def test_runtime_identity_binding_is_idempotent_and_does_not_activate_agent(db_session):
