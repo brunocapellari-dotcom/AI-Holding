@@ -3,12 +3,37 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import UUID
 
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
-from app.models.entities import Run, Task
-from app.models.knowledge import KnowledgeEpistemicStatus
-from app.schemas.knowledge import KnowledgeClaimIngest, KnowledgeEvidence
+from app.models.entities import Run, RunStatus, Task
+from app.models.knowledge import EpistemicStatus
+from app.schemas.knowledge import EvidenceRef, KnowledgeClaimIngest
 from app.services.knowledge import ingest_claim
+
+
+def _normalize_confidence(value: object) -> int:
+    try:
+        parsed = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return 50
+    if 0.0 <= parsed <= 1.0:
+        parsed *= 100.0
+    return min(max(int(round(parsed)), 0), 100)
+
+
+def _parse_evidence(value: object) -> list[EvidenceRef]:
+    if not isinstance(value, list):
+        return []
+    parsed: list[EvidenceRef] = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        try:
+            parsed.append(EvidenceRef.model_validate(item))
+        except ValidationError:
+            continue
+    return parsed
 
 
 def capture_run_learning(
@@ -18,7 +43,7 @@ def capture_run_learning(
     task: Task,
     actor_agent_id: UUID | None,
 ) -> list[UUID]:
-    if run.status.value != "succeeded":
+    if run.status != RunStatus.succeeded:
         return []
 
     output = dict(run.output_metadata or {})
@@ -27,6 +52,7 @@ def capture_run_learning(
         return []
 
     created_claim_ids: list[UUID] = []
+    captured_at = datetime.now(UTC)
     for item in learning_items:
         if not isinstance(item, dict):
             continue
@@ -34,40 +60,49 @@ def capture_run_learning(
         if not isinstance(statement, str) or not statement.strip():
             continue
 
+        namespace = item.get("namespace")
+        if not isinstance(namespace, str) or not namespace.strip():
+            namespace = "shared"
+
         source_name = item.get("source_name")
         source_uri = item.get("source_uri")
-        confidence_raw = item.get("confidence", 0.5)
+        epistemic_raw = item.get("epistemic_status", EpistemicStatus.inferred.value)
         try:
-            confidence = min(max(float(confidence_raw), 0.0), 1.0)
-        except (TypeError, ValueError):
-            confidence = 0.5
+            epistemic_status = EpistemicStatus(str(epistemic_raw))
+        except ValueError:
+            epistemic_status = EpistemicStatus.inferred
 
-        evidence: list[KnowledgeEvidence] = []
-        evidence_raw = item.get("evidence", [])
-        if isinstance(evidence_raw, list):
-            for entry in evidence_raw:
-                if isinstance(entry, dict) and isinstance(entry.get("source"), str):
-                    evidence.append(KnowledgeEvidence.model_validate(entry))
+        try:
+            payload = KnowledgeClaimIngest(
+                namespace=namespace.strip().lower(),
+                project_id=task.project_id,
+                created_by_agent_id=actor_agent_id,
+                statement=statement.strip(),
+                epistemic_status=epistemic_status,
+                confidence=_normalize_confidence(item.get("confidence", 50)),
+                source_name=(
+                    source_name.strip()
+                    if isinstance(source_name, str) and source_name.strip()
+                    else "agent-run"
+                ),
+                source_uri=(
+                    source_uri.strip()
+                    if isinstance(source_uri, str) and source_uri.strip()
+                    else None
+                ),
+                evidence=_parse_evidence(item.get("evidence", [])),
+                tags=["agent-feedback", f"task:{task.key}"],
+                metadata_json={
+                    "origin": "run_feedback",
+                    "run_id": str(run.id),
+                    "task_id": str(task.id),
+                    "execution_kind": task.execution_kind,
+                    "captured_at": captured_at.isoformat(),
+                },
+            )
+        except ValidationError:
+            continue
 
-        payload = KnowledgeClaimIngest(
-            namespace=str(item.get("namespace") or "shared"),
-            project_id=task.project_id,
-            created_by_agent_id=actor_agent_id,
-            statement=statement.strip(),
-            epistemic_status=KnowledgeEpistemicStatus.inferred,
-            confidence=confidence,
-            source_name=str(source_name or "agent-run"),
-            source_uri=str(source_uri) if source_uri else None,
-            source_published_at=datetime.now(UTC),
-            evidence=evidence,
-            tags=["agent-feedback", f"task:{task.key}"],
-            metadata_json={
-                "origin": "run_feedback",
-                "run_id": str(run.id),
-                "task_id": str(task.id),
-                "execution_kind": task.execution_kind,
-            },
-        )
         claim, created, _ = ingest_claim(
             db,
             payload,
