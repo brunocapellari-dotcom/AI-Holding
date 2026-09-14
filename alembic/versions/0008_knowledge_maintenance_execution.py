@@ -18,8 +18,7 @@ EXECUTION_KIND_CHECK = (
     "('control_plane_health','knowledge_gap_scan','knowledge_outcome_review')"
 )
 ROUTINE_EXECUTION_KIND_CHECK = (
-    "execution_kind IN "
-    "('control_plane_health','knowledge_gap_scan','knowledge_outcome_review')"
+    "execution_kind IN ('control_plane_health','knowledge_gap_scan','knowledge_outcome_review')"
 )
 
 
