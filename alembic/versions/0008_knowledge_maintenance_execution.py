@@ -1,6 +1,6 @@
 """add knowledge maintenance execution kinds
 
-Revision ID: 0008_knowledge_maintenance_execution
+Revision ID: 0008_knowledge_maintenance
 Revises: 0007_universal_knowledge_core
 """
 
@@ -8,7 +8,7 @@ from collections.abc import Sequence
 
 from alembic import op
 
-revision: str = "0008_knowledge_maintenance_execution"
+revision: str = "0008_knowledge_maintenance"
 down_revision: str | None = "0007_universal_knowledge_core"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
