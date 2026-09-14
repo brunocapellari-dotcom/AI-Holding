@@ -1,7 +1,10 @@
 from fastapi.testclient import TestClient
 
 
-def _running_execution(client: TestClient, suffix: str) -> tuple[dict[str, object], dict[str, object]]:
+def _running_execution(
+    client: TestClient,
+    suffix: str,
+) -> tuple[dict[str, object], dict[str, object]]:
     project_response = client.post(
         "/api/v1/projects",
         json={
@@ -74,7 +77,9 @@ def test_successful_run_writes_reusable_learning_as_raw_claim(client: TestClient
                 "knowledge": [
                     {
                         "namespace": "shared",
-                        "statement": "Completed executions can contribute reusable knowledge safely.",
+                        "statement": (
+                            "Completed executions can contribute reusable knowledge safely."
+                        ),
                         "epistemic_status": "inferred",
                         "confidence": 0.82,
                         "source_name": "execution-result",
