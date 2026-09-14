@@ -13,6 +13,12 @@ ACTOR = ActorContext(name="test-pmo", actor_type="agent", authenticated=True)
 SUPPORTED_KINDS = ("control_plane_health",)
 
 
+def as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
+
+
 def canonical_entities(db_session):
     bootstrap_canonical_portfolio(db_session)
     pmo = db_session.scalar(select(Agent).where(Agent.key == "PMO_IA"))
@@ -47,11 +53,12 @@ def test_due_routine_materializes_one_task_and_skips_stale_intervals(db_session)
     assert task.execution_kind == "control_plane_health"
     assert task.auto_start is True
     assert task.status == WorkStatus.planned
-    assert task.due_at == scheduled_for
+    assert task.due_at is not None
+    assert as_utc(task.due_at) == scheduled_for
     assert task.metadata_json["routine_id"] == str(routine.id)
     assert task.metadata_json["scheduled_for"] == scheduled_for.isoformat()
     assert task.metadata_json["skipped_intervals"] == 2
-    assert routine.next_due_at == scheduled_for + timedelta(minutes=30)
+    assert as_utc(routine.next_due_at) == scheduled_for + timedelta(minutes=30)
 
     second = materialize_due_routines(
         db_session,
