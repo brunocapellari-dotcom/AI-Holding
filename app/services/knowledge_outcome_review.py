@@ -34,9 +34,7 @@ def find_outcome_review_candidates(
 ) -> list[KnowledgeClaim]:
     effective_limit = min(max(limit, 1), OUTCOME_REVIEW_CANDIDATE_LIMIT)
     now = datetime.now(UTC)
-    has_outcome = exists(
-        select(1).where(KnowledgeOutcome.claim_id == KnowledgeClaim.id)
-    )
+    has_outcome = exists(select(1).where(KnowledgeOutcome.claim_id == KnowledgeClaim.id))
     statement = select(KnowledgeClaim).where(
         KnowledgeClaim.lifecycle_status.in_(REVIEWABLE_LIFECYCLES),
         KnowledgeClaim.epistemic_status.in_(REVIEWABLE_EPISTEMIC_STATUSES),
