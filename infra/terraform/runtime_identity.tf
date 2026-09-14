@@ -240,7 +240,7 @@ resource "google_cloud_run_v2_job" "knowledge_worker" {
 
         env {
           name  = "PMO_MAX_TASKS"
-          value = "2"
+          value = "1"
         }
 
         env {
