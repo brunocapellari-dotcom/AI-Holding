@@ -43,9 +43,7 @@ def _claim_or_404(db: Session, claim_id: UUID) -> KnowledgeClaim:
     return claim
 
 
-def _validate_references(
-    db: Session, project_id: UUID | None, agent_id: UUID | None
-) -> None:
+def _validate_references(db: Session, project_id: UUID | None, agent_id: UUID | None) -> None:
     if project_id is not None and db.get(Project, project_id) is None:
         raise HTTPException(status_code=404, detail="project not found")
     if agent_id is not None and db.get(Agent, agent_id) is None:
@@ -68,14 +66,10 @@ def list_claims(
     if project_id:
         statement = statement.where(KnowledgeClaim.project_id == project_id)
     if lifecycle_status:
-        statement = statement.where(
-            KnowledgeClaim.lifecycle_status == lifecycle_status.value
-        )
+        statement = statement.where(KnowledgeClaim.lifecycle_status == lifecycle_status.value)
     if q:
         statement = statement.where(KnowledgeClaim.statement.ilike(f"%{q.strip()}%"))
-    statement = statement.order_by(KnowledgeClaim.updated_at.desc()).limit(
-        min(max(limit, 1), 500)
-    )
+    statement = statement.order_by(KnowledgeClaim.updated_at.desc()).limit(min(max(limit, 1), 500))
     statement = statement.offset(max(offset, 0))
     return list(db.scalars(statement))
 
@@ -106,9 +100,7 @@ def create_or_merge_claim(
         claim, created, merged_evidence = ingest_claim(
             db,
             payload,
-            created_by_agent_id=(
-                bound_agent.id if bound_agent else payload.created_by_agent_id
-            ),
+            created_by_agent_id=(bound_agent.id if bound_agent else payload.created_by_agent_id),
         )
         record_audit(
             db,
@@ -168,9 +160,7 @@ def promote_claim(
         payload={
             "from": old_status,
             "to": claim.lifecycle_status,
-            "supersedes_id": (
-                str(payload.supersedes_id) if payload.supersedes_id else None
-            ),
+            "supersedes_id": (str(payload.supersedes_id) if payload.supersedes_id else None),
         },
     )
     db.commit()
@@ -218,9 +208,7 @@ def create_outcome(
         db,
         claim,
         payload,
-        created_by_agent_id=(
-            bound_agent.id if bound_agent else payload.created_by_agent_id
-        ),
+        created_by_agent_id=(bound_agent.id if bound_agent else payload.created_by_agent_id),
     )
     record_audit(
         db,
