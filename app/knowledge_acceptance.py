@@ -218,9 +218,12 @@ def _output_errors(run: Run) -> list[str]:
     claim_ids = output.get("claim_ids")
     if not isinstance(claim_ids, list) or not all(isinstance(item, str) for item in claim_ids):
         errors.append("run output claim_ids is invalid")
-    elif isinstance(candidate_count, int) and not isinstance(candidate_count, bool):
-        if candidate_count != len(claim_ids):
-            errors.append("run output candidate_count does not match claim_ids")
+    elif (
+        isinstance(candidate_count, int)
+        and not isinstance(candidate_count, bool)
+        and candidate_count != len(claim_ids)
+    ):
+        errors.append("run output candidate_count does not match claim_ids")
     return errors
 
 
