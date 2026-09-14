@@ -30,8 +30,18 @@ def upgrade() -> None:
         sa.Column("enabled", sa.Boolean(), server_default=sa.true(), nullable=False),
         sa.Column("next_due_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("metadata_json", sa.JSON(), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
         sa.CheckConstraint(
             "execution_kind IN ('control_plane_health')",
             name=op.f("ck_routines_execution_kind_valid"),
