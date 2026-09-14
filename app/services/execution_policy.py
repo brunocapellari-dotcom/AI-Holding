@@ -21,6 +21,14 @@ EXECUTION_POLICY_PROFILES: dict[ExecutionKind, ExecutionPolicyProfile] = {
         action_type=ActionType.internal_read,
         risk_level=RiskLevel.low,
     ),
+    ExecutionKind.knowledge_gap_scan: ExecutionPolicyProfile(
+        action_type=ActionType.internal_read,
+        risk_level=RiskLevel.low,
+    ),
+    ExecutionKind.knowledge_outcome_review: ExecutionPolicyProfile(
+        action_type=ActionType.internal_read,
+        risk_level=RiskLevel.low,
+    ),
 }
 
 
