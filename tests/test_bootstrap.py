@@ -146,6 +146,20 @@ def test_runtime_identity_environment_requires_complete_configuration(monkeypatc
         _runtime_identity_seeds_from_env()
 
 
+def test_bootstrap_hydrates_missing_canonical_repository(db_session):
+    bootstrap_canonical_portfolio(db_session)
+    project = db_session.scalar(select(Project).where(Project.key == "MERCADO_FINANCEIRO"))
+    assert project is not None
+    assert project.repository == "brunocapellari-dotcom/Mercado-Financeiro"
+
+    project.repository = None
+    db_session.commit()
+
+    second = bootstrap_canonical_portfolio(db_session)
+    assert second["created_projects"] == 0
+    assert project.repository == "brunocapellari-dotcom/Mercado-Financeiro"
+
+
 def test_maintenance_field_intelligence_starts_as_incubating(db_session):
     bootstrap_canonical_portfolio(db_session)
     project = db_session.scalar(
