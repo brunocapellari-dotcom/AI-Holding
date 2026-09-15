@@ -78,6 +78,17 @@ def _validate_fetch_source(source: KnowledgeSource) -> None:
     _host_allowed(source, source.base_uri)
 
 
+def _declared_response_size(response: httpx.Response) -> int | None:
+    value = response.headers.get("content-length")
+    if value is None:
+        return None
+    try:
+        parsed = int(value)
+    except ValueError:
+        return None
+    return parsed if parsed >= 0 else None
+
+
 def fetch_source(
     source: KnowledgeSource,
     *,
@@ -103,14 +114,9 @@ def fetch_source(
             if media_type not in ALLOWED_CONTENT_TYPES:
                 raise ValueError("source returned a disallowed content type")
 
-            declared_length = response.headers.get("content-length")
-            if declared_length:
-                try:
-                    if int(declared_length) > MAX_SOURCE_BYTES:
-                        raise ValueError("source response exceeds maximum allowed size")
-                except ValueError as exc:
-                    if "exceeds" in str(exc):
-                        raise
+            declared_size = _declared_response_size(response)
+            if declared_size is not None and declared_size > MAX_SOURCE_BYTES:
+                raise ValueError("source response exceeds maximum allowed size")
 
             chunks: list[bytes] = []
             size = 0
