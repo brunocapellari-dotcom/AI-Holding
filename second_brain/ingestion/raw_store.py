@@ -35,12 +35,84 @@ class RawArtifact:
     findings: tuple[IngestionFinding, ...]
 
 
-class RawArtifactStore:
-    """Content-addressed immutable storage for original ingested bytes."""
+@dataclass(frozen=True)
+class QuarantineArtifact:
+    sha256: str
+    content_path: Path
+    metadata_path: Path
+    findings: tuple[IngestionFinding, ...]
+
+
+class QuarantineStore:
+    """Restricted local quarantine for rejected input; never an extraction source."""
 
     def __init__(self, root: Path) -> None:
         self.root = root.resolve()
+        self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
+        try:
+            self.root.chmod(0o700)
+        except OSError:
+            pass
+
+    def put(
+        self,
+        content: bytes,
+        *,
+        filename: str | None,
+        mime_type: str,
+        source_id: str,
+        source_uri: str | None,
+        findings: tuple[IngestionFinding, ...],
+    ) -> QuarantineArtifact:
+        digest = hashlib.sha256(content).hexdigest()
+        shard = self.root / digest[:2]
+        shard.mkdir(parents=True, exist_ok=True, mode=0o700)
+        content_path = shard / f"{digest}.quarantine"
+        metadata_path = shard / f"{digest}.json"
+        if not content_path.exists():
+            _atomic_write_bytes(content_path, content, mode=0o600)
+        metadata = {
+            "schema_version": "1.0",
+            "sha256": digest,
+            "filename": filename,
+            "mime_type": mime_type,
+            "source_id": source_id,
+            "source_uri": source_uri,
+            "quarantined_at": datetime.now(UTC).isoformat(),
+            "findings": [asdict(item) for item in findings],
+            "extraction_allowed": False,
+        }
+        _atomic_write_text(
+            metadata_path,
+            json.dumps(metadata, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            mode=0o600,
+        )
+        return QuarantineArtifact(
+            sha256=digest,
+            content_path=content_path,
+            metadata_path=metadata_path,
+            findings=findings,
+        )
+
+
+class RawArtifactStore:
+    """Content-addressed immutable storage for original ingested bytes."""
+
+    def __init__(
+        self,
+        root: Path,
+        *,
+        quarantine: QuarantineStore | None = None,
+        antivirus: AntivirusScanner | None = None,
+        require_antivirus: bool = False,
+        max_bytes: int = 50 * 1024 * 1024,
+    ) -> None:
+        self.root = root.resolve()
         self.root.mkdir(parents=True, exist_ok=True)
+        self.quarantine = quarantine
+        self.antivirus = antivirus
+        self.require_antivirus = require_antivirus
+        self.max_bytes = max_bytes
 
     def put(
         self,
@@ -52,18 +124,30 @@ class RawArtifactStore:
         source_uri: str | None = None,
         collected_at: datetime | None = None,
         antivirus: AntivirusScanner | None = None,
-        require_antivirus: bool = False,
+        require_antivirus: bool | None = None,
     ) -> RawArtifact:
         uri_findings = inspect_source_uri(source_uri) if source_uri else ()
+        scanner = antivirus if antivirus is not None else self.antivirus
+        require_scan = self.require_antivirus if require_antivirus is None else require_antivirus
         file_inspection = inspect_file(
             content,
             filename=filename,
             mime_type=mime_type,
-            antivirus=antivirus,
-            require_antivirus=require_antivirus,
+            max_bytes=self.max_bytes,
+            antivirus=scanner,
+            require_antivirus=require_scan,
         )
         findings = (*uri_findings, *file_inspection.findings)
         if any(item.severity in {"HIGH", "CRITICAL"} for item in findings):
+            if self.quarantine is not None:
+                self.quarantine.put(
+                    content,
+                    filename=filename,
+                    mime_type=mime_type,
+                    source_id=source_id,
+                    source_uri=source_uri,
+                    findings=findings,
+                )
             codes = ", ".join(item.code for item in findings)
             raise ValueError(f"raw artifact rejected by ingestion policy: {codes}")
 
@@ -75,9 +159,7 @@ class RawArtifactStore:
         if content_path.exists():
             existing = content_path.read_bytes()
             if hashlib.sha256(existing).hexdigest() != digest:
-                raise RuntimeError(
-                    "raw artifact hash mismatch in existing content-addressed store"
-                )
+                raise RuntimeError("raw artifact hash mismatch in existing content-addressed store")
             if existing != content:
                 raise RuntimeError("content-address collision detected")
         else:
@@ -144,9 +226,13 @@ def _load_metadata(path: Path, digest: str, size_bytes: int) -> dict[str, object
     return loaded
 
 
-def _atomic_write_bytes(path: Path, content: bytes) -> None:
+def _atomic_write_bytes(path: Path, content: bytes, *, mode: int = 0o644) -> None:
     fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
     try:
+        try:
+            os.fchmod(fd, mode)
+        except OSError:
+            pass
         with os.fdopen(fd, "wb") as handle:
             handle.write(content)
             handle.flush()
@@ -157,9 +243,13 @@ def _atomic_write_bytes(path: Path, content: bytes) -> None:
             os.unlink(tmp_name)
 
 
-def _atomic_write_text(path: Path, content: str) -> None:
+def _atomic_write_text(path: Path, content: str, *, mode: int = 0o644) -> None:
     fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent, text=True)
     try:
+        try:
+            os.fchmod(fd, mode)
+        except OSError:
+            pass
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
             handle.write(content)
             handle.flush()
