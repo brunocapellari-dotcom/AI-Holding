@@ -44,13 +44,18 @@ VaultRecord = (
     | Learning
 )
 
-FOLDER_BY_TYPE = {
+_STATIC_FOLDER_BY_TYPE = {
     "Source": "03_SOURCES",
+    "Document": "12_REFERENCES/documents",
+    "Evidence": "12_REFERENCES/evidence",
+    "Observation": "06_EVENTS/observations",
+    "Claim": "00_CORE/claims",
     "Method": "04_METHODS",
     "Model": "05_MODELS",
     "Event": "06_EVENTS",
     "Skill": "08_SKILLS",
     "Entity": "09_ENTITIES",
+    "Relation": "09_ENTITIES/relations",
     "Learning": "13_LEARNINGS",
     "Decision": "14_DECISIONS",
     "Evaluation": "15_EVALUATIONS",
@@ -78,8 +83,13 @@ def _frontmatter(record: VaultRecord) -> dict[str, Any]:
         "confidence",
         "risk_level",
         "nature",
+        "assertion_key",
+        "normalized_value",
+        "unit",
         "source_id",
         "document_id",
+        "primary_source_id",
+        "independence_group",
         "supersedes_id",
         "subject_id",
         "object_id",
@@ -163,7 +173,7 @@ def render_markdown(record: VaultRecord) -> str:
 
 def default_relative_path(record: VaultRecord) -> Path:
     raw = record.model_dump(mode="json")
-    folder = FOLDER_BY_TYPE.get(record.record_type, "00_CORE")
+    folder = _folder_for(record)
     label = str(
         raw.get("canonical_name")
         or raw.get("name")
@@ -187,3 +197,15 @@ def write_markdown_atomic(vault: Path, record: VaultRecord) -> Path:
     temporary.write_text(rendered, encoding="utf-8")
     temporary.replace(target)
     return target
+
+
+def _folder_for(record: VaultRecord) -> str:
+    if record.record_type == "Fact":
+        if record.namespace.startswith("project/"):
+            project_name = record.namespace.split("/", 2)[1]
+            return f"02_PROJECTS/{_slug(project_name)}/knowledge"
+        if record.namespace.startswith("shared/"):
+            domain = record.namespace.split("/", 2)[1]
+            return f"01_DOMAINS/{_slug(domain)}"
+        return "00_CORE/facts"
+    return _STATIC_FOLDER_BY_TYPE.get(record.record_type, "00_CORE")
