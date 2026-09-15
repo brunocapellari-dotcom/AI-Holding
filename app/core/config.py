@@ -11,7 +11,9 @@ class Settings(BaseSettings):
     require_verified_identity: bool = True
     verified_identity_audience: str = "holding-control-plane"
     obsidian_vault_path: str | None = None
-    obsidian_knowledge_root: str = "00 - Segundo Cerebro"
+    # Compatibility name retained during migration. This location is an intake
+    # queue owned by the external Second Brain, never a canonical Holding store.
+    obsidian_knowledge_root: str = "00 - Segundo Cerebro/00 - Inbox/Holding"
 
 
 settings = Settings()
