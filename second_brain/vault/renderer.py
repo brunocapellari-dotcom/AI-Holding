@@ -27,8 +27,21 @@ from second_brain.schemas import (
 from second_brain.security import allow_standard_vault_export, scan_object_for_secrets
 
 VaultRecord = (
-    Source | Document | Observation | Evidence | Claim | Fact | Entity | Relation | Event |
-    Method | Model | Skill | Decision | Evaluation | Learning
+    Source
+    | Document
+    | Observation
+    | Evidence
+    | Claim
+    | Fact
+    | Entity
+    | Relation
+    | Event
+    | Method
+    | Model
+    | Skill
+    | Decision
+    | Evaluation
+    | Learning
 )
 
 FOLDER_BY_TYPE = {
@@ -61,9 +74,25 @@ def _frontmatter(record: VaultRecord) -> dict[str, Any]:
         "updated_at": raw["updated_at"],
     }
     for key in (
-        "status", "confidence", "risk_level", "nature", "source_id", "document_id",
-        "supersedes_id", "subject_id", "object_id", "evidence_ids", "claim_ids",
+        "status",
+        "confidence",
+        "risk_level",
+        "nature",
+        "source_id",
+        "document_id",
+        "supersedes_id",
+        "subject_id",
+        "object_id",
+        "target_id",
+        "evidence_ids",
+        "claim_ids",
         "validation_ids",
+        "entity_ids",
+        "source_ids",
+        "method_ids",
+        "linked_knowledge_ids",
+        "related_knowledge_ids",
+        "outcome_ids",
     ):
         if key in raw and raw[key] not in (None, [], {}):
             metadata[key] = raw[key]
@@ -97,20 +126,32 @@ def render_markdown(record: VaultRecord) -> str:
         raise ValueError("vault export blocked by secret scanner")
 
     title = (
-        raw.get("canonical_name") or raw.get("name") or raw.get("title")
-        or raw.get("statement") or raw["id"]
+        raw.get("canonical_name")
+        or raw.get("name")
+        or raw.get("title")
+        or raw.get("statement")
+        or raw["id"]
     )
     frontmatter = yaml.safe_dump(
-        _frontmatter(record), allow_unicode=True, sort_keys=False, default_flow_style=False
+        _frontmatter(record),
+        allow_unicode=True,
+        sort_keys=False,
+        default_flow_style=False,
     ).strip()
     parts = ["---", frontmatter, "---", "", f"# {title}", ""]
     preferred = [
-        ("Statement", raw.get("statement")), ("Purpose", raw.get("purpose")),
-        ("Description", raw.get("description")), ("Decision", raw.get("decision")),
-        ("Rationale", raw.get("rationale")), ("Lesson", raw.get("lesson")),
-        ("Procedure", raw.get("procedure")), ("Evidence", raw.get("evidence_ids")),
-        ("Claims", raw.get("claim_ids")), ("Validations", raw.get("validation_ids")),
-        ("Limitations", raw.get("limitations")), ("Provenance", raw.get("provenance")),
+        ("Statement", raw.get("statement")),
+        ("Purpose", raw.get("purpose")),
+        ("Description", raw.get("description")),
+        ("Decision", raw.get("decision")),
+        ("Rationale", raw.get("rationale")),
+        ("Lesson", raw.get("lesson")),
+        ("Procedure", raw.get("procedure")),
+        ("Evidence", raw.get("evidence_ids")),
+        ("Claims", raw.get("claim_ids")),
+        ("Validations", raw.get("validation_ids")),
+        ("Limitations", raw.get("limitations")),
+        ("Provenance", raw.get("provenance")),
     ]
     for heading, value in preferred:
         section = _section(heading, value)
@@ -124,8 +165,11 @@ def default_relative_path(record: VaultRecord) -> Path:
     raw = record.model_dump(mode="json")
     folder = FOLDER_BY_TYPE.get(record.record_type, "00_CORE")
     label = str(
-        raw.get("canonical_name") or raw.get("name") or raw.get("title")
-        or raw.get("statement") or record.id
+        raw.get("canonical_name")
+        or raw.get("name")
+        or raw.get("title")
+        or raw.get("statement")
+        or record.id
     )
     stable_suffix = hashlib.sha256(record.id.encode()).hexdigest()[:10]
     return Path(folder) / f"{_slug(label)}-{stable_suffix}.md"
