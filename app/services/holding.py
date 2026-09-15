@@ -40,6 +40,64 @@ def _utc(value: datetime) -> datetime:
     return value.astimezone(UTC)
 
 
+def _sync_collector_health_alerts(
+    db: Session,
+    *,
+    project_id: UUID,
+    collectors: list[CollectorRegistration],
+    now: datetime,
+) -> None:
+    for collector in collectors:
+        dedupe_key = f"collector-failing:{project_id}:{collector.key}"
+        alert = db.scalar(select(HoldingAlert).where(HoldingAlert.dedupe_key == dedupe_key))
+
+        if collector.status == "failing" and collector.consecutive_failures >= 3:
+            details = {
+                "collector_key": collector.key,
+                "consecutive_failures": collector.consecutive_failures,
+                "last_failure_at": (
+                    collector.last_failure_at.isoformat()
+                    if collector.last_failure_at is not None
+                    else None
+                ),
+            }
+            if alert is None:
+                db.add(
+                    HoldingAlert(
+                        project_id=project_id,
+                        level="action_required",
+                        source="collector-health",
+                        dedupe_key=dedupe_key,
+                        title=f"Collector {collector.key} is failing",
+                        details=details,
+                        status="active",
+                        occurrences=1,
+                        last_seen_at=now,
+                    )
+                )
+            else:
+                previous_failures = alert.details.get("consecutive_failures")
+                if previous_failures != collector.consecutive_failures:
+                    alert.occurrences += 1
+                alert.project_id = project_id
+                alert.level = "action_required"
+                alert.source = "collector-health"
+                alert.title = f"Collector {collector.key} is failing"
+                alert.details = details
+                alert.status = "active"
+                alert.last_seen_at = now
+        elif collector.status == "healthy" and alert is not None and alert.status == "active":
+            alert.status = "resolved"
+            alert.last_seen_at = now
+            alert.details = {
+                "collector_key": collector.key,
+                "consecutive_failures": 0,
+                "recovered_at": now.isoformat(),
+            }
+
+    db.flush()
+
+
 def summarize_costs(db: Session, project_id: UUID | None = None) -> CostSummary:
     statement = select(CostEntry)
     if project_id is not None:
@@ -121,6 +179,14 @@ def compute_project_health(db: Session, project_id: UUID, persist: bool = True) 
         age = (now - _utc(collector.last_success_at)).total_seconds()
         if age > collector.freshness_sla_seconds:
             stale_collectors += 1
+
+    if persist:
+        _sync_collector_health_alerts(
+            db,
+            project_id=project_id,
+            collectors=collectors,
+            now=now,
+        )
 
     blocked_tasks = list(
         db.scalars(
