@@ -6,7 +6,14 @@ from alembic import context
 from app.core.config import settings
 from app.db.alembic_config import escape_config_parser_value
 from app.db.base import Base
-from app.models import agent_identity, entities, holding, knowledge, routine  # noqa: F401
+from app.models import (  # noqa: F401
+    agent_identity,
+    entities,
+    holding,
+    holding_evidence,
+    knowledge,
+    routine,
+)
 
 config = context.config
 config.set_main_option(
