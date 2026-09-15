@@ -1,6 +1,12 @@
+variable "legacy_cloud_scheduler_enabled" {
+  type        = bool
+  default     = false
+  description = "Temporary compatibility switch. AgentOS is the target scheduler/runtime; legacy Cloud Scheduler jobs stay disabled unless explicitly re-enabled."
+}
+
 resource "google_service_account" "worker_scheduler" {
   account_id   = "holding-worker-scheduler"
-  display_name = "Holding Worker Scheduler"
+  display_name = "Holding Worker Scheduler (legacy transition)"
 
   depends_on = [google_project_service.required]
 
@@ -34,9 +40,9 @@ resource "google_cloud_run_v2_job_iam_member" "scheduler_knowledge_invoker" {
 }
 
 resource "google_cloud_scheduler_job" "pmo_worker" {
-  count       = var.deploy_service ? 1 : 0
+  count       = var.deploy_service && var.legacy_cloud_scheduler_enabled ? 1 : 0
   name        = "${var.service_name}-pmo-worker"
-  description = "Execute the bounded PMO worker every ten minutes."
+  description = "Legacy compatibility trigger for PMO worker. AgentOS replaces this scheduler."
   region      = var.region
   schedule    = "*/10 * * * *"
   time_zone   = "Etc/UTC"
@@ -74,9 +80,9 @@ resource "google_cloud_scheduler_job" "pmo_worker" {
 }
 
 resource "google_cloud_scheduler_job" "knowledge_worker" {
-  count       = var.deploy_service ? 1 : 0
+  count       = var.deploy_service && var.legacy_cloud_scheduler_enabled ? 1 : 0
   name        = "${var.service_name}-knowledge-worker"
-  description = "Poll due read-only Knowledge IA maintenance work hourly."
+  description = "Legacy compatibility trigger only. Canonical knowledge belongs to the external Second Brain."
   region      = var.region
   schedule    = "0 * * * *"
   time_zone   = "Etc/UTC"
@@ -114,11 +120,11 @@ resource "google_cloud_scheduler_job" "knowledge_worker" {
 }
 
 output "pmo_worker_schedule" {
-  value = var.deploy_service ? google_cloud_scheduler_job.pmo_worker[0].schedule : null
+  value = var.deploy_service && var.legacy_cloud_scheduler_enabled ? google_cloud_scheduler_job.pmo_worker[0].schedule : null
 }
 
 output "knowledge_worker_schedule" {
-  value = var.deploy_service ? google_cloud_scheduler_job.knowledge_worker[0].schedule : null
+  value = var.deploy_service && var.legacy_cloud_scheduler_enabled ? google_cloud_scheduler_job.knowledge_worker[0].schedule : null
 }
 
 output "worker_scheduler_service_account" {
