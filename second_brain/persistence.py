@@ -4,6 +4,7 @@ import hashlib
 import json
 import sqlite3
 from collections.abc import Iterable
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import cast
@@ -18,6 +19,7 @@ from second_brain.schemas import (
     Evidence,
     Fact,
     Learning,
+    LifecycleStatus,
     Method,
     Model,
     Observation,
@@ -26,6 +28,11 @@ from second_brain.schemas import (
     Source,
 )
 from second_brain.schemas.contracts import KnowledgeRecord
+from second_brain.security import (
+    allow_graph_projection,
+    allow_standard_vault_export,
+    scan_object_for_secrets,
+)
 from second_brain.temporal import visible_as_of
 
 _RECORD_TYPES: dict[str, type[KnowledgeRecord]] = {
@@ -48,8 +55,20 @@ _RECORD_TYPES: dict[str, type[KnowledgeRecord]] = {
 _IMMUTABLE_ORIGINAL_TYPES = {"Document", "Evidence"}
 
 
+@dataclass(frozen=True)
+class ProjectionEvent:
+    event_id: int
+    record_id: str
+    version_no: int
+    target: str
+    payload_hash: str
+    created_at: datetime
+    attempts: int
+    last_error: str | None
+
+
 class SQLiteKnowledgeStore:
-    """Append-only portable reference store for the independent Second Brain."""
+    """Append-only portable reference store with transactional projection outbox."""
 
     def __init__(self, path: str | Path = ":memory:") -> None:
         self.path = str(path)
@@ -92,13 +111,34 @@ class SQLiteKnowledgeStore:
                 ON record_versions(namespace, record_type, record_id, version_no);
             CREATE INDEX IF NOT EXISTS idx_record_versions_temporal
                 ON record_versions(record_type, valid_from, valid_to, known_from, known_to);
+
+            CREATE TABLE IF NOT EXISTS projection_outbox (
+                event_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                record_id TEXT NOT NULL,
+                version_no INTEGER NOT NULL,
+                target TEXT NOT NULL,
+                payload_hash TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                delivered_at TEXT,
+                attempts INTEGER NOT NULL DEFAULT 0,
+                last_error TEXT,
+                UNIQUE(record_id, version_no, target),
+                FOREIGN KEY(record_id, version_no)
+                    REFERENCES record_versions(record_id, version_no)
+                    ON DELETE RESTRICT
+            );
+            CREATE INDEX IF NOT EXISTS idx_projection_outbox_pending
+                ON projection_outbox(target, delivered_at, event_id);
             """
         )
         self.connection.commit()
 
     def put(self, record: KnowledgeRecord) -> int:
+        raw = record.model_dump(mode="json")
+        if scan_object_for_secrets(raw):
+            raise ValueError("knowledge record rejected: secret-like material detected")
         payload = json.dumps(
-            record.model_dump(mode="json"),
+            raw,
             ensure_ascii=False,
             sort_keys=True,
             separators=(",", ":"),
@@ -116,35 +156,55 @@ class SQLiteKnowledgeStore:
 
         temporal = getattr(record, "temporal", None)
         status = getattr(record, "status", None)
-        self.connection.execute(
-            """
-            INSERT INTO record_versions (
-                record_id, version_no, record_type, namespace, information_class,
-                status, payload_json, payload_hash, valid_from, valid_to,
-                known_from, known_to, recorded_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                record.id,
-                version_no,
-                record.record_type,
-                record.namespace,
-                record.information_class.value,
-                status.value if status is not None else None,
-                payload,
-                digest,
-                _iso(getattr(temporal, "valid_from", None)),
-                _iso(getattr(temporal, "valid_to", None)),
-                _iso(getattr(temporal, "known_from", None)),
-                _iso(getattr(temporal, "known_to", None)),
-                datetime.now(UTC).isoformat(),
-            ),
-        )
-        self.connection.commit()
+        recorded_at = datetime.now(UTC).isoformat()
+        with self.connection:
+            self.connection.execute(
+                """
+                INSERT INTO record_versions (
+                    record_id, version_no, record_type, namespace, information_class,
+                    status, payload_json, payload_hash, valid_from, valid_to,
+                    known_from, known_to, recorded_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    record.id,
+                    version_no,
+                    record.record_type,
+                    record.namespace,
+                    record.information_class.value,
+                    status.value if status is not None else None,
+                    payload,
+                    digest,
+                    _iso(getattr(temporal, "valid_from", None)),
+                    _iso(getattr(temporal, "valid_to", None)),
+                    _iso(getattr(temporal, "known_from", None)),
+                    _iso(getattr(temporal, "known_to", None)),
+                    recorded_at,
+                ),
+            )
+            for target in _projection_targets(record):
+                self.connection.execute(
+                    """
+                    INSERT OR IGNORE INTO projection_outbox (
+                        record_id, version_no, target, payload_hash, created_at
+                    ) VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (record.id, version_no, target, digest, recorded_at),
+                )
         return version_no
 
     def get_latest(self, record_id: str) -> KnowledgeRecord | None:
         row = self._latest_row(record_id)
+        return self._decode(row) if row is not None else None
+
+    def get_version(self, record_id: str, version_no: int) -> KnowledgeRecord | None:
+        row = self.connection.execute(
+            """
+            SELECT * FROM record_versions
+            WHERE record_id = ? AND version_no = ?
+            """,
+            (record_id, version_no),
+        ).fetchone()
         return self._decode(row) if row is not None else None
 
     def history(self, record_id: str) -> tuple[KnowledgeRecord, ...]:
@@ -202,6 +262,99 @@ class SQLiteKnowledgeStore:
                 seen.add(record.id)
         return tuple(result)
 
+    def pending_projection_events(
+        self,
+        *,
+        target: str | None = None,
+        limit: int = 100,
+    ) -> tuple[ProjectionEvent, ...]:
+        if limit < 1 or limit > 10_000:
+            raise ValueError("limit must be between 1 and 10000")
+        if target is None:
+            rows = self.connection.execute(
+                """
+                SELECT * FROM projection_outbox
+                WHERE delivered_at IS NULL
+                ORDER BY event_id ASC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        else:
+            rows = self.connection.execute(
+                """
+                SELECT * FROM projection_outbox
+                WHERE delivered_at IS NULL AND target = ?
+                ORDER BY event_id ASC
+                LIMIT ?
+                """,
+                (target, limit),
+            ).fetchall()
+        return tuple(_decode_projection_event(row) for row in rows)
+
+    def mark_projection_delivered(self, event_id: int) -> None:
+        with self.connection:
+            self.connection.execute(
+                """
+                UPDATE projection_outbox
+                SET delivered_at = ?, attempts = attempts + 1, last_error = NULL
+                WHERE event_id = ?
+                """,
+                (datetime.now(UTC).isoformat(), event_id),
+            )
+
+    def mark_projection_failed(self, event_id: int, error: str) -> None:
+        with self.connection:
+            self.connection.execute(
+                """
+                UPDATE projection_outbox
+                SET attempts = attempts + 1, last_error = ?
+                WHERE event_id = ?
+                """,
+                (error[:2000], event_id),
+            )
+
+    def requeue_all_projections(self) -> int:
+        """Rebuild the derived surfaces from append-only institutional records."""
+        count = 0
+        rows = self.connection.execute(
+            """
+            SELECT rv.*
+            FROM record_versions rv
+            JOIN (
+                SELECT record_id, MAX(version_no) AS version_no
+                FROM record_versions
+                GROUP BY record_id
+            ) latest
+              ON rv.record_id = latest.record_id AND rv.version_no = latest.version_no
+            ORDER BY rv.record_id
+            """
+        ).fetchall()
+        now = datetime.now(UTC).isoformat()
+        with self.connection:
+            for row in rows:
+                record = self._decode(row)
+                for target in _projection_targets(record):
+                    cursor = self.connection.execute(
+                        """
+                        INSERT INTO projection_outbox (
+                            record_id, version_no, target, payload_hash, created_at,
+                            delivered_at, attempts, last_error
+                        ) VALUES (?, ?, ?, ?, ?, NULL, 0, NULL)
+                        ON CONFLICT(record_id, version_no, target)
+                        DO UPDATE SET delivered_at = NULL, attempts = 0, last_error = NULL
+                        """,
+                        (
+                            str(row["record_id"]),
+                            int(row["version_no"]),
+                            target,
+                            str(row["payload_hash"]),
+                            now,
+                        ),
+                    )
+                    count += max(cursor.rowcount, 0)
+        return count
+
     def integrity_check(self) -> bool:
         result = self.connection.execute("PRAGMA integrity_check").fetchone()
         return result is not None and str(result[0]).lower() == "ok"
@@ -217,6 +370,13 @@ class SQLiteKnowledgeStore:
 
     def record_count(self) -> int:
         row = self.connection.execute("SELECT COUNT(*) FROM record_versions").fetchone()
+        return int(row[0]) if row is not None else 0
+
+    def outbox_count(self, *, pending_only: bool = False) -> int:
+        sql = "SELECT COUNT(*) FROM projection_outbox"
+        if pending_only:
+            sql += " WHERE delivered_at IS NULL"
+        row = self.connection.execute(sql).fetchone()
         return int(row[0]) if row is not None else 0
 
     def _latest_row(self, record_id: str) -> sqlite3.Row | None:
@@ -242,6 +402,40 @@ class SQLiteKnowledgeStore:
 def load_records(store: SQLiteKnowledgeStore, records: Iterable[KnowledgeRecord]) -> None:
     for record in records:
         store.put(record)
+
+
+def _projection_targets(record: KnowledgeRecord) -> tuple[str, ...]:
+    targets: list[str] = []
+    if allow_standard_vault_export(record.information_class):
+        targets.append("vault")
+    if allow_graph_projection(record.information_class) and _graph_eligible(record):
+        targets.append("graphiti")
+    return tuple(targets)
+
+
+def _graph_eligible(record: KnowledgeRecord) -> bool:
+    if isinstance(record, Fact):
+        return record.status in {LifecycleStatus.CANONICO, LifecycleStatus.SUPERADO}
+    if isinstance(record, (Relation, Event)):
+        return record.status in {
+            LifecycleStatus.VALIDADO,
+            LifecycleStatus.CANONICO,
+            LifecycleStatus.SUPERADO,
+        }
+    return isinstance(record, Entity)
+
+
+def _decode_projection_event(row: sqlite3.Row) -> ProjectionEvent:
+    return ProjectionEvent(
+        event_id=int(row["event_id"]),
+        record_id=str(row["record_id"]),
+        version_no=int(row["version_no"]),
+        target=str(row["target"]),
+        payload_hash=str(row["payload_hash"]),
+        created_at=datetime.fromisoformat(str(row["created_at"])),
+        attempts=int(row["attempts"]),
+        last_error=str(row["last_error"]) if row["last_error"] is not None else None,
+    )
 
 
 def _iso(value: datetime | None) -> str | None:
