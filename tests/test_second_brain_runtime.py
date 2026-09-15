@@ -36,7 +36,13 @@ from second_brain.schemas import (
     Source,
     TemporalContext,
 )
-from second_brain.sources import CollectorHealth, CollectorMethod, CollectorRegistry, CollectorSpec
+from second_brain.sources import (
+    CollectorHealth,
+    CollectorMethod,
+    CollectorRegistry,
+    CollectorSpec,
+    load_collector_manifest,
+)
 
 
 def _source(
@@ -88,6 +94,7 @@ def test_collector_registry_tracks_freshness_without_conflating_ci_health(tmp_pa
             frequency_seconds=3600,
             freshness_seconds=7200,
             max_retries=1,
+            managed_execution=True,
         )
     )
     now = datetime(2026, 9, 15, 12, tzinfo=UTC)
@@ -137,6 +144,16 @@ def test_collector_registry_tracks_freshness_without_conflating_ci_health(tmp_pa
     )
     assert collector_operational(signals, "agrolog:official-api")
     assert not collector_operational(signals, "missing")
+
+
+def test_existing_collector_manifest_is_federated_not_rescheduled() -> None:
+    manifest = Path("second_brain/sources/collectors.yaml")
+    registry = load_collector_manifest(manifest)
+    specs = registry.specs()
+    assert len(specs) >= 5
+    assert {spec.owner_project for spec in specs} == {"Geopolitical-Watch"}
+    assert all(not spec.managed_execution for spec in specs)
+    assert not registry.due(now=datetime(2026, 9, 15, 12, tzinfo=UTC))
 
 
 def test_ingestion_boundary_flags_prompt_injection_and_blocks_executable() -> None:
