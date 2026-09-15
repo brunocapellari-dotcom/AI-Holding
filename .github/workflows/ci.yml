@@ -69,7 +69,7 @@ jobs:
       - name: Production runtime entrypoint imports
         run: |
           docker run --rm holding-control-plane:ci python -c \
-            "import app.main, app.db_migrate, app.bootstrap, app.pmo_worker, app.pmo_acceptance"
+            "import app.main, app.db_migrate, app.bootstrap, app.pmo_worker, app.pmo_acceptance, app.knowledge_acceptance"
       - name: Generate CycloneDX SBOM
         uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
         with:
@@ -105,6 +105,8 @@ jobs:
       REGION: southamerica-east1
       SERVICE_NAME: holding-control-plane
       PMO_SERVICE_ACCOUNT: holding-pmo-worker@ai-holding-prod-bc.iam.gserviceaccount.com
+      KNOWLEDGE_SERVICE_ACCOUNT: holding-knowledge-worker@ai-holding-prod-bc.iam.gserviceaccount.com
+      SCHEDULER_SERVICE_ACCOUNT: holding-worker-scheduler@ai-holding-prod-bc.iam.gserviceaccount.com
       TF_STATE_BUCKET: ai-holding-prod-bc-tfstate
       WIF_PROVIDER: projects/868946857614/locations/global/workloadIdentityPools/github-actions/providers/ai-holding-main
       DEPLOY_SERVICE_ACCOUNT: github-deployer@ai-holding-prod-bc.iam.gserviceaccount.com
@@ -129,6 +131,16 @@ jobs:
           terraform -chdir=infra/terraform init \
             -backend-config="bucket=${TF_STATE_BUCKET}" \
             -backend-config="prefix=control-plane/prod"
+
+      - name: Pause autonomous schedulers during deployment
+        run: |
+          for scheduler in \
+            "${SERVICE_NAME}-pmo-worker" \
+            "${SERVICE_NAME}-knowledge-worker"; do
+            gcloud scheduler jobs pause "${scheduler}" \
+              --project="${PROJECT_ID}" \
+              --location="${REGION}" >/dev/null 2>&1 || true
+          done
 
       - name: Complete missing database foundation without touching runtime
         run: |
@@ -158,7 +170,9 @@ jobs:
             'google_cloud_run_v2_job.migrate[0]' \
             'google_cloud_run_v2_job.bootstrap[0]' \
             'google_cloud_run_v2_job.pmo_worker[0]' \
-            'google_cloud_run_v2_job.pmo_acceptance[0]'; do
+            'google_cloud_run_v2_job.knowledge_worker[0]' \
+            'google_cloud_run_v2_job.pmo_acceptance[0]' \
+            'google_cloud_run_v2_job.knowledge_acceptance[0]'; do
             state="$(terraform -chdir=infra/terraform state show "${address}" 2>/dev/null || true)"
             if printf '%s\n' "${state}" | head -n 1 | grep -q '(tainted)'; then
               terraform -chdir=infra/terraform untaint "${address}"
@@ -270,21 +284,28 @@ jobs:
           echo "::error title=Production migration SQL::Database connectivity and schema CREATE checks passed; Alembic migration still failed."
           exit 24
 
-      - name: Bootstrap canonical portfolio and PMO identity binding
+      - name: Bootstrap canonical portfolio and worker identity bindings
         run: |
           gcloud run jobs execute "${SERVICE_NAME}-bootstrap" \
             --project="${PROJECT_ID}" \
             --region="${REGION}" \
             --wait
 
-          actual_subject="$(gcloud iam service-accounts describe "${PMO_SERVICE_ACCOUNT}" \
+          actual_pmo_subject="$(gcloud iam service-accounts describe "${PMO_SERVICE_ACCOUNT}" \
             --project="${PROJECT_ID}" \
             --format='value(uniqueId)')"
-          expected_subject="$(terraform -chdir=infra/terraform output -raw pmo_runtime_subject)"
-          test -n "${actual_subject}"
-          test "${actual_subject}" = "${expected_subject}"
+          expected_pmo_subject="$(terraform -chdir=infra/terraform output -raw pmo_runtime_subject)"
+          test -n "${actual_pmo_subject}"
+          test "${actual_pmo_subject}" = "${expected_pmo_subject}"
 
-      - name: Verify deployed service state and PMO least privilege
+          actual_knowledge_subject="$(gcloud iam service-accounts describe "${KNOWLEDGE_SERVICE_ACCOUNT}" \
+            --project="${PROJECT_ID}" \
+            --format='value(uniqueId)')"
+          expected_knowledge_subject="$(terraform -chdir=infra/terraform output -raw knowledge_runtime_subject)"
+          test -n "${actual_knowledge_subject}"
+          test "${actual_knowledge_subject}" = "${expected_knowledge_subject}"
+
+      - name: Verify deployed service and worker least privilege
         run: |
           URL="$(gcloud run services describe "${SERVICE_NAME}" \
             --project="${PROJECT_ID}" \
@@ -302,6 +323,19 @@ jobs:
           printf '%s\n' "${policy}" \
             | jq -e --arg member "serviceAccount:${PMO_SERVICE_ACCOUNT}" \
               'any(.bindings[]?; .role == "roles/run.invoker" and any(.members[]?; . == $member))'
+          printf '%s\n' "${policy}" \
+            | jq -e --arg member "serviceAccount:${KNOWLEDGE_SERVICE_ACCOUNT}" \
+              'any(.bindings[]?; .role == "roles/run.invoker" and any(.members[]?; . == $member))'
+
+          for job in "${SERVICE_NAME}-pmo-worker" "${SERVICE_NAME}-knowledge-worker"; do
+            job_policy="$(gcloud run jobs get-iam-policy "${job}" \
+              --project="${PROJECT_ID}" \
+              --region="${REGION}" \
+              --format=json)"
+            printf '%s\n' "${job_policy}" \
+              | jq -e --arg member "serviceAccount:${SCHEDULER_SERVICE_ACCOUNT}" \
+                'any(.bindings[]?; .role == "roles/run.invoker" and any(.members[]?; . == $member))'
+          done
 
           echo "Production Control Plane deployed at ${URL}"
 
@@ -372,3 +406,86 @@ jobs:
             echo "::error title=PMO production acceptance::PMO worker acceptance failed closed; PMO is disabled by the acceptance gate."
             exit 30
           fi
+
+      - name: Run controlled Knowledge IA production acceptance
+        run: |
+          describe_latest_execution() {
+            job="$1"
+            execution="$(gcloud run jobs executions list \
+              --job="${job}" \
+              --project="${PROJECT_ID}" \
+              --region="${REGION}" \
+              --sort-by='~metadata.creationTimestamp' \
+              --limit=1 \
+              --format='value(metadata.name)' 2>/dev/null || true)"
+            if [ -n "${execution}" ]; then
+              gcloud run jobs executions describe "${execution}" \
+                --project="${PROJECT_ID}" \
+                --region="${REGION}" \
+                --format='yaml(metadata.name,status.conditions,status.failedCount,status.succeededCount)' \
+                || true
+            fi
+          }
+
+          read_recent_job_logs() {
+            job="$1"
+            gcloud run jobs logs read "${job}" \
+              --project="${PROJECT_ID}" \
+              --region="${REGION}" \
+              --limit=100 \
+              || true
+          }
+
+          gcloud run jobs execute "${SERVICE_NAME}-knowledge-acceptance" \
+            --project="${PROJECT_ID}" \
+            --region="${REGION}" \
+            --args=prepare \
+            --wait
+
+          set +e
+          gcloud run jobs execute "${SERVICE_NAME}-knowledge-worker" \
+            --project="${PROJECT_ID}" \
+            --region="${REGION}" \
+            --wait
+          worker_status=$?
+          set -e
+
+          if [ "${worker_status}" -ne 0 ]; then
+            echo "Knowledge worker failed; collecting sanitized execution diagnostics."
+            describe_latest_execution "${SERVICE_NAME}-knowledge-worker"
+            read_recent_job_logs "${SERVICE_NAME}-knowledge-worker"
+          fi
+
+          set +e
+          gcloud run jobs execute "${SERVICE_NAME}-knowledge-acceptance" \
+            --project="${PROJECT_ID}" \
+            --region="${REGION}" \
+            --args=finalize \
+            --wait
+          acceptance_status=$?
+          set -e
+
+          if [ "${acceptance_status}" -ne 0 ]; then
+            describe_latest_execution "${SERVICE_NAME}-knowledge-acceptance"
+            read_recent_job_logs "${SERVICE_NAME}-knowledge-acceptance"
+          fi
+
+          if [ "${worker_status}" -ne 0 ] || [ "${acceptance_status}" -ne 0 ]; then
+            echo "::error title=Knowledge IA production acceptance::Knowledge worker acceptance failed closed; Knowledge IA is disabled by the acceptance gate."
+            exit 31
+          fi
+
+      - name: Enable verified autonomous schedules
+        run: |
+          for scheduler in \
+            "${SERVICE_NAME}-pmo-worker" \
+            "${SERVICE_NAME}-knowledge-worker"; do
+            gcloud scheduler jobs resume "${scheduler}" \
+              --project="${PROJECT_ID}" \
+              --location="${REGION}"
+            state="$(gcloud scheduler jobs describe "${scheduler}" \
+              --project="${PROJECT_ID}" \
+              --location="${REGION}" \
+              --format='value(state)')"
+            test "${state}" = "ENABLED"
+          done

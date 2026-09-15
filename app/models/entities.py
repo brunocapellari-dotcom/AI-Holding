@@ -206,7 +206,8 @@ class Task(Base, TimestampMixin):
         UniqueConstraint("idempotency_key", name="uq_task_idempotency_key"),
         CheckConstraint("priority BETWEEN 0 AND 5", name="priority_range"),
         CheckConstraint(
-            "execution_kind IS NULL OR execution_kind IN ('control_plane_health')",
+            "execution_kind IS NULL OR execution_kind IN "
+            "('control_plane_health','knowledge_gap_scan','knowledge_outcome_review')",
             name="execution_kind_valid",
         ),
         CheckConstraint(

@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     api_prefix: str = "/api/v1"
     require_verified_identity: bool = True
     verified_identity_audience: str = "holding-control-plane"
+    obsidian_vault_path: str | None = None
+    obsidian_knowledge_root: str = "00 - Segundo Cerebro"
 
 
 settings = Settings()

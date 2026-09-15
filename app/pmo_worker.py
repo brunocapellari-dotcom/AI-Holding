@@ -18,10 +18,12 @@ from app.schemas.api import ExecutionKind
 
 DEFAULT_AUDIENCE = "holding-control-plane"
 DEFAULT_AGENT_KEY = "PMO_IA"
-SUPPORTED_EXECUTION_KINDS = (ExecutionKind.control_plane_health,)
+DEFAULT_EXECUTION_KINDS = (ExecutionKind.control_plane_health,)
 REQUEST_TIMEOUT_SECONDS = 20.0
 MAX_ERROR_LENGTH = 8000
 MAX_DIAGNOSTIC_BODY_LENGTH = 2000
+MAX_EXECUTION_KINDS = 10
+KNOWLEDGE_SCAN_LIMIT = 100
 
 TokenProvider = Callable[[str], str]
 Executor = Callable[["ControlPlaneClient", dict[str, Any]], dict[str, object]]
@@ -70,12 +72,33 @@ def _at_stage[T](stage: WorkerStage, operation: Callable[[], T]) -> T:
         raise WorkerStageError(stage, exc) from exc
 
 
+def _execution_kinds_from_env() -> tuple[ExecutionKind, ...]:
+    raw = os.getenv("WORKER_EXECUTION_KINDS")
+    if raw is None:
+        return DEFAULT_EXECUTION_KINDS
+
+    values = [item.strip() for item in raw.split(",") if item.strip()]
+    if not values:
+        raise RuntimeError("WORKER_EXECUTION_KINDS must contain at least one execution kind")
+    if len(values) > MAX_EXECUTION_KINDS:
+        raise RuntimeError(
+            f"WORKER_EXECUTION_KINDS cannot contain more than {MAX_EXECUTION_KINDS} values"
+        )
+
+    try:
+        parsed = tuple(ExecutionKind(item) for item in values)
+    except ValueError as exc:
+        raise RuntimeError(f"unsupported execution kind in WORKER_EXECUTION_KINDS: {exc}") from exc
+    return tuple(dict.fromkeys(parsed))
+
+
 @dataclass(frozen=True)
 class WorkerConfig:
     control_plane_url: str
     audience: str = DEFAULT_AUDIENCE
     agent_key: str = DEFAULT_AGENT_KEY
     max_tasks: int = 1
+    execution_kinds: tuple[ExecutionKind, ...] = DEFAULT_EXECUTION_KINDS
 
     @classmethod
     def from_env(cls) -> WorkerConfig:
@@ -95,6 +118,7 @@ class WorkerConfig:
             audience=os.getenv("CONTROL_PLANE_AUDIENCE", DEFAULT_AUDIENCE),
             agent_key=os.getenv("PMO_AGENT_KEY", DEFAULT_AGENT_KEY),
             max_tasks=max_tasks,
+            execution_kinds=_execution_kinds_from_env(),
         )
 
 
@@ -164,11 +188,29 @@ class ControlPlaneClient:
         response.raise_for_status()
         return response
 
+    def _get_object_list(
+        self,
+        path: str,
+        *,
+        params: dict[str, str | int | float | bool | None] | None = None,
+    ) -> list[dict[str, object]]:
+        response = self._request("GET", path, params=params)
+        body: object = response.json()
+        if not isinstance(body, list):
+            raise RuntimeError(f"expected list response from {path}")
+
+        items: list[dict[str, object]] = []
+        for item in body:
+            if not isinstance(item, dict):
+                raise RuntimeError(f"expected object items from {path}")
+            items.append(dict(item))
+        return items
+
     def claim(self) -> dict[str, Any] | None:
         response = self._client.post(
             "/api/v1/pmo/claim",
             json={
-                "execution_kinds": [item.value for item in SUPPORTED_EXECUTION_KINDS],
+                "execution_kinds": [item.value for item in self.config.execution_kinds],
             },
         )
         if response.status_code == 204:
@@ -231,6 +273,18 @@ class ControlPlaneClient:
             },
         )
 
+    def knowledge_gaps(self) -> list[dict[str, object]]:
+        return self._get_object_list(
+            "/api/v1/knowledge/gaps",
+            params={"limit": KNOWLEDGE_SCAN_LIMIT},
+        )
+
+    def knowledge_outcome_review(self) -> list[dict[str, object]]:
+        return self._get_object_list(
+            "/api/v1/knowledge/outcome-review",
+            params={"limit": KNOWLEDGE_SCAN_LIMIT},
+        )
+
     def _health_check(self, path: str, stage: WorkerStage) -> dict[str, object]:
         response = _at_stage(stage, lambda: self._request("GET", path))
         try:
@@ -249,6 +303,21 @@ class ControlPlaneClient:
         }
 
 
+def _knowledge_queue_output(
+    *,
+    execution_kind: ExecutionKind,
+    task: dict[str, Any],
+    claims: list[dict[str, object]],
+) -> dict[str, object]:
+    claim_ids = [str(item["id"]) for item in claims if item.get("id") is not None]
+    return {
+        "execution_kind": execution_kind.value,
+        "task_key": str(task.get("key", "")),
+        "candidate_count": len(claims),
+        "claim_ids": claim_ids,
+    }
+
+
 def execute_control_plane_health(
     client: ControlPlaneClient,
     task: dict[str, Any],
@@ -260,8 +329,32 @@ def execute_control_plane_health(
     }
 
 
+def execute_knowledge_gap_scan(
+    client: ControlPlaneClient,
+    task: dict[str, Any],
+) -> dict[str, object]:
+    return _knowledge_queue_output(
+        execution_kind=ExecutionKind.knowledge_gap_scan,
+        task=task,
+        claims=client.knowledge_gaps(),
+    )
+
+
+def execute_knowledge_outcome_review(
+    client: ControlPlaneClient,
+    task: dict[str, Any],
+) -> dict[str, object]:
+    return _knowledge_queue_output(
+        execution_kind=ExecutionKind.knowledge_outcome_review,
+        task=task,
+        claims=client.knowledge_outcome_review(),
+    )
+
+
 EXECUTORS: dict[ExecutionKind, Executor] = {
     ExecutionKind.control_plane_health: execute_control_plane_health,
+    ExecutionKind.knowledge_gap_scan: execute_knowledge_gap_scan,
+    ExecutionKind.knowledge_outcome_review: execute_knowledge_outcome_review,
 }
 
 

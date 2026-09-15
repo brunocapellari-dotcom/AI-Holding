@@ -32,7 +32,8 @@ class Routine(Base):
             name="interval_minutes_range",
         ),
         CheckConstraint(
-            "execution_kind IN ('control_plane_health')",
+            "execution_kind IN "
+            "('control_plane_health','knowledge_gap_scan','knowledge_outcome_review')",
             name="execution_kind_valid",
         ),
         Index("ix_routines_due", "enabled", "next_due_at"),

@@ -91,6 +91,20 @@ AGENT_SEEDS: tuple[AgentSeed, ...] = (
             "quality-gates",
             "risk-review",
             "postmortem-review",
+            "knowledge-promotion",
+        ),
+    ),
+    AgentSeed(
+        key="KNOWLEDGE_IA",
+        name="Knowledge IA",
+        role="Universal knowledge ingestion and memory steward for all projects",
+        max_autonomy=4,
+        capabilities=(
+            "knowledge-ingestion",
+            "knowledge-deduplication",
+            "knowledge-retrieval",
+            "outcome-learning",
+            "obsidian-export",
         ),
     ),
     AgentSeed(
@@ -108,6 +122,18 @@ AGENT_SEEDS: tuple[AgentSeed, ...] = (
 
 
 PROJECT_SEEDS: tuple[ProjectSeed, ...] = (
+    ProjectSeed(
+        key="SECOND_BRAIN",
+        name="Segundo Cérebro Universal",
+        strategic_goal=(
+            "Operate the shared knowledge brain for every current and future project, "
+            "with provenance, evidence, lifecycle governance and outcome learning."
+        ),
+        priority=0,
+        autonomy_level=4,
+        repository="brunocapellari-dotcom/AI-Holding",
+        business_unit="Shared Core",
+    ),
     ProjectSeed(
         key="AI_HOLDING",
         name="AI Holding",
@@ -219,6 +245,24 @@ ROUTINE_SEEDS: tuple[RoutineSeed, ...] = (
         execution_kind="control_plane_health",
         interval_minutes=10,
         priority=5,
+    ),
+    RoutineSeed(
+        key="KNOWLEDGE_GAP_SCAN",
+        project_key="SECOND_BRAIN",
+        assigned_agent_key="KNOWLEDGE_IA",
+        title="Scan shared knowledge for freshness and evidence gaps",
+        execution_kind="knowledge_gap_scan",
+        interval_minutes=360,
+        priority=2,
+    ),
+    RoutineSeed(
+        key="KNOWLEDGE_OUTCOME_REVIEW",
+        project_key="SECOND_BRAIN",
+        assigned_agent_key="KNOWLEDGE_IA",
+        title="Review matured forecasts and inferences for missing outcomes",
+        execution_kind="knowledge_outcome_review",
+        interval_minutes=1440,
+        priority=2,
     ),
 )
 
@@ -371,26 +415,32 @@ def _ensure_runtime_identity(
     return True
 
 
-def _runtime_identity_seeds_from_env() -> tuple[RuntimeIdentitySeed, ...]:
+def _optional_identity_seed(prefix: str, agent_key: str) -> RuntimeIdentitySeed | None:
     values = {
-        "issuer": os.getenv("PMO_IDENTITY_ISSUER"),
-        "subject": os.getenv("PMO_IDENTITY_SUBJECT"),
-        "email": os.getenv("PMO_IDENTITY_EMAIL"),
+        "issuer": os.getenv(f"{prefix}_IDENTITY_ISSUER"),
+        "subject": os.getenv(f"{prefix}_IDENTITY_SUBJECT"),
+        "email": os.getenv(f"{prefix}_IDENTITY_EMAIL"),
     }
     configured = [value for value in values.values() if value]
     if not configured:
-        return ()
+        return None
     if len(configured) != len(values):
-        raise RuntimeError("PMO runtime identity configuration must be complete")
-
-    return (
-        RuntimeIdentitySeed(
-            agent_key="PMO_IA",
-            issuer=values["issuer"] or "",
-            subject=values["subject"] or "",
-            email=values["email"] or "",
-        ),
+        raise RuntimeError(f"{prefix} runtime identity configuration must be complete")
+    return RuntimeIdentitySeed(
+        agent_key=agent_key,
+        issuer=values["issuer"] or "",
+        subject=values["subject"] or "",
+        email=values["email"] or "",
     )
+
+
+def _runtime_identity_seeds_from_env() -> tuple[RuntimeIdentitySeed, ...]:
+    seeds = (
+        _optional_identity_seed("PMO", "PMO_IA"),
+        _optional_identity_seed("KNOWLEDGE", "KNOWLEDGE_IA"),
+        _optional_identity_seed("AUDITOR", "AUDITOR_IA"),
+    )
+    return tuple(seed for seed in seeds if seed is not None)
 
 
 def bootstrap_canonical_portfolio(

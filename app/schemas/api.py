@@ -17,6 +17,8 @@ KEY_PATTERN = r"^[A-Z0-9][A-Z0-9_-]*$"
 
 class ExecutionKind(StrEnum):
     control_plane_health = "control_plane_health"
+    knowledge_gap_scan = "knowledge_gap_scan"
+    knowledge_outcome_review = "knowledge_outcome_review"
 
 
 class ProjectCreate(BaseModel):

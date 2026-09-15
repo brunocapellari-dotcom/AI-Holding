@@ -11,6 +11,7 @@ from app.api.routes import (
     decisions,
     executive,
     incidents,
+    knowledge,
     pmo,
     policy,
     projects,
@@ -26,7 +27,7 @@ logger = logging.getLogger("holding-control-plane")
 
 app = FastAPI(
     title=settings.app_name,
-    version="1.0.0",
+    version="1.1.0",
     docs_url=None if settings.environment == "production" else "/docs",
     redoc_url=None,
 )
@@ -70,3 +71,4 @@ app.include_router(incidents.router, prefix=settings.api_prefix)
 app.include_router(policy.router, prefix=settings.api_prefix)
 app.include_router(pmo.router, prefix=settings.api_prefix)
 app.include_router(executive.router, prefix=settings.api_prefix)
+app.include_router(knowledge.router, prefix=settings.api_prefix)
