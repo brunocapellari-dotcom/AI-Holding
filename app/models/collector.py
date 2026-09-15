@@ -44,7 +44,7 @@ class Collector(Base):
         primary_key=True,
         default=uuid.uuid4,
     )
-    collector_id: Mapped[str] = mapped_column(String(100), unique=True, index=True)
+    collector_id: Mapped[str] = mapped_column(String(100), unique=True)
     source: Mapped[str] = mapped_column(String(160), index=True)
     collector_type: Mapped[str] = mapped_column(String(80), index=True)
     frequency_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
