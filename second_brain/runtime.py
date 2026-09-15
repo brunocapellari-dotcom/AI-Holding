@@ -10,6 +10,8 @@ from second_brain.claims.promotion import (
 )
 from second_brain.persistence import SQLiteKnowledgeStore
 from second_brain.schemas import Claim, Evaluation, Evidence, Fact, Source
+from second_brain.schemas.contracts import KnowledgeRecord
+from second_brain.security import scan_object_for_secrets
 
 
 @dataclass(frozen=True)
@@ -39,6 +41,9 @@ class GovernedLearningRuntime:
         evaluations: tuple[Evaluation, ...] = (),
         conflict_detected: bool = False,
     ) -> LearningRun:
+        for record in (*sources, *evidence, claim, *evaluations):
+            _reject_secret_material(record)
+
         for source in sources:
             self.store.put(source)
         for item in evidence:
@@ -60,11 +65,18 @@ class GovernedLearningRuntime:
             conflict_detected=conflict_detected,
         )
         for evaluation in promotion.evaluations:
+            _reject_secret_material(evaluation)
             self.store.put(evaluation)
         if promotion.fact is not None:
+            _reject_secret_material(promotion.fact)
             self.store.put(promotion.fact)
         return LearningRun(
             verification=verification,
             promotion=promotion,
             stored_fact=promotion.fact,
         )
+
+
+def _reject_secret_material(record: KnowledgeRecord) -> None:
+    if scan_object_for_secrets(record.model_dump(mode="json")):
+        raise ValueError(f"secret-like material rejected for {record.record_type}:{record.id}")
