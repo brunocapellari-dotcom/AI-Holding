@@ -300,17 +300,25 @@ def compute_project_health(db: Session, project_id: UUID, persist: bool = True) 
     if blocked_dependencies:
         reasons.append({"kind": "blocking_dependencies", "count": len(blocked_dependencies)})
 
-    critical_security = sum(
-        finding.severity == "critical" for finding in security_findings
+    critical_signal = (
+        any(risk.severity == "critical" for risk in open_risks)
+        or any(alert.level == "critical" for alert in active_alerts)
+        or any(finding.severity == "critical" for finding in security_findings)
     )
+    degraded_signal = (
+        bool(failing_collectors)
+        or any(alert.level == "action_required" for alert in active_alerts)
+        or any(finding.severity == "high" for finding in security_findings)
+    )
+
     state: HealthState
     if operational_status == "cancelled":
         state = "offline"
     elif operational_status == "blocked" or blocked_dependencies:
         state = "blocked"
-    elif critical_security or score < 50:
+    elif critical_signal or score < 50:
         state = "at_risk"
-    elif score < 80 or operational_status == "paused":
+    elif degraded_signal or score < 80 or operational_status == "paused":
         state = "degraded"
     else:
         state = "healthy"
@@ -329,7 +337,9 @@ def compute_project_health(db: Session, project_id: UUID, persist: bool = True) 
         "security": {
             "open_findings": len(security_findings),
             "high": sum(finding.severity == "high" for finding in security_findings),
-            "critical": critical_security,
+            "critical": sum(
+                finding.severity == "critical" for finding in security_findings
+            ),
         },
         "dependencies": {"blocking_unhealthy": len(blocked_dependencies)},
     }
