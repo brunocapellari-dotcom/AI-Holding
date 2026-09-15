@@ -4,6 +4,7 @@ Revision ID: 0012_seed_external_integrations
 Revises: 0011_holding_evidence_security
 """
 
+import uuid
 from collections.abc import Sequence
 
 import sqlalchemy as sa
@@ -17,7 +18,7 @@ depends_on: str | Sequence[str] | None = None
 
 INTEGRATIONS = (
     {
-        "id": "d83a0a85-9c50-4d0d-a87c-15212173b84b",
+        "id": uuid.UUID("d83a0a85-9c50-4d0d-a87c-15212173b84b"),
         "service_key": "hermes",
         "kind": "ai-platform",
         "status": "unconfigured",
@@ -29,7 +30,7 @@ INTEGRATIONS = (
         },
     },
     {
-        "id": "2a78bc1a-4846-42e6-a818-62a36d6476b5",
+        "id": uuid.UUID("2a78bc1a-4846-42e6-a818-62a36d6476b5"),
         "service_key": "research-ai",
         "kind": "research-platform",
         "status": "unconfigured",
@@ -41,7 +42,7 @@ INTEGRATIONS = (
         },
     },
     {
-        "id": "a0edc40c-540f-4c93-90fc-c1387cb58572",
+        "id": uuid.UUID("a0edc40c-540f-4c93-90fc-c1387cb58572"),
         "service_key": "second-brain",
         "kind": "knowledge-platform",
         "status": "unconfigured",
