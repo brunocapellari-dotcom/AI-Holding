@@ -13,9 +13,12 @@ from second_brain.schemas import (
     LifecycleStatus,
     Provenance,
     Source,
+    SourceStatus,
 )
 from second_brain.security import strongest_information_class
 from second_brain.validation import ValidationResult, evaluate_claim_for_canonicalization
+
+MIN_CANONICAL_SOURCE_TRUST = 0.70
 
 
 @dataclass(frozen=True)
@@ -56,7 +59,7 @@ def verify_claim(
         source = source_by_id.get(item.source_id)
         if source is None:
             reasons.append(f"missing source for evidence: {item.id}")
-        elif not source.approved_for_ingestion:
+        elif source.status != SourceStatus.APPROVED or not source.approved_for_ingestion:
             reasons.append(f"source is not approved for ingestion: {source.id}")
 
     if conflict_detected:
@@ -101,18 +104,21 @@ def canonicalize_claim(
         return PromotionDecision(result, None, evaluations_tuple)
 
     source_ids = {evidence_by_id[item_id].source_id for item_id in claim.evidence_ids}
-    unapproved_sources = sorted(
+    source_policy_failures = sorted(
         source_id
         for source_id in source_ids
         if source_id not in source_by_id
+        or source_by_id[source_id].status != SourceStatus.APPROVED
         or not source_by_id[source_id].approved_for_canonicalization
+        or source_by_id[source_id].trust_score < MIN_CANONICAL_SOURCE_TRUST
     )
-    if unapproved_sources:
+    if source_policy_failures:
         result = ValidationResult(
             approved=False,
             target_status=LifecycleStatus.EM_REVISAO,
             reasons=(
-                f"source not approved for canonicalization: {', '.join(unapproved_sources)}",
+                "source not eligible for canonicalization: "
+                + ", ".join(source_policy_failures),
             ),
         )
         return PromotionDecision(result, None, evaluations_tuple)
@@ -133,11 +139,11 @@ def canonicalize_claim(
     independent_approvals = [item for item in effective_evaluations if _is_independent_approval(claim, item)]
     if not independent_approvals:
         automatic = Evaluation(
-            id=_stable_id("evaluation", f"auto:{claim.id}:policy-v2"),
+            id=_stable_id("evaluation", f"auto:{claim.id}:policy-v3"),
             namespace=claim.namespace,
             information_class=claim.information_class,
             target_id=claim.id,
-            evaluator_id="policy:auto-low-risk-v2",
+            evaluator_id="policy:auto-low-risk-v3",
             verdict="APPROVE",
             independent=True,
             confidence=claim.confidence,
@@ -145,6 +151,7 @@ def canonicalize_claim(
             findings=[
                 "automatic low-risk validation policy satisfied",
                 f"independent source origins={len(independent_source_keys)}",
+                f"minimum source trust={min(source_by_id[item].trust_score for item in source_ids):.2f}",
             ],
             human_approval=False,
         )
@@ -179,6 +186,8 @@ def canonicalize_claim(
             document_id=claim.provenance.document_id,
             collector_agent_id=claim.provenance.collector_agent_id,
             interpreter_agent_id=claim.provenance.interpreter_agent_id,
+            extractor_agent_id=claim.provenance.extractor_agent_id,
+            verifier_agent_id=claim.provenance.verifier_agent_id,
             method_id=claim.provenance.method_id,
             evidence_ids=list(claim.evidence_ids),
             confidence=claim.confidence,
@@ -200,6 +209,8 @@ def _is_independent_approval(claim: Claim, evaluation: Evaluation) -> bool:
     disallowed = {
         claim.provenance.collector_agent_id,
         claim.provenance.interpreter_agent_id,
+        claim.provenance.extractor_agent_id,
+        claim.provenance.verifier_agent_id,
     }
     return evaluation.evaluator_id not in {item for item in disallowed if item}
 
