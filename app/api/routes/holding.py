@@ -63,6 +63,7 @@ from app.schemas.holding import (
     VentureCreate,
     VentureOut,
 )
+from app.schemas.holding_analysis import CompletionGateOut, FinOpsAnalysisOut, VentureGateOut
 from app.schemas.holding_evidence import (
     CollectorExecutionCreate,
     CollectorExecutionOut,
@@ -78,6 +79,7 @@ from app.services.holding import (
     summarize_costs,
     summarize_revenues,
 )
+from app.services.holding_analysis import analyze_finops, completion_gate, evaluate_venture
 
 router = APIRouter(prefix="/holding", tags=["holding"])
 DbSession = Annotated[Session, Depends(get_db)]
@@ -101,6 +103,12 @@ def get_project_registry(db: DbSession) -> list[ProjectRegistryEntryOut]:
     return project_registry(db)
 
 
+@router.get("/projects/{project_id}/completion-gate", response_model=CompletionGateOut)
+def get_completion_gate(project_id: UUID, db: DbSession) -> CompletionGateOut:
+    _require_project(db, project_id)
+    return completion_gate(db, project_id)
+
+
 @router.put("/projects/{project_id}/profile", response_model=OperationalProfileOut)
 def upsert_project_profile(
     project_id: UUID,
@@ -110,6 +118,17 @@ def upsert_project_profile(
 ) -> ProjectOperationalProfile:
     authorize_mutation(db, actor)
     _require_project(db, project_id)
+    if payload.operational_status == "completed":
+        gate = completion_gate(db, project_id)
+        if not gate.accepted:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": "completion evidence gate rejected",
+                    "gate": gate.model_dump(mode="json"),
+                },
+            )
+
     profile = db.get(ProjectOperationalProfile, project_id)
     if profile is None:
         profile = ProjectOperationalProfile(project_id=project_id, **payload.model_dump())
@@ -395,6 +414,27 @@ def get_cost_summary(db: DbSession, project_id: UUID | None = None) -> CostSumma
     return summarize_costs(db, project_id)
 
 
+@router.post("/projects/{project_id}/finops/analyze", response_model=FinOpsAnalysisOut)
+def analyze_project_finops(
+    project_id: UUID,
+    db: DbSession,
+    actor: Actor,
+) -> FinOpsAnalysisOut:
+    authorize_mutation(db, actor)
+    _require_project(db, project_id)
+    result = analyze_finops(db, project_id)
+    record_audit(
+        db,
+        actor=actor,
+        action="finops.analyzed",
+        entity_type="project",
+        entity_id=str(project_id),
+        payload={"anomaly_count": len(result.anomalies)},
+    )
+    db.commit()
+    return result
+
+
 @router.post("/revenues", response_model=RevenueOut, status_code=status.HTTP_201_CREATED)
 def create_revenue(payload: RevenueCreate, db: DbSession, actor: Actor) -> RevenueEntry:
     authorize_mutation(db, actor)
@@ -602,6 +642,29 @@ def create_venture(payload: VentureCreate, db: DbSession, actor: Actor) -> Ventu
     db.commit()
     db.refresh(venture)
     return venture
+
+
+@router.post("/ventures/{venture_key}/evaluate", response_model=VentureGateOut)
+def evaluate_venture_gate(
+    venture_key: str,
+    db: DbSession,
+    actor: Actor,
+) -> VentureGateOut:
+    authorize_mutation(db, actor)
+    venture = db.scalar(select(VentureEvaluation).where(VentureEvaluation.key == venture_key))
+    if venture is None:
+        raise HTTPException(status_code=404, detail="venture not found")
+    result = evaluate_venture(venture)
+    record_audit(
+        db,
+        actor=actor,
+        action="venture.gate_evaluated",
+        entity_type="venture_evaluation",
+        entity_id=str(venture.id),
+        payload={"key": venture.key, "decision": result.decision, "reasons": result.reasons},
+    )
+    db.commit()
+    return result
 
 
 @router.get("/ventures", response_model=list[VentureOut])
