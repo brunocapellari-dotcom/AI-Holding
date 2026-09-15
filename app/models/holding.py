@@ -191,6 +191,65 @@ class CostEntry(Base):
     metadata_json: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
 
 
+class RevenueEntry(Base):
+    __tablename__ = "revenue_entries"
+    __table_args__ = (
+        CheckConstraint("amount_micros >= 0", name="revenue_amount_nonnegative"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("projects.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    source: Mapped[str] = mapped_column(String(160), index=True)
+    amount_micros: Mapped[int] = mapped_column(Integer)
+    currency: Mapped[str] = mapped_column(String(3), default="BRL")
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    metadata_json: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
+
+
+class FinancialSnapshot(Base):
+    __tablename__ = "financial_snapshots"
+    __table_args__ = (
+        CheckConstraint("revenue_micros >= 0", name="financial_revenue_nonnegative"),
+        CheckConstraint("cost_micros >= 0", name="financial_cost_nonnegative"),
+        CheckConstraint("budget_micros >= 0", name="financial_budget_nonnegative"),
+        CheckConstraint("confidence BETWEEN 0 AND 100", name="financial_confidence_range"),
+        CheckConstraint("runway_days IS NULL OR runway_days >= 0", name="runway_nonnegative"),
+        CheckConstraint(
+            "payback_days IS NULL OR payback_days >= 0", name="payback_nonnegative"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        index=True,
+    )
+    currency: Mapped[str] = mapped_column(String(3), default="BRL")
+    period_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    period_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    revenue_micros: Mapped[int] = mapped_column(Integer, default=0)
+    cost_micros: Mapped[int] = mapped_column(Integer, default=0)
+    budget_micros: Mapped[int] = mapped_column(Integer, default=0)
+    runway_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    payback_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    roi_estimate_bps: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    confidence: Mapped[int] = mapped_column(Integer, default=0)
+    assumptions: Mapped[list[object]] = mapped_column(JSON, default=list)
+    computed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+    )
+
+
 class DependencyEdge(Base, TimestampMixin):
     __tablename__ = "dependency_edges"
     __table_args__ = (
@@ -323,3 +382,115 @@ class VentureEvaluation(Base, TimestampMixin):
     validation_cost_micros: Mapped[int] = mapped_column(Integer, default=0)
     decision: Mapped[str] = mapped_column(String(20), default="research", index=True)
     evidence: Mapped[list[object]] = mapped_column(JSON, default=list)
+
+
+class ResourceAllocationEntry(Base, TimestampMixin):
+    __tablename__ = "resource_allocations"
+    __table_args__ = (
+        CheckConstraint(
+            "resource_type IN "
+            "('cpu','gpu','storage','agent','model','budget','developer')",
+            name="resource_type_valid",
+        ),
+        CheckConstraint("requested_units >= 0", name="requested_units_nonnegative"),
+        CheckConstraint("allocated_units >= 0", name="allocated_units_nonnegative"),
+        CheckConstraint(
+            "status IN ('proposed','approved','active','reduced','released','rejected')",
+            name="resource_allocation_status_valid",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("projects.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    resource_type: Mapped[str] = mapped_column(String(24), index=True)
+    resource_key: Mapped[str] = mapped_column(String(160))
+    requested_units: Mapped[int] = mapped_column(Integer, default=0)
+    allocated_units: Mapped[int] = mapped_column(Integer, default=0)
+    unit: Mapped[str] = mapped_column(String(40))
+    status: Mapped[str] = mapped_column(String(20), default="proposed", index=True)
+    reason: Mapped[str] = mapped_column(Text, default="")
+    starts_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    metadata_json: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
+
+
+class PortfolioReview(Base, TimestampMixin):
+    __tablename__ = "portfolio_reviews"
+    __table_args__ = (
+        CheckConstraint(
+            "classification IN ('accelerate','maintain','restructure','pause','sunset')",
+            name="portfolio_classification_valid",
+        ),
+        CheckConstraint("value_score BETWEEN 0 AND 100", name="value_score_range"),
+        CheckConstraint("progress_score BETWEEN 0 AND 100", name="progress_score_range"),
+        CheckConstraint("cost_score BETWEEN 0 AND 100", name="cost_score_range"),
+        CheckConstraint(
+            "complexity_score BETWEEN 0 AND 100", name="complexity_score_range"
+        ),
+        CheckConstraint("risk_score BETWEEN 0 AND 100", name="risk_score_range"),
+        CheckConstraint(
+            "monetization_score BETWEEN 0 AND 100", name="monetization_score_range"
+        ),
+        CheckConstraint(
+            "dependency_score BETWEEN 0 AND 100", name="dependency_score_range"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        index=True,
+    )
+    classification: Mapped[str] = mapped_column(String(20), index=True)
+    value_score: Mapped[int] = mapped_column(Integer)
+    progress_score: Mapped[int] = mapped_column(Integer)
+    cost_score: Mapped[int] = mapped_column(Integer)
+    complexity_score: Mapped[int] = mapped_column(Integer)
+    risk_score: Mapped[int] = mapped_column(Integer)
+    monetization_score: Mapped[int] = mapped_column(Integer)
+    dependency_score: Mapped[int] = mapped_column(Integer)
+    requires_owner_approval: Mapped[bool] = mapped_column(Boolean, default=False)
+    rationale: Mapped[str] = mapped_column(Text)
+    evidence: Mapped[list[object]] = mapped_column(JSON, default=list)
+    reviewed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+    )
+
+
+class ToolDecision(Base, TimestampMixin):
+    __tablename__ = "tool_decisions"
+    __table_args__ = (
+        UniqueConstraint("key", name="uq_tool_decision_key"),
+        CheckConstraint(
+            "classification IN ('adopt','replace','benchmark','reserve','reject')",
+            name="tool_classification_valid",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    key: Mapped[str] = mapped_column(String(120), index=True)
+    tool_name: Mapped[str] = mapped_column(String(160), index=True)
+    capability: Mapped[str] = mapped_column(String(160))
+    classification: Mapped[str] = mapped_column(String(20), index=True)
+    replaces_key: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    benefit: Mapped[str] = mapped_column(Text, default="")
+    maintenance_cost: Mapped[str] = mapped_column(Text, default="")
+    license: Mapped[str] = mapped_column(String(120), default="unknown")
+    risk: Mapped[str] = mapped_column(Text, default="")
+    rationale: Mapped[str] = mapped_column(Text)
+    evidence: Mapped[list[object]] = mapped_column(JSON, default=list)
+    reviewed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+    )
