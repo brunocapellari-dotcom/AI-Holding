@@ -1,3 +1,4 @@
+from second_brain.claims.conflicts import ConflictFinding, detect_structured_conflicts
 from second_brain.claims.promotion import (
     PromotionDecision,
     VerificationResult,
@@ -6,8 +7,10 @@ from second_brain.claims.promotion import (
 )
 
 __all__ = [
+    "ConflictFinding",
     "PromotionDecision",
     "VerificationResult",
     "canonicalize_claim",
+    "detect_structured_conflicts",
     "verify_claim",
 ]
