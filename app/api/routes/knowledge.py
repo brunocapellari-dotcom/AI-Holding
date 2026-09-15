@@ -144,6 +144,9 @@ def create_or_merge_claim(
                 "namespace": claim.namespace,
                 "fingerprint": claim.fingerprint,
                 "merged_evidence": merged_evidence,
+                "data_classification": claim.data_classification,
+                "security_flags": claim.security_flags,
+                "source_id": str(claim.source_id) if claim.source_id else None,
             },
         )
         db.commit()
@@ -154,6 +157,12 @@ def create_or_merge_claim(
             status_code=409,
             detail="knowledge claim conflicts with stored state",
         ) from exc
+    except LookupError as exc:
+        db.rollback()
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return KnowledgeIngestResult(
         claim=KnowledgeClaimOut.model_validate(claim),
         created=created,
@@ -236,12 +245,16 @@ def create_outcome(
     )
     _validate_references(db, payload.project_id, payload.created_by_agent_id)
     claim = _claim_or_404(db, claim_id)
-    outcome = record_outcome(
-        db,
-        claim,
-        payload,
-        created_by_agent_id=(bound_agent.id if bound_agent else payload.created_by_agent_id),
-    )
+    try:
+        outcome = record_outcome(
+            db,
+            claim,
+            payload,
+            created_by_agent_id=(bound_agent.id if bound_agent else payload.created_by_agent_id),
+        )
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     record_audit(
         db,
         actor=actor,
@@ -269,10 +282,11 @@ def list_outcomes(claim_id: UUID, db: DbSession) -> list[KnowledgeOutcome]:
 @router.get("/claims/{claim_id}/markdown", response_model=KnowledgeMarkdownOut)
 def render_markdown(claim_id: UUID, db: DbSession) -> KnowledgeMarkdownOut:
     claim = _claim_or_404(db, claim_id)
-    return KnowledgeMarkdownOut(
-        claim_id=claim.id,
-        markdown=render_claim_markdown(claim),
-    )
+    try:
+        markdown = render_claim_markdown(claim)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return KnowledgeMarkdownOut(claim_id=claim.id, markdown=markdown)
 
 
 @router.post("/claims/{claim_id}/export", response_model=KnowledgeExportOut)
