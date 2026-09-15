@@ -1,3 +1,4 @@
+import pytest
 from sqlalchemy import select
 
 from app.bootstrap import bootstrap_canonical_portfolio
@@ -42,9 +43,8 @@ def test_unknown_repository_drift_still_fails_closed(db_session) -> None:
     sports.repository = "unexpected/repository"
     db_session.commit()
 
-    try:
+    with pytest.raises(
+        RuntimeError,
+        match="repository drift detected for INTELIGENCIA_ESPORTIVA",
+    ):
         bootstrap_canonical_portfolio(db_session)
-    except RuntimeError as exc:
-        assert "repository drift detected for INTELIGENCIA_ESPORTIVA" in str(exc)
-    else:
-        raise AssertionError("unknown repository drift must fail closed")
