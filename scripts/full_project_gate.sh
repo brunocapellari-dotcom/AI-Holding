@@ -7,6 +7,7 @@ mypy app
 pip-audit
 bandit -c pyproject.toml -r app
 semgrep scan --config .semgrep.yml --error --metrics=off app
+zizmor --collect=workflows .
 
 runtime_license_venv="$(mktemp -d)/runtime-license"
 python -m venv "${runtime_license_venv}"
