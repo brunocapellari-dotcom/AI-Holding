@@ -52,6 +52,13 @@ _SENSITIVE_QUERY_KEYS = {
     "x-amz-signature",
 }
 
+_CLASSIFICATION_RANK = {
+    DataClassification.public: 0,
+    DataClassification.internal: 1,
+    DataClassification.confidential: 2,
+    DataClassification.restricted: 3,
+}
+
 
 def _flatten(value: object, *, limit: int = 100_000) -> str:
     try:
@@ -80,13 +87,23 @@ def inspect_information(*values: object) -> SecurityInspection:
     elif flags:
         classification = DataClassification.confidential
     else:
-        classification = DataClassification.internal
+        classification = DataClassification.public
 
     return SecurityInspection(
         classification=classification,
         flags=tuple(dict.fromkeys(flags)),
         blocked=blocked,
     )
+
+
+def strongest_classification(
+    requested: DataClassification | None,
+    detected: DataClassification,
+) -> DataClassification:
+    baseline = requested or DataClassification.internal
+    if _CLASSIFICATION_RANK[detected] > _CLASSIFICATION_RANK[baseline]:
+        return detected
+    return baseline
 
 
 def validate_public_source_uri(uri: str | None) -> None:
