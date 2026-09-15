@@ -3,7 +3,12 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.models.knowledge import EpistemicStatus, KnowledgeLifecycle, OutcomeVerdict
+from app.models.knowledge import (
+    DataClassification,
+    EpistemicStatus,
+    KnowledgeLifecycle,
+    OutcomeVerdict,
+)
 
 NAMESPACE_PATTERN = r"^[a-z0-9][a-z0-9._-]{1,119}$"
 
@@ -21,8 +26,10 @@ class KnowledgeClaimIngest(BaseModel):
     namespace: str = Field(min_length=2, max_length=120, pattern=NAMESPACE_PATTERN)
     project_id: UUID | None = None
     created_by_agent_id: UUID | None = None
+    source_id: UUID | None = None
     statement: str = Field(min_length=5, max_length=20000)
     epistemic_status: EpistemicStatus = EpistemicStatus.structural
+    data_classification: DataClassification | None = None
     confidence: int = Field(default=50, ge=0, le=100)
     source_name: str = Field(min_length=2, max_length=240)
     source_uri: str | None = Field(default=None, max_length=2000)
@@ -47,10 +54,12 @@ class KnowledgeClaimOut(BaseModel):
     namespace: str
     project_id: UUID | None
     created_by_agent_id: UUID | None
+    source_id: UUID | None
     statement: str
     fingerprint: str
     epistemic_status: EpistemicStatus
     lifecycle_status: KnowledgeLifecycle
+    data_classification: DataClassification
     confidence: int
     source_name: str
     source_uri: str | None
@@ -59,6 +68,7 @@ class KnowledgeClaimOut(BaseModel):
     valid_until: datetime | None
     evidence: list[object]
     tags: list[object]
+    security_flags: list[object]
     metadata_json: dict[str, object]
     supersedes_id: UUID | None
     promoted_at: datetime | None
