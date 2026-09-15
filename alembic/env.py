@@ -11,6 +11,7 @@ from app.models import (  # noqa: F401
     entities,
     holding,
     holding_evidence,
+    holding_governance,
     knowledge,
     routine,
 )
