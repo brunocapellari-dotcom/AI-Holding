@@ -19,6 +19,7 @@ from app.models.holding import (
     RevenueEntry,
     RiskRegisterEntry,
 )
+from app.models.holding_evidence import SecurityFinding
 from app.schemas.holding import (
     AlertOut,
     CostSummary,
@@ -145,7 +146,16 @@ def compute_project_health(db: Session, project_id: UUID, persist: bool = True) 
     active_alerts = list(
         db.scalars(
             select(HoldingAlert).where(
-                HoldingAlert.project_id == project_id, HoldingAlert.status == "active"
+                HoldingAlert.project_id == project_id,
+                HoldingAlert.status == "active",
+            )
+        )
+    )
+    security_findings = list(
+        db.scalars(
+            select(SecurityFinding).where(
+                SecurityFinding.project_id == project_id,
+                SecurityFinding.status.in_(["open", "mitigating"]),
             )
         )
     )
@@ -181,6 +191,19 @@ def compute_project_health(db: Session, project_id: UUID, persist: bool = True) 
             for alert in active_alerts
         ),
     )
+    security_penalty = min(
+        45,
+        sum(
+            35
+            if finding.severity == "critical"
+            else 20
+            if finding.severity == "high"
+            else 8
+            if finding.severity == "medium"
+            else 2
+            for finding in security_findings
+        ),
+    )
     dependency_penalty = 35 if blocked_dependencies else 0
     score = max(
         0,
@@ -190,6 +213,7 @@ def compute_project_health(db: Session, project_id: UUID, persist: bool = True) 
         - run_penalty
         - risk_penalty
         - alert_penalty
+        - security_penalty
         - dependency_penalty,
     )
 
@@ -205,15 +229,20 @@ def compute_project_health(db: Session, project_id: UUID, persist: bool = True) 
         reasons.append({"kind": "open_risks", "count": len(open_risks)})
     if active_alerts:
         reasons.append({"kind": "active_alerts", "count": len(active_alerts)})
+    if security_findings:
+        reasons.append({"kind": "security_findings", "count": len(security_findings)})
     if blocked_dependencies:
         reasons.append({"kind": "blocking_dependencies", "count": len(blocked_dependencies)})
 
+    critical_security = sum(
+        finding.severity == "critical" for finding in security_findings
+    )
     state: HealthState
     if operational_status == "cancelled":
         state = "offline"
     elif operational_status == "blocked" or blocked_dependencies:
         state = "blocked"
-    elif score < 50:
+    elif critical_security or score < 50:
         state = "at_risk"
     elif score < 80 or operational_status == "paused":
         state = "degraded"
@@ -231,6 +260,11 @@ def compute_project_health(db: Session, project_id: UUID, persist: bool = True) 
         "runs": {"failed_total": failed_runs},
         "risks": {"open": len(open_risks)},
         "alerts": {"active": len(active_alerts)},
+        "security": {
+            "open_findings": len(security_findings),
+            "high": sum(finding.severity == "high" for finding in security_findings),
+            "critical": critical_security,
+        },
         "dependencies": {"blocking_unhealthy": len(blocked_dependencies)},
     }
 
@@ -288,6 +322,14 @@ def project_contract(db: Session, project_id: UUID) -> ProjectContractOut:
             )
         )
     )
+    security_findings = list(
+        db.scalars(
+            select(SecurityFinding).where(
+                SecurityFinding.project_id == project_id,
+                SecurityFinding.status.in_(["open", "mitigating"]),
+            )
+        )
+    )
     alerts = list(
         db.scalars(
             select(HoldingAlert)
@@ -329,6 +371,13 @@ def project_contract(db: Session, project_id: UUID) -> ProjectContractOut:
             "level": security_level,
             "open_risks": len(risks),
             "critical_risks": sum(risk.severity == "critical" for risk in risks),
+            "open_findings": len(security_findings),
+            "high_findings": sum(
+                finding.severity == "high" for finding in security_findings
+            ),
+            "critical_findings": sum(
+                finding.severity == "critical" for finding in security_findings
+            ),
         },
         data_health={
             "collector_count": len(collectors),
