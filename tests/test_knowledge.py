@@ -126,7 +126,7 @@ def test_knowledge_lifecycle_context_outcome_and_second_brain_inbox_export(
 
     rendered = client.get(f"/api/v1/knowledge/claims/{claim_id}/markdown")
     assert rendered.status_code == 200
-    assert "# Knowledge Claim" in rendered.json()["markdown"]
+    assert "# Knowledge Candidate" in rendered.json()["markdown"]
 
     old_vault = settings.obsidian_vault_path
     old_root = settings.obsidian_knowledge_root
@@ -144,7 +144,7 @@ def test_knowledge_lifecycle_context_outcome_and_second_brain_inbox_export(
     target = tmp_path / relative_path
     assert target.exists()
     markdown = target.read_text(encoding="utf-8")
-    assert "# Knowledge Claim" in markdown
+    assert "# Knowledge Candidate" in markdown
     assert "partially_confirmed" in markdown
 
 
