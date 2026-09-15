@@ -117,33 +117,35 @@ def canonicalize_claim(
         )
         return PromotionDecision(result, None, evaluations_tuple)
 
+    independent_source_keys = {
+        source_by_id[source_id].independence_key for source_id in source_ids
+    }
     result = evaluate_claim_for_canonicalization(
         claim,
         evaluations_tuple,
-        independent_source_count=len(source_ids),
+        independent_source_count=len(independent_source_keys),
         conflict_detected=conflict_detected,
     )
     if not result.approved:
         return PromotionDecision(result, None, evaluations_tuple)
 
     effective_evaluations = evaluations_tuple
-    independent_approvals = [
-        item
-        for item in effective_evaluations
-        if _is_independent_approval(claim, item)
-    ]
+    independent_approvals = [item for item in effective_evaluations if _is_independent_approval(claim, item)]
     if not independent_approvals:
         automatic = Evaluation(
-            id=_stable_id("evaluation", f"auto:{claim.id}:policy-v1"),
+            id=_stable_id("evaluation", f"auto:{claim.id}:policy-v2"),
             namespace=claim.namespace,
             information_class=claim.information_class,
             target_id=claim.id,
-            evaluator_id="policy:auto-low-risk-v1",
+            evaluator_id="policy:auto-low-risk-v2",
             verdict="APPROVE",
             independent=True,
             confidence=claim.confidence,
             evidence_ids=list(claim.evidence_ids),
-            findings=["automatic low-risk validation policy satisfied"],
+            findings=[
+                "automatic low-risk validation policy satisfied",
+                f"independent source origins={len(independent_source_keys)}",
+            ],
             human_approval=False,
         )
         effective_evaluations = (*effective_evaluations, automatic)
@@ -160,6 +162,9 @@ def canonicalize_claim(
         namespace=claim.namespace,
         information_class=fact_information_class,
         statement=claim.statement,
+        assertion_key=claim.assertion_key,
+        normalized_value=claim.normalized_value,
+        unit=claim.unit,
         status=LifecycleStatus.CANONICO,
         nature=claim.nature,
         confidence=claim.confidence,
