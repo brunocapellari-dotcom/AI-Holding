@@ -7,11 +7,28 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 OperationalStatus = Literal[
-    "planned", "ready", "running", "completed", "failed", "blocked", "paused", "cancelled"
+    "planned",
+    "ready",
+    "running",
+    "completed",
+    "failed",
+    "blocked",
+    "paused",
+    "cancelled",
 ]
 HealthState = Literal["healthy", "degraded", "at_risk", "blocked", "offline"]
 SecurityLevel = Literal["public", "internal", "confidential", "restricted"]
 AlertLevel = Literal["info", "watch", "action_required", "critical"]
+DependencyType = Literal[
+    "project",
+    "service",
+    "data",
+    "api",
+    "agent",
+    "skill",
+    "model",
+    "infrastructure",
+]
 
 
 class OperationalProfileUpsert(BaseModel):
@@ -94,9 +111,9 @@ class CostOut(CostCreate):
 
 
 class DependencyCreate(BaseModel):
-    source_type: Literal["project", "service", "data", "api", "agent", "skill", "model", "infrastructure"]
+    source_type: DependencyType
     source_key: str = Field(min_length=1, max_length=200)
-    target_type: Literal["project", "service", "data", "api", "agent", "skill", "model", "infrastructure"]
+    target_type: DependencyType
     target_key: str = Field(min_length=1, max_length=200)
     criticality: int = Field(default=3, ge=1, le=5)
     blocking: bool = True
@@ -134,7 +151,9 @@ class AlertOut(AlertCreate):
 class IntegrationUpsert(BaseModel):
     service_key: str = Field(min_length=2, max_length=100)
     kind: str = Field(min_length=2, max_length=80)
-    status: Literal["healthy", "degraded", "blocked", "offline", "unconfigured"] = "unconfigured"
+    status: Literal[
+        "healthy", "degraded", "blocked", "offline", "unconfigured"
+    ] = "unconfigured"
     endpoint: str | None = Field(default=None, max_length=500)
     last_success_at: datetime | None = None
     last_failure_at: datetime | None = None
