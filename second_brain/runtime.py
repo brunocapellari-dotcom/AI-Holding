@@ -16,10 +16,10 @@ from second_brain.claims.promotion import (
     canonicalize_claim,
     verify_claim,
 )
-from second_brain.persistence import SQLiteKnowledgeStore
 from second_brain.schemas import Claim, Evaluation, Evidence, Fact, LifecycleStatus, Source
 from second_brain.schemas.contracts import KnowledgeRecord
 from second_brain.security import scan_object_for_secrets
+from second_brain.store import KnowledgeStore
 
 
 @dataclass(frozen=True)
@@ -34,7 +34,7 @@ class LearningRun:
 class GovernedLearningRuntime:
     """Deterministic governance layer around agent-produced claims."""
 
-    def __init__(self, store: SQLiteKnowledgeStore) -> None:
+    def __init__(self, store: KnowledgeStore) -> None:
         self.store = store
 
     def process_claim(
@@ -145,10 +145,7 @@ class GovernedLearningRuntime:
             raise RuntimeError("supersession requires new Fact valid_from")
         known_to = new_fact.temporal.known_from or datetime.now(UTC)
         temporal = previous.temporal.model_copy(
-            update={
-                "valid_to": new_valid_from,
-                "known_to": known_to,
-            }
+            update={"valid_to": new_valid_from, "known_to": known_to}
         )
         return previous.model_copy(
             update={
