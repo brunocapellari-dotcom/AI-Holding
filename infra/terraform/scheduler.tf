@@ -68,6 +68,7 @@ resource "google_cloud_scheduler_job" "pmo_worker" {
 
   depends_on = [
     google_project_service.required,
+    google_project_iam_member.deployer_cloudscheduler_admin,
     google_cloud_run_v2_job_iam_member.scheduler_pmo_invoker,
     google_service_account_iam_member.deployer_act_as_worker_scheduler,
   ]
@@ -108,6 +109,7 @@ resource "google_cloud_scheduler_job" "knowledge_worker" {
 
   depends_on = [
     google_project_service.required,
+    google_project_iam_member.deployer_cloudscheduler_admin,
     google_cloud_run_v2_job_iam_member.scheduler_knowledge_invoker,
     google_service_account_iam_member.deployer_act_as_worker_scheduler,
   ]
