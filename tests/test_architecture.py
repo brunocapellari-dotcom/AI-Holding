@@ -49,14 +49,18 @@ def test_target_repository_boundaries_exist() -> None:
         "services/observability",
         "services/policy",
         "services/secrets",
+        "services/project_control",
+        "services/collectors",
         "agents",
         "workflows",
         "skills",
         "integrations/second_brain",
         "security",
         "infrastructure",
+        "evaluation",
         "projects",
         "docs/architecture",
+        "docs/audits",
     )
     for relative in required:
         assert (ROOT / relative).is_dir(), relative
