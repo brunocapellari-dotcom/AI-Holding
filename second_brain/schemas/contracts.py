@@ -54,12 +54,7 @@ class RiskLevel(StrEnum):
 
 
 class TemporalContext(BaseModel):
-    """Bitemporal metadata.
-
-    valid_* describes when the assertion is true in the world.
-    known_* describes when the Second Brain knew/accepted that version.
-    publication/collection/reference dates preserve source chronology.
-    """
+    """Bitemporal metadata for world-validity and system-knowledge time."""
 
     valid_from: datetime | None = None
     valid_to: datetime | None = None
@@ -76,6 +71,8 @@ class TemporalContext(BaseModel):
             raise ValueError("valid_to cannot precede valid_from")
         if self.known_from and self.known_to and self.known_to < self.known_from:
             raise ValueError("known_to cannot precede known_from")
+        if self.publication_date and self.collected_at and self.collected_at < self.publication_date:
+            raise ValueError("collected_at cannot precede publication_date")
         return self
 
 
@@ -98,7 +95,7 @@ class RecordBase(BaseModel):
     id: StableId
     namespace: Namespace = "shared"
     information_class: InformationClass = InformationClass.INTERNAL
-    schema_version: str = Field(default="1.0", pattern=r"^\d+\.\d+$")
+    schema_version: str = Field(default="1.1", pattern=r"^\d+\.\d+$")
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
@@ -114,7 +111,14 @@ class Source(RecordBase):
     access_method: str | None = Field(default=None, max_length=120)
     approved_for_ingestion: bool = False
     approved_for_canonicalization: bool = False
+    independence_group: str | None = Field(default=None, max_length=500)
+    primary_source_id: StableId | None = None
     metadata: dict[str, object] = Field(default_factory=dict)
+
+    @property
+    def independence_key(self) -> str:
+        """Key used to avoid counting syndicated copies as independent corroboration."""
+        return self.independence_group or self.primary_source_id or self.id
 
 
 class Document(RecordBase):
@@ -156,6 +160,9 @@ class Evidence(RecordBase):
 class Claim(RecordBase):
     record_type: Literal["Claim"] = "Claim"
     statement: str = Field(min_length=5, max_length=30000)
+    assertion_key: str | None = Field(default=None, max_length=500)
+    normalized_value: str | None = Field(default=None, max_length=10000)
+    unit: str | None = Field(default=None, max_length=120)
     status: LifecycleStatus = LifecycleStatus.PROPOSTO
     nature: EpistemicNature = EpistemicNature.STRUCTURAL
     confidence: float = Field(default=0.5, ge=0.0, le=1.0)
@@ -170,6 +177,9 @@ class Claim(RecordBase):
 class Fact(RecordBase):
     record_type: Literal["Fact"] = "Fact"
     statement: str = Field(min_length=5, max_length=30000)
+    assertion_key: str | None = Field(default=None, max_length=500)
+    normalized_value: str | None = Field(default=None, max_length=10000)
+    unit: str | None = Field(default=None, max_length=120)
     status: LifecycleStatus
     nature: EpistemicNature
     confidence: float = Field(ge=0.0, le=1.0)
