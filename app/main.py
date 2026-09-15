@@ -10,6 +10,7 @@ from app.api.routes import (
     agents,
     decisions,
     executive,
+    holding,
     incidents,
     knowledge,
     pmo,
@@ -27,7 +28,7 @@ logger = logging.getLogger("holding-control-plane")
 
 app = FastAPI(
     title=settings.app_name,
-    version="1.1.0",
+    version="2.0.0",
     docs_url=None if settings.environment == "production" else "/docs",
     redoc_url=None,
 )
@@ -72,3 +73,4 @@ app.include_router(policy.router, prefix=settings.api_prefix)
 app.include_router(pmo.router, prefix=settings.api_prefix)
 app.include_router(executive.router, prefix=settings.api_prefix)
 app.include_router(knowledge.router, prefix=settings.api_prefix)
+app.include_router(holding.router, prefix=settings.api_prefix)
