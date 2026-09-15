@@ -223,6 +223,18 @@ PROJECT_SEEDS: tuple[ProjectSeed, ...] = (
         business_unit="Interactive Systems",
     ),
     ProjectSeed(
+        key="PERSONAL_PERFORMANCE_HEALTH_OS",
+        name="Personal Performance & Health OS",
+        strategic_goal=(
+            "Operate a local-first personal performance system that turns goals, training, nutrition, "
+            "recovery and health context into audited adaptive plans without overriding medical authority."
+        ),
+        priority=3,
+        autonomy_level=2,
+        repository="brunocapellari-dotcom/Personal-Performance-Health-OS",
+        business_unit="Personal Performance",
+    ),
+    ProjectSeed(
         key="MAINTENANCE_FIELD_INTELLIGENCE",
         name="Maintenance & Field Intelligence",
         strategic_goal=(
