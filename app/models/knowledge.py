@@ -47,6 +47,13 @@ class OutcomeVerdict(StrEnum):
     inconclusive = "inconclusive"
 
 
+class DataClassification(StrEnum):
+    public = "public"
+    internal = "internal"
+    confidential = "confidential"
+    restricted = "restricted"
+
+
 class KnowledgeClaim(Base, TimestampMixin):
     __tablename__ = "knowledge_claims"
     __table_args__ = (
@@ -66,6 +73,10 @@ class KnowledgeClaim(Base, TimestampMixin):
         CheckConstraint(
             "lifecycle_status IN ('raw','candidate','validated','canonical','superseded')",
             name="knowledge_lifecycle_status_valid",
+        ),
+        CheckConstraint(
+            "data_classification IN ('public','internal','confidential','restricted')",
+            name="knowledge_data_classification_valid",
         ),
         Index(
             "ix_knowledge_context",
@@ -91,6 +102,11 @@ class KnowledgeClaim(Base, TimestampMixin):
         nullable=True,
         index=True,
     )
+    source_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("knowledge_sources.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     statement: Mapped[str] = mapped_column(Text)
     fingerprint: Mapped[str] = mapped_column(String(64), index=True)
     epistemic_status: Mapped[str] = mapped_column(
@@ -100,6 +116,10 @@ class KnowledgeClaim(Base, TimestampMixin):
     lifecycle_status: Mapped[str] = mapped_column(
         String(32),
         default=KnowledgeLifecycle.raw.value,
+    )
+    data_classification: Mapped[str] = mapped_column(
+        String(32),
+        default=DataClassification.internal.value,
     )
     confidence: Mapped[int] = mapped_column(Integer, default=50)
     source_name: Mapped[str] = mapped_column(String(240))
@@ -118,6 +138,7 @@ class KnowledgeClaim(Base, TimestampMixin):
     )
     evidence: Mapped[list[object]] = mapped_column(JSON, default=list)
     tags: Mapped[list[object]] = mapped_column(JSON, default=list)
+    security_flags: Mapped[list[object]] = mapped_column(JSON, default=list)
     metadata_json: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
     supersedes_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("knowledge_claims.id", ondelete="SET NULL"),
