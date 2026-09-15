@@ -4,9 +4,9 @@ import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from second_brain.persistence import SQLiteKnowledgeStore
 from second_brain.schemas import Fact, InformationClass, Learning, LifecycleStatus, Method, Skill
 from second_brain.schemas.contracts import KnowledgeRecord
+from second_brain.store import KnowledgeStore
 
 _TOKEN = re.compile(r"[A-Za-zÀ-ÿ0-9_]{3,}")
 _CLASS_RANK = {
@@ -35,14 +35,11 @@ def can_read(record: KnowledgeRecord, policy: AccessPolicy) -> bool:
         return False
     if record.namespace == "shared" or record.namespace.startswith("shared/"):
         return policy.allow_shared
-    return any(
-        _namespace_matches(record.namespace, prefix)
-        for prefix in policy.allowed_namespace_prefixes
-    )
+    return any(_namespace_matches(record.namespace, prefix) for prefix in policy.allowed_namespace_prefixes)
 
 
 def retrieve_context(
-    store: SQLiteKnowledgeStore,
+    store: KnowledgeStore,
     query: str,
     *,
     policy: AccessPolicy,
@@ -83,6 +80,8 @@ def _record_text(record: KnowledgeRecord) -> str:
     fields: list[str] = [record.id, record.namespace, record.record_type]
     for attribute in (
         "statement",
+        "assertion_key",
+        "normalized_value",
         "title",
         "name",
         "purpose",
