@@ -9,6 +9,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
+from second_brain.ingestion.safety import inspect_source_uri
 from second_brain.schemas import InformationClass
 
 
@@ -42,6 +43,7 @@ class CollectorSpec:
     freshness_seconds: int
     max_retries: int = 3
     enabled: bool = True
+    managed_execution: bool = False
     owner_project: str | None = None
     source_uri: str | None = None
     information_class: InformationClass = InformationClass.INTERNAL
@@ -49,12 +51,26 @@ class CollectorSpec:
     def __post_init__(self) -> None:
         if not self.collector_id or len(self.collector_id) > 240:
             raise ValueError("collector_id must be non-empty and <= 240 characters")
+        if not self.source_id.startswith("sb:source:"):
+            raise ValueError("source_id must be a stable Second Brain source id")
+        if not (
+            self.namespace == "shared"
+            or self.namespace.startswith("shared/")
+            or self.namespace.startswith("project/")
+        ):
+            raise ValueError("collector namespace must be shared/* or project/*")
         if self.frequency_seconds < 60:
             raise ValueError("frequency_seconds must be at least 60")
         if self.freshness_seconds < self.frequency_seconds:
             raise ValueError("freshness_seconds cannot be shorter than frequency_seconds")
         if not 0 <= self.max_retries <= 20:
             raise ValueError("max_retries must be between 0 and 20")
+        if self.source_uri:
+            findings = inspect_source_uri(self.source_uri)
+            blocking = [item for item in findings if item.severity in {"HIGH", "CRITICAL"}]
+            if blocking:
+                codes = ", ".join(item.code for item in blocking)
+                raise ValueError(f"unsafe collector source_uri: {codes}")
 
 
 @dataclass
@@ -68,7 +84,13 @@ class CollectorState:
 
 
 class CollectorRegistry:
-    """Institutional registry that wraps existing collectors without replacing them."""
+    """Institutional registry that federates existing collectors without replacing them.
+
+    Existing project collectors should normally register with managed_execution=False.
+    That lets the institutional registry observe health/freshness while leaving the
+    original scheduler in charge. Only collectors explicitly delegated to the
+    Second Brain scheduler are returned by due().
+    """
 
     def __init__(self) -> None:
         self._specs: dict[str, CollectorSpec] = {}
@@ -82,6 +104,9 @@ class CollectorRegistry:
             )
         self._specs[spec.collector_id] = spec
         self._states.setdefault(spec.collector_id, CollectorState())
+
+    def specs(self) -> tuple[CollectorSpec, ...]:
+        return tuple(self._specs[key] for key in sorted(self._specs))
 
     def spec(self, collector_id: str) -> CollectorSpec:
         try:
@@ -97,7 +122,7 @@ class CollectorRegistry:
         current = now or datetime.now(UTC)
         due_specs: list[CollectorSpec] = []
         for collector_id, spec in self._specs.items():
-            if not spec.enabled:
+            if not spec.enabled or not spec.managed_execution:
                 continue
             state = self._states[collector_id]
             reference = state.last_attempt_at or state.last_success_at
@@ -185,7 +210,12 @@ class CollectorRegistry:
 
     def save_atomic(self, path: Path, *, now: datetime | None = None) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
-        payload = json.dumps(self.snapshot(now=now), ensure_ascii=False, indent=2, sort_keys=True)
+        payload = json.dumps(
+            self.snapshot(now=now),
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+        )
         fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent, text=True)
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as handle:
