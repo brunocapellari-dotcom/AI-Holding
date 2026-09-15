@@ -22,6 +22,7 @@ class AgentPermission(StrEnum):
     transition_own_run = "transition_own_run"
     evaluate_own_policy = "evaluate_own_policy"
     create_incident = "create_incident"
+    report_collection = "report_collection"
     submit_knowledge = "submit_knowledge"
     promote_knowledge = "promote_knowledge"
     submit_knowledge_outcome = "submit_knowledge_outcome"
@@ -36,6 +37,7 @@ AGENT_PERMISSIONS: dict[str, frozenset[AgentPermission]] = {
             AgentPermission.transition_own_run,
             AgentPermission.evaluate_own_policy,
             AgentPermission.create_incident,
+            AgentPermission.report_collection,
         }
     ),
     "KNOWLEDGE_IA": frozenset(
