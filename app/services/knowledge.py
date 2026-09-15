@@ -14,11 +14,17 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.models.knowledge import (
+    DataClassification,
     KnowledgeClaim,
     KnowledgeLifecycle,
     KnowledgeOutcome,
 )
+from app.models.knowledge_source import KnowledgeSource, SourceStatus
 from app.schemas.knowledge import KnowledgeClaimIngest, KnowledgeOutcomeCreate
+from app.services.information_security import (
+    enforce_safe_knowledge,
+    strongest_classification,
+)
 
 ALLOWED_TRANSITIONS: dict[str, set[str]] = {
     KnowledgeLifecycle.raw.value: {
@@ -61,12 +67,37 @@ def _merge_json_objects(
     return merged, added
 
 
+def _source_for_ingest(db: Session, source_id: UUID | None) -> KnowledgeSource | None:
+    if source_id is None:
+        return None
+    source = db.get(KnowledgeSource, source_id)
+    if source is None:
+        raise LookupError("knowledge source not found")
+    if source.status in {SourceStatus.blocked.value, SourceStatus.rejected.value}:
+        raise ValueError("knowledge source is blocked or rejected")
+    return source
+
+
 def ingest_claim(
     db: Session,
     payload: KnowledgeClaimIngest,
     *,
     created_by_agent_id: UUID | None = None,
 ) -> tuple[KnowledgeClaim, bool, int]:
+    source = _source_for_ingest(db, payload.source_id)
+    evidence = [item.model_dump(mode="json") for item in payload.evidence]
+    inspection = enforce_safe_knowledge(
+        payload.statement,
+        payload.source_name,
+        evidence,
+        payload.tags,
+        payload.metadata_json,
+        source_uri=payload.source_uri,
+    )
+    classification = strongest_classification(
+        payload.data_classification,
+        inspection.classification,
+    )
     fingerprint = fingerprint_statement(payload.statement)
     existing = db.scalar(
         select(KnowledgeClaim).where(
@@ -74,15 +105,25 @@ def ingest_claim(
             KnowledgeClaim.fingerprint == fingerprint,
         )
     )
-    evidence = [item.model_dump(mode="json") for item in payload.evidence]
     tags = list(dict.fromkeys(tag.strip() for tag in payload.tags if tag.strip()))
     now = datetime.now(UTC)
 
     if existing is not None:
+        if source is not None and existing.source_id not in {None, source.id}:
+            raise ValueError("duplicate claim points to a different governed source")
         merged_evidence, added = _merge_json_objects(existing.evidence or [], evidence)
         existing.evidence = merged_evidence
         existing.tags = list(dict.fromkeys([*(existing.tags or []), *tags]))
+        existing.security_flags = list(
+            dict.fromkeys([*(existing.security_flags or []), *inspection.flags])
+        )
         existing.confidence = max(existing.confidence, payload.confidence)
+        existing.data_classification = strongest_classification(
+            DataClassification(existing.data_classification),
+            classification,
+        ).value
+        if existing.source_id is None and source is not None:
+            existing.source_id = source.id
         if existing.source_uri is None and payload.source_uri:
             existing.source_uri = payload.source_uri
         if existing.source_published_at is None and payload.source_published_at:
@@ -110,10 +151,12 @@ def ingest_claim(
         namespace=payload.namespace,
         project_id=payload.project_id,
         created_by_agent_id=created_by_agent_id or payload.created_by_agent_id,
+        source_id=source.id if source is not None else None,
         statement=payload.statement.strip(),
         fingerprint=fingerprint,
         epistemic_status=payload.epistemic_status.value,
         lifecycle_status=KnowledgeLifecycle.raw.value,
+        data_classification=classification.value,
         confidence=payload.confidence,
         source_name=payload.source_name,
         source_uri=payload.source_uri,
@@ -122,6 +165,7 @@ def ingest_claim(
         valid_until=payload.valid_until,
         evidence=evidence,
         tags=tags,
+        security_flags=list(inspection.flags),
         metadata_json={**payload.metadata_json, "last_ingested_at": now.isoformat()},
     )
     db.add(claim)
@@ -170,6 +214,12 @@ def record_outcome(
     *,
     created_by_agent_id: UUID | None = None,
 ) -> KnowledgeOutcome:
+    evidence = [item.model_dump(mode="json") for item in payload.evidence]
+    enforce_safe_knowledge(
+        payload.observed_result,
+        evidence,
+        payload.metadata_json,
+    )
     outcome = KnowledgeOutcome(
         claim_id=claim.id,
         project_id=payload.project_id or claim.project_id,
@@ -177,7 +227,7 @@ def record_outcome(
         verdict=payload.verdict.value,
         observed_result=payload.observed_result.strip(),
         error_metric=payload.error_metric,
-        evidence=[item.model_dump(mode="json") for item in payload.evidence],
+        evidence=evidence,
         metadata_json=payload.metadata_json,
         evaluated_at=payload.evaluated_at or datetime.now(UTC),
     )
@@ -212,6 +262,7 @@ def retrieve_context(
         KnowledgeClaim.lifecycle_status.in_(
             [KnowledgeLifecycle.validated.value, KnowledgeLifecycle.canonical.value]
         ),
+        KnowledgeClaim.data_classification != DataClassification.restricted.value,
         or_(KnowledgeClaim.valid_from.is_(None), KnowledgeClaim.valid_from <= now),
         or_(KnowledgeClaim.valid_until.is_(None), KnowledgeClaim.valid_until >= now),
     )
@@ -226,6 +277,8 @@ def retrieve_context(
 
 
 def render_claim_markdown(claim: KnowledgeClaim) -> str:
+    if claim.data_classification == DataClassification.restricted.value:
+        raise ValueError("restricted knowledge cannot be rendered for Obsidian export")
     tags = [str(tag) for tag in (claim.tags or [])]
     frontmatter = [
         "---",
@@ -233,12 +286,15 @@ def render_claim_markdown(claim: KnowledgeClaim) -> str:
         f'namespace: "{claim.namespace}"',
         f'lifecycle: "{claim.lifecycle_status}"',
         f'epistemic_status: "{claim.epistemic_status}"',
+        f'data_classification: "{claim.data_classification}"',
         f"confidence: {claim.confidence}",
         f"source: {json.dumps(claim.source_name, ensure_ascii=False)}",
         f"tags: {json.dumps(tags, ensure_ascii=False)}",
     ]
     if claim.project_id:
         frontmatter.append(f'project_id: "{claim.project_id}"')
+    if claim.source_id:
+        frontmatter.append(f'source_id: "{claim.source_id}"')
     if claim.source_uri:
         frontmatter.append(f"source_uri: {json.dumps(claim.source_uri, ensure_ascii=False)}")
     if claim.source_published_at:
@@ -306,6 +362,11 @@ def export_claim_to_obsidian(claim: KnowledgeClaim) -> tuple[str, int]:
         KnowledgeLifecycle.canonical.value,
     }:
         raise ValueError("only validated or canonical knowledge can be exported to Obsidian")
+    if claim.data_classification in {
+        DataClassification.confidential.value,
+        DataClassification.restricted.value,
+    }:
+        raise ValueError("confidential or restricted knowledge cannot be exported to Obsidian")
 
     vault = Path(settings.obsidian_vault_path).expanduser().resolve()
     root = (vault / settings.obsidian_knowledge_root).resolve()
