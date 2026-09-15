@@ -35,6 +35,7 @@ class ProjectSeed:
     repository: str | None = None
     repository_path: str | None = None
     business_unit: str | None = None
+    previous_repositories: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -131,8 +132,10 @@ PROJECT_SEEDS: tuple[ProjectSeed, ...] = (
         ),
         priority=0,
         autonomy_level=4,
-        repository="brunocapellari-dotcom/AI-Holding",
+        status=ProjectStatus.incubating,
+        repository="brunocapellari-dotcom/Second-Brain",
         business_unit="Shared Core",
+        previous_repositories=("brunocapellari-dotcom/AI-Holding",),
     ),
     ProjectSeed(
         key="AI_HOLDING",
@@ -144,6 +147,19 @@ PROJECT_SEEDS: tuple[ProjectSeed, ...] = (
         autonomy_level=4,
         repository="brunocapellari-dotcom/AI-Holding",
         business_unit="Holding",
+    ),
+    ProjectSeed(
+        key="HERMES_AI_PLATFORM",
+        name="Hermes AI Platform",
+        strategic_goal=(
+            "Provide shared AI, model, agent, skill and tool orchestration without taking "
+            "portfolio authority from the Holding."
+        ),
+        priority=0,
+        autonomy_level=3,
+        status=ProjectStatus.incubating,
+        repository="brunocapellari-dotcom/Hermes-AI-Platform",
+        business_unit="Shared Core",
     ),
     ProjectSeed(
         key="AGROLOG_MT",
@@ -210,6 +226,7 @@ PROJECT_SEEDS: tuple[ProjectSeed, ...] = (
         ),
         priority=3,
         autonomy_level=1,
+        repository="brunocapellari-dotcom/Sports-Intelligence",
         business_unit="Quantitative Intelligence",
     ),
     ProjectSeed(
@@ -220,6 +237,8 @@ PROJECT_SEEDS: tuple[ProjectSeed, ...] = (
         ),
         priority=4,
         autonomy_level=2,
+        repository="brunocapellari-dotcom/Game-Studio",
+        repository_path="games/worldwar-modern",
         business_unit="Interactive Systems",
     ),
     ProjectSeed(
@@ -298,12 +317,21 @@ def _ensure_project(db: Session, seed: ProjectSeed, by_key: dict[str, Project]) 
     if existing:
         if existing.name != seed.name:
             raise RuntimeError(f"project identity drift detected for {seed.key}")
-        if seed.repository and existing.repository not in {None, seed.repository}:
+        if seed.repository and existing.repository not in {
+            None,
+            seed.repository,
+            *seed.previous_repositories,
+        }:
             raise RuntimeError(f"repository drift detected for {seed.key}")
-        if seed.repository and existing.repository is None:
+        if seed.repository and existing.repository != seed.repository:
             existing.repository = seed.repository
         if seed.repository_path and existing.repository_path is None:
             existing.repository_path = seed.repository_path
+        if (
+            seed.repository_path
+            and existing.repository_path not in {None, seed.repository_path}
+        ):
+            raise RuntimeError(f"repository path drift detected for {seed.key}")
         expected_parent_id = parent.id if parent else None
         if existing.parent_project_id != expected_parent_id:
             raise RuntimeError(f"project hierarchy drift detected for {seed.key}")
@@ -321,7 +349,7 @@ def _ensure_project(db: Session, seed: ProjectSeed, by_key: dict[str, Project]) 
         repository_path=seed.repository_path,
         business_unit=seed.business_unit,
         strategic_goal=seed.strategic_goal,
-        metadata_json={"bootstrap_source": "canonical-portfolio-v1"},
+        metadata_json={"bootstrap_source": "canonical-portfolio-v2"},
     )
     db.add(project)
     db.flush()
