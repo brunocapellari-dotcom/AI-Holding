@@ -14,6 +14,7 @@ class CompletionGateOut(BaseModel):
     unfinished_tasks: int
     blocking_risks: int
     blocking_alerts: int
+    blocking_security_findings: int
     reasons: list[str]
 
 
