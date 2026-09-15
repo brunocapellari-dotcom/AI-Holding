@@ -7,7 +7,6 @@ from typing import Iterable
 
 from second_brain.schemas import (
     Claim,
-    EpistemicNature,
     Evaluation,
     Evidence,
     Fact,
@@ -15,6 +14,7 @@ from second_brain.schemas import (
     Provenance,
     Source,
 )
+from second_brain.security import strongest_information_class
 from second_brain.validation import ValidationResult, evaluate_claim_for_canonicalization
 
 
@@ -86,7 +86,8 @@ def canonicalize_claim(
     conflict_detected: bool = False,
 ) -> PromotionDecision:
     evidence_items = tuple(evidence)
-    source_by_id = {item.id: item for item in sources}
+    source_items = tuple(sources)
+    source_by_id = {item.id: item for item in source_items}
     evidence_by_id = {item.id: item for item in evidence_items}
     evaluations_tuple = tuple(evaluations)
 
@@ -103,7 +104,8 @@ def canonicalize_claim(
     unapproved_sources = sorted(
         source_id
         for source_id in source_ids
-        if source_id not in source_by_id or not source_by_id[source_id].approved_for_canonicalization
+        if source_id not in source_by_id
+        or not source_by_id[source_id].approved_for_canonicalization
     )
     if unapproved_sources:
         result = ValidationResult(
@@ -125,7 +127,12 @@ def canonicalize_claim(
         return PromotionDecision(result, None, evaluations_tuple)
 
     effective_evaluations = evaluations_tuple
-    if not effective_evaluations:
+    independent_approvals = [
+        item
+        for item in effective_evaluations
+        if _is_independent_approval(claim, item)
+    ]
+    if not independent_approvals:
         automatic = Evaluation(
             id=_stable_id("evaluation", f"auto:{claim.id}:policy-v1"),
             namespace=claim.namespace,
@@ -139,20 +146,22 @@ def canonicalize_claim(
             findings=["automatic low-risk validation policy satisfied"],
             human_approval=False,
         )
-        effective_evaluations = (automatic,)
+        effective_evaluations = (*effective_evaluations, automatic)
+        independent_approvals = [automatic]
 
-    approved_ids = [
-        item.id
-        for item in effective_evaluations
-        if item.verdict == "APPROVE" and item.independent
-    ]
+    fact_information_class = strongest_information_class(
+        claim.information_class,
+        *(item.information_class for item in evidence_items),
+        *(source_by_id[source_id].information_class for source_id in source_ids),
+    )
+    approved_ids = [item.id for item in independent_approvals]
     fact = Fact(
         id=_stable_id("fact", f"{claim.id}:{claim.statement}"),
         namespace=claim.namespace,
-        information_class=claim.information_class,
+        information_class=fact_information_class,
         statement=claim.statement,
         status=LifecycleStatus.CANONICO,
-        nature=claim.nature if isinstance(claim.nature, EpistemicNature) else EpistemicNature.STRUCTURAL,
+        nature=claim.nature,
         confidence=claim.confidence,
         risk_level=claim.risk_level,
         claim_ids=[claim.id],
@@ -174,6 +183,20 @@ def canonicalize_claim(
         supersedes_id=claim.supersedes_id,
     )
     return PromotionDecision(result, fact, effective_evaluations)
+
+
+def _is_independent_approval(claim: Claim, evaluation: Evaluation) -> bool:
+    if (
+        evaluation.target_id != claim.id
+        or evaluation.verdict != "APPROVE"
+        or not evaluation.independent
+    ):
+        return False
+    disallowed = {
+        claim.provenance.collector_agent_id,
+        claim.provenance.interpreter_agent_id,
+    }
+    return evaluation.evaluator_id not in {item for item in disallowed if item}
 
 
 def _stable_id(kind: str, seed: str) -> str:
