@@ -22,13 +22,14 @@ from app.api.routes import (
 from app.core.config import settings
 from app.core.request_context import request_id_ctx
 from app.db.session import engine
+from app.observability import configure_observability
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("holding-control-plane")
 
 app = FastAPI(
     title=settings.app_name,
-    version="2.0.0",
+    version="2.1.0",
     docs_url=None if settings.environment == "production" else "/docs",
     redoc_url=None,
 )
@@ -74,3 +75,5 @@ app.include_router(pmo.router, prefix=settings.api_prefix)
 app.include_router(executive.router, prefix=settings.api_prefix)
 app.include_router(knowledge.router, prefix=settings.api_prefix)
 app.include_router(holding.router, prefix=settings.api_prefix)
+
+configure_observability(app)
