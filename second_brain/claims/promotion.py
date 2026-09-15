@@ -1,0 +1,220 @@
+from __future__ import annotations
+
+import hashlib
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Iterable
+
+from second_brain.schemas import (
+    Claim,
+    Evaluation,
+    Evidence,
+    Fact,
+    LifecycleStatus,
+    Provenance,
+    Source,
+    SourceStatus,
+)
+from second_brain.security import strongest_information_class
+from second_brain.validation import ValidationResult, evaluate_claim_for_canonicalization
+
+MIN_CANONICAL_SOURCE_TRUST = 0.70
+
+
+@dataclass(frozen=True)
+class VerificationResult:
+    claim: Claim
+    reasons: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class PromotionDecision:
+    validation: ValidationResult
+    fact: Fact | None
+    evaluations: tuple[Evaluation, ...]
+
+
+def verify_claim(
+    claim: Claim,
+    evidence: Iterable[Evidence],
+    sources: Iterable[Source],
+    *,
+    conflict_detected: bool = False,
+    minimum_confidence: float = 0.60,
+) -> VerificationResult:
+    evidence_by_id = {item.id: item for item in evidence}
+    source_by_id = {item.id: item for item in sources}
+    reasons: list[str] = []
+
+    missing = [evidence_id for evidence_id in claim.evidence_ids if evidence_id not in evidence_by_id]
+    if missing:
+        reasons.append(f"missing evidence: {', '.join(sorted(missing))}")
+
+    source_ids: set[str] = set()
+    for evidence_id in claim.evidence_ids:
+        item = evidence_by_id.get(evidence_id)
+        if item is None:
+            continue
+        source_ids.add(item.source_id)
+        source = source_by_id.get(item.source_id)
+        if source is None:
+            reasons.append(f"missing source for evidence: {item.id}")
+        elif source.status != SourceStatus.APPROVED or not source.approved_for_ingestion:
+            reasons.append(f"source is not approved for ingestion: {source.id}")
+
+    if conflict_detected:
+        status = LifecycleStatus.CONFLITANTE
+        reasons.append("unresolved conflict detected")
+    elif claim.confidence < minimum_confidence:
+        status = LifecycleStatus.BAIXA_CONFIANCA
+        reasons.append("claim confidence below verification threshold")
+    elif reasons:
+        status = LifecycleStatus.EM_REVISAO
+    elif not source_ids:
+        status = LifecycleStatus.EM_REVISAO
+        reasons.append("claim has no independently traceable source")
+    else:
+        status = LifecycleStatus.VALIDADO
+
+    verified = claim.model_copy(update={"status": status, "updated_at": datetime.now(UTC)})
+    return VerificationResult(claim=verified, reasons=tuple(reasons))
+
+
+def canonicalize_claim(
+    claim: Claim,
+    evidence: Iterable[Evidence],
+    sources: Iterable[Source],
+    evaluations: Iterable[Evaluation],
+    *,
+    conflict_detected: bool = False,
+) -> PromotionDecision:
+    evidence_items = tuple(evidence)
+    source_items = tuple(sources)
+    source_by_id = {item.id: item for item in source_items}
+    evidence_by_id = {item.id: item for item in evidence_items}
+    evaluations_tuple = tuple(evaluations)
+
+    missing_evidence = [item_id for item_id in claim.evidence_ids if item_id not in evidence_by_id]
+    if missing_evidence:
+        result = ValidationResult(
+            approved=False,
+            target_status=LifecycleStatus.EM_REVISAO,
+            reasons=(f"missing evidence: {', '.join(sorted(missing_evidence))}",),
+        )
+        return PromotionDecision(result, None, evaluations_tuple)
+
+    source_ids = {evidence_by_id[item_id].source_id for item_id in claim.evidence_ids}
+    source_policy_failures = sorted(
+        source_id
+        for source_id in source_ids
+        if source_id not in source_by_id
+        or source_by_id[source_id].status != SourceStatus.APPROVED
+        or not source_by_id[source_id].approved_for_canonicalization
+        or source_by_id[source_id].trust_score < MIN_CANONICAL_SOURCE_TRUST
+    )
+    if source_policy_failures:
+        result = ValidationResult(
+            approved=False,
+            target_status=LifecycleStatus.EM_REVISAO,
+            reasons=(
+                "source not eligible for canonicalization: "
+                + ", ".join(source_policy_failures),
+            ),
+        )
+        return PromotionDecision(result, None, evaluations_tuple)
+
+    independent_source_keys = {
+        source_by_id[source_id].independence_key for source_id in source_ids
+    }
+    result = evaluate_claim_for_canonicalization(
+        claim,
+        evaluations_tuple,
+        independent_source_count=len(independent_source_keys),
+        conflict_detected=conflict_detected,
+    )
+    if not result.approved:
+        return PromotionDecision(result, None, evaluations_tuple)
+
+    effective_evaluations = evaluations_tuple
+    independent_approvals = [item for item in effective_evaluations if _is_independent_approval(claim, item)]
+    if not independent_approvals:
+        automatic = Evaluation(
+            id=_stable_id("evaluation", f"auto:{claim.id}:policy-v3"),
+            namespace=claim.namespace,
+            information_class=claim.information_class,
+            target_id=claim.id,
+            evaluator_id="policy:auto-low-risk-v3",
+            verdict="APPROVE",
+            independent=True,
+            confidence=claim.confidence,
+            evidence_ids=list(claim.evidence_ids),
+            findings=[
+                "automatic low-risk validation policy satisfied",
+                f"independent source origins={len(independent_source_keys)}",
+                f"minimum source trust={min(source_by_id[item].trust_score for item in source_ids):.2f}",
+            ],
+            human_approval=False,
+        )
+        effective_evaluations = (*effective_evaluations, automatic)
+        independent_approvals = [automatic]
+
+    fact_information_class = strongest_information_class(
+        claim.information_class,
+        *(item.information_class for item in evidence_items),
+        *(source_by_id[source_id].information_class for source_id in source_ids),
+    )
+    approved_ids = [item.id for item in independent_approvals]
+    fact = Fact(
+        id=_stable_id("fact", f"{claim.id}:{claim.statement}"),
+        namespace=claim.namespace,
+        information_class=fact_information_class,
+        statement=claim.statement,
+        assertion_key=claim.assertion_key,
+        normalized_value=claim.normalized_value,
+        unit=claim.unit,
+        status=LifecycleStatus.CANONICO,
+        nature=claim.nature,
+        confidence=claim.confidence,
+        risk_level=claim.risk_level,
+        claim_ids=[claim.id],
+        evidence_ids=list(claim.evidence_ids),
+        validation_ids=approved_ids,
+        provenance=Provenance(
+            source_id=claim.provenance.source_id,
+            source_uri=claim.provenance.source_uri,
+            author_or_institution=claim.provenance.author_or_institution,
+            document_id=claim.provenance.document_id,
+            collector_agent_id=claim.provenance.collector_agent_id,
+            interpreter_agent_id=claim.provenance.interpreter_agent_id,
+            extractor_agent_id=claim.provenance.extractor_agent_id,
+            verifier_agent_id=claim.provenance.verifier_agent_id,
+            method_id=claim.provenance.method_id,
+            evidence_ids=list(claim.evidence_ids),
+            confidence=claim.confidence,
+            notes=claim.provenance.notes,
+        ),
+        temporal=claim.temporal,
+        supersedes_id=claim.supersedes_id,
+    )
+    return PromotionDecision(result, fact, effective_evaluations)
+
+
+def _is_independent_approval(claim: Claim, evaluation: Evaluation) -> bool:
+    if (
+        evaluation.target_id != claim.id
+        or evaluation.verdict != "APPROVE"
+        or not evaluation.independent
+    ):
+        return False
+    disallowed = {
+        claim.provenance.collector_agent_id,
+        claim.provenance.interpreter_agent_id,
+        claim.provenance.extractor_agent_id,
+        claim.provenance.verifier_agent_id,
+    }
+    return evaluation.evaluator_id not in {item for item in disallowed if item}
+
+
+def _stable_id(kind: str, seed: str) -> str:
+    digest = hashlib.sha256(seed.encode("utf-8")).hexdigest()[:32]
+    return f"sb:{kind}:{digest}"

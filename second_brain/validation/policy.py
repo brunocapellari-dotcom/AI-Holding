@@ -13,6 +13,18 @@ class ValidationResult:
     reasons: tuple[str, ...]
 
 
+def _independent_for_claim(claim: Claim, evaluation: Evaluation) -> bool:
+    if not evaluation.independent or evaluation.target_id != claim.id:
+        return False
+    disallowed = {
+        claim.provenance.collector_agent_id,
+        claim.provenance.interpreter_agent_id,
+        claim.provenance.extractor_agent_id,
+        claim.provenance.verifier_agent_id,
+    }
+    return evaluation.evaluator_id not in {item for item in disallowed if item}
+
+
 def evaluate_claim_for_canonicalization(
     claim: Claim,
     evaluations: Iterable[Evaluation],
@@ -30,16 +42,30 @@ def evaluate_claim_for_canonicalization(
     if claim.confidence < 0.80:
         reasons.append("confidence below canonical threshold")
 
-    approved = [item for item in evaluations if item.verdict == "APPROVE" and item.independent]
-    if claim.risk_level == RiskLevel.LOW and independent_source_count < 2:
-        reasons.append("low-risk auto-validation requires at least two independent sources")
-    elif claim.risk_level == RiskLevel.MEDIUM and not approved:
-        reasons.append("medium-risk knowledge requires independent auditor approval")
-    elif claim.risk_level == RiskLevel.HIGH and len(approved) < 2:
-        reasons.append("high-risk knowledge requires two independent approvals")
+    relevant = [item for item in evaluations if item.target_id == claim.id]
+    blocking = [item for item in relevant if item.verdict in {"REJECT", "CONFLICT"}]
+    if blocking:
+        reasons.append("independent review contains REJECT or CONFLICT verdict")
+
+    approved = [
+        item
+        for item in relevant
+        if item.verdict == "APPROVE" and _independent_for_claim(claim, item)
+    ]
+    distinct_approvers = {item.evaluator_id for item in approved}
+
+    if claim.risk_level == RiskLevel.LOW:
+        if independent_source_count < 2:
+            reasons.append("low-risk auto-validation requires at least two independent sources")
+    elif claim.risk_level == RiskLevel.MEDIUM:
+        if len(distinct_approvers) < 1:
+            reasons.append("medium-risk knowledge requires independent auditor approval")
+    elif claim.risk_level == RiskLevel.HIGH:
+        if len(distinct_approvers) < 2:
+            reasons.append("high-risk knowledge requires two distinct independent approvals")
     elif claim.risk_level == RiskLevel.CRITICAL:
-        if len(approved) < 2:
-            reasons.append("critical knowledge requires two independent approvals")
+        if len(distinct_approvers) < 2:
+            reasons.append("critical knowledge requires two distinct independent approvals")
         if not any(item.human_approval for item in approved):
             reasons.append("critical knowledge requires explicit human approval")
 

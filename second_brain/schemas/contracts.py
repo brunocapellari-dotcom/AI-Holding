@@ -53,13 +53,24 @@ class RiskLevel(StrEnum):
     CRITICAL = "CRITICAL"
 
 
-class TemporalContext(BaseModel):
-    """Bitemporal metadata.
+class SourceStatus(StrEnum):
+    CANDIDATE = "CANDIDATE"
+    APPROVED = "APPROVED"
+    PAUSED = "PAUSED"
+    BLOCKED = "BLOCKED"
+    REJECTED = "REJECTED"
 
-    valid_* describes when the assertion is true in the world.
-    known_* describes when the Second Brain knew/accepted that version.
-    publication/collection/reference dates preserve source chronology.
-    """
+
+class SourceClass(StrEnum):
+    PRIMARY = "PRIMARY"
+    SPECIALIZED = "SPECIALIZED"
+    SECONDARY = "SECONDARY"
+    AGGREGATOR = "AGGREGATOR"
+    STRUCTURAL = "STRUCTURAL"
+
+
+class TemporalContext(BaseModel):
+    """Bitemporal metadata for world-validity and system-knowledge time."""
 
     valid_from: datetime | None = None
     valid_to: datetime | None = None
@@ -76,6 +87,8 @@ class TemporalContext(BaseModel):
             raise ValueError("valid_to cannot precede valid_from")
         if self.known_from and self.known_to and self.known_to < self.known_from:
             raise ValueError("known_to cannot precede known_from")
+        if self.publication_date and self.collected_at and self.collected_at < self.publication_date:
+            raise ValueError("collected_at cannot precede publication_date")
         return self
 
 
@@ -86,6 +99,8 @@ class Provenance(BaseModel):
     document_id: StableId | None = None
     collector_agent_id: str | None = Field(default=None, max_length=240)
     interpreter_agent_id: str | None = Field(default=None, max_length=240)
+    extractor_agent_id: str | None = Field(default=None, max_length=240)
+    verifier_agent_id: str | None = Field(default=None, max_length=240)
     method_id: StableId | None = None
     evidence_ids: list[StableId] = Field(default_factory=list, max_length=200)
     confidence: float = Field(default=0.5, ge=0.0, le=1.0)
@@ -98,7 +113,7 @@ class RecordBase(BaseModel):
     id: StableId
     namespace: Namespace = "shared"
     information_class: InformationClass = InformationClass.INTERNAL
-    schema_version: str = Field(default="1.0", pattern=r"^\d+\.\d+$")
+    schema_version: str = Field(default="1.2", pattern=r"^\d+\.\d+$")
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
@@ -109,12 +124,43 @@ class Source(RecordBase):
     organization: str | None = Field(default=None, max_length=500)
     canonical_uri: str | None = Field(default=None, max_length=3000)
     source_type: str = Field(min_length=2, max_length=120)
+    source_class: SourceClass = SourceClass.SECONDARY
+    status: SourceStatus = SourceStatus.CANDIDATE
     authority_class: str | None = Field(default=None, max_length=32)
+    trust_score: float = Field(default=0.5, ge=0.0, le=1.0)
     license: str | None = Field(default=None, max_length=500)
+    terms_reviewed: bool = False
+    robots_policy_reviewed: bool = False
     access_method: str | None = Field(default=None, max_length=120)
+    approved_for_automated_fetch: bool = False
     approved_for_ingestion: bool = False
     approved_for_canonicalization: bool = False
+    independence_group: str | None = Field(default=None, max_length=500)
+    primary_source_id: StableId | None = None
     metadata: dict[str, object] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def approved_source_must_be_governed(self) -> "Source":
+        approvals = (
+            self.approved_for_automated_fetch,
+            self.approved_for_ingestion,
+            self.approved_for_canonicalization,
+        )
+        if any(approvals) and self.status != SourceStatus.APPROVED:
+            raise ValueError("source approvals require status APPROVED")
+        if self.approved_for_automated_fetch:
+            if not self.terms_reviewed:
+                raise ValueError("automated fetch requires terms_reviewed")
+            if not self.robots_policy_reviewed:
+                raise ValueError("automated fetch requires robots_policy_reviewed")
+        if self.approved_for_canonicalization and not self.approved_for_ingestion:
+            raise ValueError("canonicalization approval requires ingestion approval")
+        return self
+
+    @property
+    def independence_key(self) -> str:
+        """Key used to avoid counting syndicated copies as independent corroboration."""
+        return self.independence_group or self.primary_source_id or self.id
 
 
 class Document(RecordBase):
@@ -156,6 +202,9 @@ class Evidence(RecordBase):
 class Claim(RecordBase):
     record_type: Literal["Claim"] = "Claim"
     statement: str = Field(min_length=5, max_length=30000)
+    assertion_key: str | None = Field(default=None, max_length=500)
+    normalized_value: str | None = Field(default=None, max_length=10000)
+    unit: str | None = Field(default=None, max_length=120)
     status: LifecycleStatus = LifecycleStatus.PROPOSTO
     nature: EpistemicNature = EpistemicNature.STRUCTURAL
     confidence: float = Field(default=0.5, ge=0.0, le=1.0)
@@ -170,6 +219,9 @@ class Claim(RecordBase):
 class Fact(RecordBase):
     record_type: Literal["Fact"] = "Fact"
     statement: str = Field(min_length=5, max_length=30000)
+    assertion_key: str | None = Field(default=None, max_length=500)
+    normalized_value: str | None = Field(default=None, max_length=10000)
+    unit: str | None = Field(default=None, max_length=120)
     status: LifecycleStatus
     nature: EpistemicNature
     confidence: float = Field(ge=0.0, le=1.0)

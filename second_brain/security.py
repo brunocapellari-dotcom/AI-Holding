@@ -8,10 +8,19 @@ from second_brain.schemas import InformationClass
 
 _SECRET_PATTERNS = (
     re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
-    re.compile(r"\b(?:api[_-]?key|secret|token|password)\s*[:=]\s*[^\s]{8,}", re.IGNORECASE),
+    re.compile(
+        r"\b(?:api[_-]?key|secret|token|password)\s*[:=]\s*[^\s]{8,}",
+        re.IGNORECASE,
+    ),
     re.compile(r"\bgh[pousr]_[A-Za-z0-9]{20,}\b"),
     re.compile(r"\bAIza[0-9A-Za-z_-]{20,}\b"),
 )
+_CLASS_RANK = {
+    InformationClass.PUBLIC: 0,
+    InformationClass.INTERNAL: 1,
+    InformationClass.CONFIDENTIAL: 2,
+    InformationClass.RESTRICTED: 3,
+}
 
 
 @dataclass(frozen=True)
@@ -23,7 +32,12 @@ class SecurityFinding:
 def scan_text_for_secrets(text: str) -> tuple[SecurityFinding, ...]:
     for pattern in _SECRET_PATTERNS:
         if pattern.search(text):
-            return (SecurityFinding("POSSIBLE_SECRET", "possible credential or private key detected"),)
+            return (
+                SecurityFinding(
+                    "POSSIBLE_SECRET",
+                    "possible credential or private key detected",
+                ),
+            )
     return ()
 
 
@@ -42,6 +56,19 @@ def scan_object_for_secrets(value: Any) -> tuple[SecurityFinding, ...]:
             findings.extend(scan_object_for_secrets(item))
         return tuple(findings)
     return ()
+
+
+def strongest_information_class(*values: InformationClass) -> InformationClass:
+    if not values:
+        return InformationClass.INTERNAL
+    return max(values, key=lambda item: _CLASS_RANK[item])
+
+
+def classification_allows(
+    actual: InformationClass,
+    maximum: InformationClass,
+) -> bool:
+    return _CLASS_RANK[actual] <= _CLASS_RANK[maximum]
 
 
 def allow_standard_vault_export(information_class: InformationClass) -> bool:

@@ -1,0 +1,42 @@
+name: second-brain-quality
+
+on:
+  pull_request:
+    paths:
+      - "second_brain/**"
+      - "tests/test_second_brain*.py"
+      - ".github/workflows/second-brain-quality.yml"
+      - "pyproject.toml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  second-brain-quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install quality dependencies
+        run: pip install -e '.[dev]'
+      - name: Ruff lint
+        run: ruff check second_brain tests/test_second_brain_architecture.py tests/test_second_brain_runtime.py
+      - name: Ruff format
+        run: ruff format --check second_brain tests/test_second_brain_architecture.py tests/test_second_brain_runtime.py
+      - name: Strict typing
+        run: mypy second_brain
+      - name: Static security scan
+        run: bandit -c pyproject.toml -r second_brain
+      - name: Governed learning test suite
+        run: |
+          pytest -q -o addopts="" \
+            tests/test_second_brain_architecture.py \
+            tests/test_second_brain_runtime.py \
+            --cov=second_brain \
+            --cov-report=term-missing \
+            --cov-fail-under=85
