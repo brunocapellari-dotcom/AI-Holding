@@ -15,6 +15,7 @@ from app.models.holding import (
     RiskRegisterEntry,
     VentureEvaluation,
 )
+from app.models.holding_evidence import SecurityFinding
 from app.schemas.holding_analysis import (
     CompletionGateOut,
     FinOpsAnalysisOut,
@@ -52,6 +53,15 @@ def completion_gate(db: Session, project_id: UUID) -> CompletionGateOut:
             )
         )
     )
+    blocking_security = list(
+        db.scalars(
+            select(SecurityFinding).where(
+                SecurityFinding.project_id == project_id,
+                SecurityFinding.status.in_(["open", "mitigating"]),
+                SecurityFinding.severity.in_(["high", "critical"]),
+            )
+        )
+    )
 
     reasons: list[str] = []
     if progress.criteria_total == 0:
@@ -66,6 +76,8 @@ def completion_gate(db: Session, project_id: UUID) -> CompletionGateOut:
         reasons.append("critical unresolved risks remain")
     if blocking_alerts:
         reasons.append("action-required or critical alerts remain")
+    if blocking_security:
+        reasons.append("high or critical unresolved security findings remain")
 
     return CompletionGateOut(
         project_id=project_id,
@@ -76,6 +88,7 @@ def completion_gate(db: Session, project_id: UUID) -> CompletionGateOut:
         unfinished_tasks=len(unfinished_tasks),
         blocking_risks=len(blocking_risks),
         blocking_alerts=len(blocking_alerts),
+        blocking_security_findings=len(blocking_security),
         reasons=reasons,
     )
 
