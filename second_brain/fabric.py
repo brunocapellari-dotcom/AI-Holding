@@ -8,9 +8,16 @@ from second_brain.connectors import (
     AcquiredContent,
     ClaimExtractionEngine,
     ContentInterpreter,
+    ContentSegment,
     ProposedClaim,
 )
-from second_brain.ingestion import RawArtifact, RawArtifactStore, build_data_only_context, inspect_untrusted_text
+from second_brain.ingestion import (
+    IngestionFinding,
+    RawArtifact,
+    RawArtifactStore,
+    build_data_only_context,
+    inspect_untrusted_text,
+)
 from second_brain.persistence import SQLiteKnowledgeStore
 from second_brain.runtime import GovernedLearningRuntime, LearningRun
 from second_brain.schemas import (
@@ -18,7 +25,6 @@ from second_brain.schemas import (
     Document,
     Evidence,
     Fact,
-    InformationClass,
     LifecycleStatus,
     Provenance,
     Source,
@@ -52,8 +58,9 @@ class FabricRun:
 class AutonomousLearningFabric:
     """One governed path from untrusted content to institutional knowledge.
 
-    Parsing/extraction engines are injected, so projects can preserve their collectors and
-    specialized tools. All untrusted material crosses the same security/provenance boundary.
+    Project collectors and specialized parsers are injected instead of rewritten. Every
+    payload crosses the same raw-byte, security, provenance, verification and validation
+    boundary before a Fact can become institutional knowledge.
     """
 
     def __init__(
@@ -64,8 +71,9 @@ class AutonomousLearningFabric:
         interpreter: ContentInterpreter,
         extractor: ClaimExtractionEngine,
         collector_agent_id: str = "INGESTION_AI",
-        interpreter_agent_id: str = "CONTENT_INTERPRETER",
+        interpreter_agent_id: str = "DOCUMENT_READER_AI",
         extractor_agent_id: str = "CLAIM_EXTRACTOR_AI",
+        verifier_agent_id: str = "VERIFIER_AI",
     ) -> None:
         self.store = store
         self.raw_store = raw_store
@@ -74,6 +82,7 @@ class AutonomousLearningFabric:
         self.collector_agent_id = collector_agent_id
         self.interpreter_agent_id = interpreter_agent_id
         self.extractor_agent_id = extractor_agent_id
+        self.verifier_agent_id = verifier_agent_id
 
     def ingest(self, source: Source, acquired: AcquiredContent) -> FabricRun:
         if source.id != acquired.source_id:
@@ -83,13 +92,20 @@ class AutonomousLearningFabric:
         if not source.approved_for_ingestion:
             raise PermissionError("source is not approved for ingestion")
 
+        collected_at = acquired.collected_at or datetime.now(UTC)
+        acquired = AcquiredContent(
+            **{
+                **acquired.__dict__,
+                "collected_at": collected_at,
+            }
+        )
         raw = self.raw_store.put(
             acquired.content,
             source_id=source.id,
             filename=acquired.filename,
             mime_type=acquired.mime_type,
             source_uri=acquired.source_uri,
-            collected_at=acquired.collected_at,
+            collected_at=collected_at,
         )
         document_id = _stable_id("document", f"{source.id}:{raw.sha256}")
         parser_boundary = build_data_only_context(
@@ -134,7 +150,7 @@ class AutonomousLearningFabric:
         raw: RawArtifact,
         document_id: str,
         interpreted_metadata: dict[str, object],
-        signals: tuple[object, ...],
+        signals: tuple[IngestionFinding, ...],
     ) -> Document:
         collected_at = acquired.collected_at or datetime.now(UTC)
         metadata = {
@@ -144,6 +160,7 @@ class AutonomousLearningFabric:
             "modality": acquired.modality.value,
             "external_id": acquired.external_id,
             "prompt_injection_signal_count": len(signals),
+            "prompt_injection_signals": [item.code for item in signals],
         }
         return Document(
             id=document_id,
@@ -171,7 +188,7 @@ class AutonomousLearningFabric:
         source: Source,
         acquired: AcquiredContent,
         document: Document,
-        segments: tuple[object, ...],
+        segments: tuple[ContentSegment, ...],
         proposal: ProposedClaim,
     ) -> ClaimIngestionOutcome:
         evidence = self._evidence_for_proposal(source, acquired, document, segments, proposal)
@@ -182,7 +199,8 @@ class AutonomousLearningFabric:
             elif not isinstance(existing, Evidence):
                 raise RuntimeError(f"stable evidence id collision: {item.id}")
 
-        claim_id = _claim_id(source.namespace, proposal, acquired.reference_date)
+        reference = acquired.reference_date or acquired.document_date or acquired.publication_date
+        claim_id = _claim_id(source.namespace, proposal, reference)
         previous = self.store.get_latest(claim_id)
         previous_claim = previous if isinstance(previous, Claim) else None
         evidence_ids = sorted(
@@ -202,7 +220,8 @@ class AutonomousLearningFabric:
 
         temporal = _temporal_context(acquired)
         confidence = proposal.confidence
-        created_at = acquired.collected_at or datetime.now(UTC)
+        timestamp = acquired.collected_at or datetime.now(UTC)
+        created_at = timestamp
         if previous_claim is not None:
             confidence = min(previous_claim.confidence, proposal.confidence)
             created_at = previous_claim.created_at
@@ -210,18 +229,14 @@ class AutonomousLearningFabric:
             source.information_class,
             acquired.information_class,
             *(item.information_class for item in evidence),
-            *(
-                (previous_claim.information_class,)
-                if previous_claim is not None
-                else ()
-            ),
+            *((previous_claim.information_class,) if previous_claim is not None else ()),
         )
         claim = Claim(
             id=claim_id,
             namespace=source.namespace,
             information_class=information_class,
             created_at=created_at,
-            updated_at=acquired.collected_at or datetime.now(UTC),
+            updated_at=timestamp,
             statement=proposal.statement,
             assertion_key=proposal.assertion_key,
             normalized_value=proposal.normalized_value,
@@ -237,7 +252,9 @@ class AutonomousLearningFabric:
                 author_or_institution=acquired.author_or_institution or source.organization,
                 document_id=document.id,
                 collector_agent_id=self.collector_agent_id,
-                interpreter_agent_id=f"{self.interpreter_agent_id}+{self.extractor_agent_id}",
+                interpreter_agent_id=self.interpreter_agent_id,
+                extractor_agent_id=self.extractor_agent_id,
+                verifier_agent_id=self.verifier_agent_id,
                 evidence_ids=evidence_ids,
                 confidence=confidence,
             ),
@@ -272,21 +289,18 @@ class AutonomousLearningFabric:
         source: Source,
         acquired: AcquiredContent,
         document: Document,
-        segments: tuple[object, ...],
+        segments: tuple[ContentSegment, ...],
         proposal: ProposedClaim,
     ) -> tuple[Evidence, ...]:
-        segment_map = {
-            str(getattr(segment, "locator", "")): segment
-            for segment in segments
-            if getattr(segment, "locator", None)
-        }
+        segment_map = {segment.locator: segment for segment in segments if segment.locator}
         locators = proposal.evidence_locators or tuple(segment_map)[:1]
         if not locators:
             locators = ("document",)
+        timestamp = acquired.collected_at or datetime.now(UTC)
         result: list[Evidence] = []
         for locator in locators:
             segment = segment_map.get(locator)
-            description = str(getattr(segment, "text", proposal.statement))[:20000]
+            description = (segment.text if segment is not None else proposal.statement)[:20000]
             seed = f"{document.id}:{locator}:{proposal.statement}"
             evidence_id = _stable_id("evidence", seed)
             existing = self.store.get_latest(evidence_id)
@@ -315,10 +329,11 @@ class AutonomousLearningFabric:
                         document_id=document.id,
                         collector_agent_id=self.collector_agent_id,
                         interpreter_agent_id=self.interpreter_agent_id,
+                        extractor_agent_id=self.extractor_agent_id,
                         confidence=proposal.confidence,
                     ),
-                    created_at=acquired.collected_at or datetime.now(UTC),
-                    updated_at=acquired.collected_at or datetime.now(UTC),
+                    created_at=timestamp,
+                    updated_at=timestamp,
                 )
             )
         return tuple(result)
