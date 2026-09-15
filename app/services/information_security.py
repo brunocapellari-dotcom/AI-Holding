@@ -3,15 +3,9 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
-from enum import StrEnum
 from urllib.parse import parse_qsl, urlsplit
 
-
-class DataClassification(StrEnum):
-    public = "public"
-    internal = "internal"
-    confidential = "confidential"
-    restricted = "restricted"
+from app.models.knowledge import DataClassification
 
 
 @dataclass(frozen=True)
