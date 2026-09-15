@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import cast
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -17,22 +18,21 @@ from app.models.holding import (
     ProjectOperationalProfile,
     RiskRegisterEntry,
 )
-from app.schemas.holding import CostSummary, ExecutiveStateOut, HealthOut, ProjectContractOut
+from app.schemas.holding import (
+    AlertOut,
+    CostSummary,
+    ExecutiveStateOut,
+    HealthOut,
+    HealthState,
+    OperationalStatus,
+    ProjectContractOut,
+)
 
 
 def _utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=UTC)
     return value.astimezone(UTC)
-
-
-def get_or_create_profile(db: Session, project_id: UUID) -> ProjectOperationalProfile:
-    profile = db.get(ProjectOperationalProfile, project_id)
-    if profile is None:
-        profile = ProjectOperationalProfile(project_id=project_id)
-        db.add(profile)
-        db.flush()
-    return profile
 
 
 def summarize_costs(db: Session, project_id: UUID | None = None) -> CostSummary:
@@ -45,11 +45,17 @@ def summarize_costs(db: Session, project_id: UUID | None = None) -> CostSummary:
     by_category: dict[str, dict[str, int]] = {}
     by_provider: dict[str, dict[str, int]] = {}
     for entry in entries:
-        totals_by_currency[entry.currency] = totals_by_currency.get(entry.currency, 0) + entry.amount_micros
+        totals_by_currency[entry.currency] = (
+            totals_by_currency.get(entry.currency, 0) + entry.amount_micros
+        )
         category_totals = by_category.setdefault(entry.category, {})
-        category_totals[entry.currency] = category_totals.get(entry.currency, 0) + entry.amount_micros
+        category_totals[entry.currency] = (
+            category_totals.get(entry.currency, 0) + entry.amount_micros
+        )
         provider_totals = by_provider.setdefault(entry.provider, {})
-        provider_totals[entry.currency] = provider_totals.get(entry.currency, 0) + entry.amount_micros
+        provider_totals[entry.currency] = (
+            provider_totals.get(entry.currency, 0) + entry.amount_micros
+        )
 
     return CostSummary(
         project_id=project_id,
@@ -64,13 +70,16 @@ def compute_project_health(db: Session, project_id: UUID, persist: bool = True) 
     if project is None:
         raise LookupError("project not found")
     profile = db.get(ProjectOperationalProfile, project_id)
-    operational_status = profile.operational_status if profile else "planned"
+    operational_status = (
+        cast(OperationalStatus, profile.operational_status) if profile else "planned"
+    )
     now = datetime.now(UTC)
-    score = 100
     reasons: list[object] = []
 
     collectors = list(
-        db.scalars(select(CollectorRegistration).where(CollectorRegistration.project_id == project_id))
+        db.scalars(
+            select(CollectorRegistration).where(CollectorRegistration.project_id == project_id)
+        )
     )
     stale_collectors = 0
     failing_collectors = 0
@@ -114,12 +123,11 @@ def compute_project_health(db: Session, project_id: UUID, persist: bool = True) 
             )
         )
     )
-    project_key = project.key
     blocked_dependencies = list(
         db.scalars(
             select(DependencyEdge).where(
                 DependencyEdge.source_type == "project",
-                DependencyEdge.source_key == project_key,
+                DependencyEdge.source_key == project.key,
                 DependencyEdge.blocking.is_(True),
                 DependencyEdge.status.in_(["blocked", "offline"]),
             )
@@ -131,16 +139,26 @@ def compute_project_health(db: Session, project_id: UUID, persist: bool = True) 
     run_penalty = min(20, failed_runs * 5)
     risk_penalty = min(
         40,
-        sum(30 if risk.severity == "critical" else 15 if risk.severity == "high" else 5 for risk in open_risks),
+        sum(
+            30 if risk.severity == "critical" else 15 if risk.severity == "high" else 5
+            for risk in open_risks
+        ),
     )
     alert_penalty = min(
         35,
-        sum(25 if alert.level == "critical" else 12 if alert.level == "action_required" else 4 for alert in active_alerts),
+        sum(
+            25
+            if alert.level == "critical"
+            else 12
+            if alert.level == "action_required"
+            else 4
+            for alert in active_alerts
+        ),
     )
     dependency_penalty = 35 if blocked_dependencies else 0
     score = max(
         0,
-        score
+        100
         - collector_penalty
         - task_penalty
         - run_penalty
@@ -164,6 +182,7 @@ def compute_project_health(db: Session, project_id: UUID, persist: bool = True) 
     if blocked_dependencies:
         reasons.append({"kind": "blocking_dependencies", "count": len(blocked_dependencies)})
 
+    state: HealthState
     if operational_status == "cancelled":
         state = "offline"
     elif operational_status == "blocked" or blocked_dependencies:
@@ -190,15 +209,16 @@ def compute_project_health(db: Session, project_id: UUID, persist: bool = True) 
     }
 
     if persist:
-        snapshot = ProjectHealthSnapshot(
-            project_id=project_id,
-            state=state,
-            score=score,
-            dimensions=dimensions,
-            reasons=reasons,
-            computed_at=now,
+        db.add(
+            ProjectHealthSnapshot(
+                project_id=project_id,
+                state=state,
+                score=score,
+                dimensions=dimensions,
+                reasons=reasons,
+                computed_at=now,
+            )
         )
-        db.add(snapshot)
         db.flush()
 
     return HealthOut(
@@ -216,15 +236,23 @@ def project_contract(db: Session, project_id: UUID) -> ProjectContractOut:
     if project is None:
         raise LookupError("project not found")
     profile = db.get(ProjectOperationalProfile, project_id)
-    operational_status = profile.operational_status if profile else "planned"
+    operational_status = (
+        cast(OperationalStatus, profile.operational_status) if profile else "planned"
+    )
     security_level = profile.security_level if profile else "internal"
     health = compute_project_health(db, project_id, persist=False)
     tasks = list(
-        db.scalars(select(Task).where(Task.project_id == project_id).order_by(Task.priority, Task.created_at))
+        db.scalars(
+            select(Task)
+            .where(Task.project_id == project_id)
+            .order_by(Task.priority, Task.created_at)
+        )
     )
     blockers = [task for task in tasks if task.status == WorkStatus.blocked]
     collectors = list(
-        db.scalars(select(CollectorRegistration).where(CollectorRegistration.project_id == project_id))
+        db.scalars(
+            select(CollectorRegistration).where(CollectorRegistration.project_id == project_id)
+        )
     )
     risks = list(
         db.scalars(
@@ -283,14 +311,16 @@ def project_contract(db: Session, project_id: UUID) -> ProjectContractOut:
             ),
         },
         health=health,
-        alerts=alerts,
+        alerts=[AlertOut.model_validate(alert) for alert in alerts],
     )
 
 
 def executive_state(db: Session) -> ExecutiveStateOut:
     now = datetime.now(UTC)
     projects = list(db.scalars(select(Project).order_by(Project.priority, Project.name)))
-    profiles = {profile.project_id: profile for profile in db.scalars(select(ProjectOperationalProfile))}
+    profiles = {
+        profile.project_id: profile for profile in db.scalars(select(ProjectOperationalProfile))
+    }
 
     buckets: dict[str, list[dict[str, object]]] = {
         "running": [],
@@ -346,9 +376,7 @@ def executive_state(db: Session) -> ExecutiveStateOut:
         ],
         costs={
             "summary": summarize_costs(db).model_dump(),
-            "integrations": {
-                state.service_key: state.status for state in integrations
-            },
+            "integrations": {state.service_key: state.status for state in integrations},
         },
         risks=[
             {
