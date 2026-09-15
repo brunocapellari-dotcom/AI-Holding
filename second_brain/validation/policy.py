@@ -19,6 +19,8 @@ def _independent_for_claim(claim: Claim, evaluation: Evaluation) -> bool:
     disallowed = {
         claim.provenance.collector_agent_id,
         claim.provenance.interpreter_agent_id,
+        claim.provenance.extractor_agent_id,
+        claim.provenance.verifier_agent_id,
     }
     return evaluation.evaluator_id not in {item for item in disallowed if item}
 
