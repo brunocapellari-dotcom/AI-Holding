@@ -16,6 +16,7 @@ from app.models.holding import (
     IntegrationState,
     ProjectHealthSnapshot,
     ProjectOperationalProfile,
+    RevenueEntry,
     RiskRegisterEntry,
 )
 from app.schemas.holding import (
@@ -26,6 +27,9 @@ from app.schemas.holding import (
     HealthState,
     OperationalStatus,
     ProjectContractOut,
+    ProjectRegistryEntryOut,
+    RevenueSummary,
+    SecurityLevel,
 )
 
 
@@ -62,6 +66,28 @@ def summarize_costs(db: Session, project_id: UUID | None = None) -> CostSummary:
         totals_by_currency=totals_by_currency,
         by_category=by_category,
         by_provider=by_provider,
+    )
+
+
+def summarize_revenues(db: Session, project_id: UUID | None = None) -> RevenueSummary:
+    statement = select(RevenueEntry)
+    if project_id is not None:
+        statement = statement.where(RevenueEntry.project_id == project_id)
+    entries = list(db.scalars(statement))
+
+    totals_by_currency: dict[str, int] = {}
+    by_source: dict[str, dict[str, int]] = {}
+    for entry in entries:
+        totals_by_currency[entry.currency] = (
+            totals_by_currency.get(entry.currency, 0) + entry.amount_micros
+        )
+        source_totals = by_source.setdefault(entry.source, {})
+        source_totals[entry.currency] = source_totals.get(entry.currency, 0) + entry.amount_micros
+
+    return RevenueSummary(
+        project_id=project_id,
+        totals_by_currency=totals_by_currency,
+        by_source=by_source,
     )
 
 
@@ -298,6 +324,7 @@ def project_contract(db: Session, project_id: UUID) -> ProjectContractOut:
             for task in blockers
         ],
         cost=summarize_costs(db, project_id),
+        revenue=summarize_revenues(db, project_id),
         security={
             "level": security_level,
             "open_risks": len(risks),
@@ -315,12 +342,48 @@ def project_contract(db: Session, project_id: UUID) -> ProjectContractOut:
     )
 
 
-def executive_state(db: Session) -> ExecutiveStateOut:
-    now = datetime.now(UTC)
+def project_registry(db: Session) -> list[ProjectRegistryEntryOut]:
     projects = list(db.scalars(select(Project).order_by(Project.priority, Project.name)))
     profiles = {
         profile.project_id: profile for profile in db.scalars(select(ProjectOperationalProfile))
     }
+    rows: list[ProjectRegistryEntryOut] = []
+    for project in projects:
+        profile = profiles.get(project.id)
+        operational_status = cast(
+            OperationalStatus,
+            profile.operational_status if profile else "planned",
+        )
+        security_level = cast(
+            SecurityLevel,
+            profile.security_level if profile else "internal",
+        )
+        rows.append(
+            ProjectRegistryEntryOut(
+                project_id=project.id,
+                project_key=project.key,
+                name=project.name,
+                repository=project.repository,
+                legacy_status=project.status.value,
+                operational_status=operational_status,
+                priority=project.priority,
+                autonomy_level=project.autonomy_level,
+                business_unit=project.business_unit,
+                mission=profile.mission if profile else project.strategic_goal,
+                current_phase=profile.current_phase if profile else None,
+                knowledge_namespace=profile.knowledge_namespace if profile else None,
+                security_level=security_level,
+                budget_micros=profile.budget_micros if profile else 0,
+                budget_currency=profile.budget_currency if profile else "BRL",
+                health=compute_project_health(db, project.id, persist=False),
+            )
+        )
+    return rows
+
+
+def executive_state(db: Session) -> ExecutiveStateOut:
+    now = datetime.now(UTC)
+    registry = project_registry(db)
 
     buckets: dict[str, list[dict[str, object]]] = {
         "running": [],
@@ -329,18 +392,18 @@ def executive_state(db: Session) -> ExecutiveStateOut:
         "blocked": [],
     }
     priorities: list[dict[str, object]] = []
-    for project in projects:
-        profile = profiles.get(project.id)
-        status = profile.operational_status if profile else "planned"
+    for project in registry:
         item: dict[str, object] = {
-            "project_id": str(project.id),
-            "key": project.key,
+            "project_id": str(project.project_id),
+            "key": project.project_key,
             "name": project.name,
             "priority": project.priority,
-            "status": status,
+            "status": project.operational_status,
+            "health": project.health.state,
+            "health_score": project.health.score,
         }
-        if status in buckets:
-            buckets[status].append(item)
+        if project.operational_status in buckets:
+            buckets[project.operational_status].append(item)
         priorities.append(item)
 
     owner_decisions = list(
@@ -378,6 +441,7 @@ def executive_state(db: Session) -> ExecutiveStateOut:
             "summary": summarize_costs(db).model_dump(),
             "integrations": {state.service_key: state.status for state in integrations},
         },
+        revenues={"summary": summarize_revenues(db).model_dump()},
         risks=[
             {
                 "risk_id": str(risk.id),
