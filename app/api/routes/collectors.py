@@ -10,7 +10,7 @@ from app.core.actor import ActorContext, get_actor
 from app.core.authorization import AgentPermission, authorize_mutation
 from app.core.config import settings
 from app.db.session import get_db
-from app.models.collector import Collector
+from app.models.collector import Collector, CollectorStatus
 from app.models.entities import Agent
 from app.schemas.collectors import (
     CollectorActivation,
@@ -35,7 +35,7 @@ def _collector_out(item: Collector) -> CollectorOut:
         frequency_seconds=item.frequency_seconds,
         last_collected_at=item.last_collected_at,
         last_success_at=item.last_success_at,
-        status=item.status,
+        status=CollectorStatus(item.status),
         latency_ms=item.latency_ms,
         failure_count=item.failure_count,
         consecutive_failures=item.consecutive_failures,
