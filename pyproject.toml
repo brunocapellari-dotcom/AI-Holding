@@ -13,6 +13,7 @@ dependencies = [
   "uvicorn[standard]>=0.30,<1",
   "sqlalchemy>=2.0,<3",
   "psycopg[binary]>=3.2,<4",
+  "cloud-sql-python-connector[psycopg]>=1.22,<2",
   "alembic>=1.13,<2",
   "pydantic-settings>=2.5,<3",
   "python-json-logger>=2.0,<4",
