@@ -4,7 +4,8 @@ from collections.abc import Callable
 from typing import Any
 
 from google.cloud.sql.connector import Connector
-from sqlalchemy import Engine, create_engine
+from sqlalchemy import create_engine
+from sqlalchemy.engine import Engine
 
 from app.core.config import Settings
 
