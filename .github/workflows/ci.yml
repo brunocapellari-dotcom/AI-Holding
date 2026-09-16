@@ -57,6 +57,16 @@ jobs:
       - name: Full project gate
         run: bash scripts/full_project_gate.sh
 
+      - name: Terraform and IaC misconfiguration gate
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: infra/terraform
+          scanners: misconfig
+          format: table
+          exit-code: "1"
+          severity: HIGH,CRITICAL
+
       - name: Generate CycloneDX SBOM
         uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
         with:
@@ -75,6 +85,7 @@ jobs:
           ignore-unfixed: true
           severity: HIGH,CRITICAL
           vuln-type: os,library
+          skip-setup-trivy: true
 
   deploy-production:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
