@@ -19,6 +19,9 @@ def test_verified_repository_locations_are_canonical(db_session) -> None:
     )
     assert projects["WORLDWAR_MODERN"].repository == "brunocapellari-dotcom/Game-Studio"
     assert projects["WORLDWAR_MODERN"].repository_path == "games/worldwar-modern"
+    assert projects["PERSONAL_PERFORMANCE_HEALTH_OS"].repository == (
+        "brunocapellari-dotcom/Personal-Performance-Health-OS"
+    )
     assert projects["HERMES_AI_PLATFORM"].status == ProjectStatus.incubating
 
 
