@@ -7,6 +7,7 @@ from sqlalchemy import text
 from starlette.middleware.base import RequestResponseEndpoint
 
 from app.api.routes import (
+    audit,
     agents,
     decisions,
     executive,
@@ -65,6 +66,7 @@ def metrics() -> Response:
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
+app.include_router(audit.router, prefix=settings.api_prefix)
 app.include_router(projects.router, prefix=settings.api_prefix)
 app.include_router(tasks.router, prefix=settings.api_prefix)
 app.include_router(decisions.router, prefix=settings.api_prefix)
