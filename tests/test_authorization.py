@@ -4,7 +4,7 @@ import pytest
 from fastapi import HTTPException
 
 from app.core.actor import ActorContext
-from app.core.authorization import AgentPermission, authorize_mutation
+from app.core.authorization import AgentPermission, ReadScope, authorize_mutation, authorize_read
 from app.core.config import settings
 from app.models.agent_identity import AgentIdentity
 from app.models.entities import Agent, AgentStatus
@@ -247,3 +247,45 @@ def test_service_account_cannot_act_as_another_agent(db_session, monkeypatch):
         )
     assert exc_info.value.status_code == 403
     assert "another agent" in exc_info.value.detail
+
+
+def test_human_read_scopes_are_fail_closed_and_role_bounded(db_session, monkeypatch):
+    monkeypatch.setattr(settings, "environment", "production")
+
+    owner = human_actor(email="owner@example.com")
+    bind_human(db_session, role=HumanRole.owner, actor=owner)
+    for scope in ReadScope:
+        assert authorize_read(db_session, owner, scope=scope) == HumanRole.owner
+
+    viewer = human_actor(subject="viewer-subject", email="viewer@example.com")
+    bind_human(db_session, role=HumanRole.viewer, actor=viewer)
+    assert authorize_read(db_session, viewer, scope=ReadScope.operational) == HumanRole.viewer
+    with pytest.raises(HTTPException) as exc_info:
+        authorize_read(db_session, viewer, scope=ReadScope.financial)
+    assert exc_info.value.status_code == 403
+
+
+def test_agent_read_scopes_block_cross_domain_access(db_session, monkeypatch):
+    monkeypatch.setattr(settings, "environment", "production")
+    pmo = create_bound_pmo(db_session)
+    assert authorize_read(db_session, service_actor(), scope=ReadScope.operational) == pmo
+    assert authorize_read(db_session, service_actor(), scope=ReadScope.governance) == pmo
+
+    with pytest.raises(HTTPException) as exc_info:
+        authorize_read(db_session, service_actor(), scope=ReadScope.financial)
+    assert exc_info.value.status_code == 403
+
+    knowledge = create_bound_knowledge(db_session)
+    knowledge_actor = service_actor(subject="subject-knowledge")
+    assert authorize_read(db_session, knowledge_actor, scope=ReadScope.knowledge) == knowledge
+
+    with pytest.raises(HTTPException) as exc_info:
+        authorize_read(db_session, knowledge_actor, scope=ReadScope.security)
+    assert exc_info.value.status_code == 403
+
+
+def test_unbound_human_cannot_read_scoped_data(db_session, monkeypatch):
+    monkeypatch.setattr(settings, "environment", "production")
+    with pytest.raises(HTTPException) as exc_info:
+        authorize_read(db_session, human_actor(), scope=ReadScope.operational)
+    assert exc_info.value.status_code == 403
