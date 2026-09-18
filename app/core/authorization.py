@@ -12,6 +12,7 @@ from app.core.actor import ActorContext
 from app.core.config import settings
 from app.models.agent_identity import AgentIdentity
 from app.models.entities import Agent, AgentStatus
+from app.models.human_identity import HumanIdentityRole, HumanRole
 
 logger = logging.getLogger("holding-control-plane.authorization")
 
@@ -91,6 +92,35 @@ def _bound_agent(db: Session, actor: ActorContext) -> Agent:
     return agent
 
 
+def _bound_human_role(db: Session, actor: ActorContext) -> HumanRole:
+    if (
+        not actor.authenticated
+        or actor.actor_type != "human"
+        or not actor.issuer
+        or not actor.subject
+    ):
+        raise _forbidden("authenticated human identity is required")
+
+    binding = db.scalar(
+        select(HumanIdentityRole).where(
+            HumanIdentityRole.issuer == actor.issuer,
+            HumanIdentityRole.subject == actor.subject,
+        )
+    )
+    if binding is None:
+        logger.warning("unbound human attempted a mutation")
+        raise _forbidden("human identity is not bound to an authorized role")
+    if binding.email.casefold() != actor.name.casefold():
+        logger.warning("human identity email drift detected for bound subject")
+        raise _forbidden("human identity binding does not match the verified email")
+
+    try:
+        return HumanRole(binding.role)
+    except ValueError as exc:
+        logger.error("human identity binding contains an invalid role")
+        raise _forbidden("human identity binding is invalid") from exc
+
+
 def authorize_mutation(
     db: Session,
     actor: ActorContext,
@@ -102,8 +132,9 @@ def authorize_mutation(
     """Authorize a write operation and return the bound service agent when applicable.
 
     Development and test environments preserve local ergonomics. In production,
-    authenticated humans are governed by the Cloud Run IAM invoker boundary when
-    the route explicitly permits human operation. Service accounts are denied by
+    human mutations require an explicit subject-bound owner role in addition to the
+    Cloud Run IAM invoker boundary. Other human roles are read-only until a granular
+    permission matrix is explicitly introduced. Service accounts are denied by
     default and require a canonical binding plus an explicit code-owned permission.
     """
 
@@ -114,9 +145,14 @@ def authorize_mutation(
         raise _forbidden("authenticated identity is required")
 
     if actor.actor_type == "human":
-        if allow_human:
-            return None
-        raise _forbidden("this mutation requires a canonical service agent")
+        if not allow_human:
+            raise _forbidden("this mutation requires a canonical service agent")
+        human_role = _bound_human_role(db, actor)
+        if human_role != HumanRole.owner:
+            raise _forbidden(
+                f"human role {human_role.value} is read-only for mutations"
+            )
+        return None
 
     if actor.actor_type != "service-account":
         raise _forbidden("actor type is not authorized for mutations")
