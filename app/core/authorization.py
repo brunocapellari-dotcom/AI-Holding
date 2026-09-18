@@ -60,6 +60,39 @@ AGENT_PERMISSIONS: dict[str, frozenset[AgentPermission]] = {
 }
 
 
+
+class ReadScope(StrEnum):
+    operational = "operational"
+    governance = "governance"
+    financial = "financial"
+    security = "security"
+    knowledge = "knowledge"
+    audit = "audit"
+
+
+AGENT_READ_SCOPES: dict[str, frozenset[ReadScope]] = {
+    "PMO_IA": frozenset({ReadScope.operational, ReadScope.governance}),
+    "KNOWLEDGE_IA": frozenset({ReadScope.knowledge}),
+    "AUDITOR_IA": frozenset(ReadScope),
+    "CEO_IA": frozenset(ReadScope),
+    "HERMES": frozenset(
+        {
+            ReadScope.operational,
+            ReadScope.governance,
+            ReadScope.financial,
+            ReadScope.security,
+        }
+    ),
+}
+
+HUMAN_READ_SCOPES: dict[HumanRole, frozenset[ReadScope]] = {
+    HumanRole.owner: frozenset(ReadScope),
+    HumanRole.operator: frozenset({ReadScope.operational, ReadScope.governance}),
+    HumanRole.auditor: frozenset(ReadScope),
+    HumanRole.viewer: frozenset({ReadScope.operational}),
+}
+
+
 def _forbidden(detail: str) -> HTTPException:
     return HTTPException(status_code=403, detail=detail)
 
@@ -119,6 +152,40 @@ def _bound_human_role(db: Session, actor: ActorContext) -> HumanRole:
     except ValueError as exc:
         logger.error("human identity binding contains an invalid role")
         raise _forbidden("human identity binding is invalid") from exc
+
+
+
+def authorize_read(
+    db: Session,
+    actor: ActorContext,
+    *,
+    scope: ReadScope,
+) -> Agent | HumanRole | None:
+    """Authorize a read using application-level scopes in addition to platform IAM."""
+
+    if settings.environment in {"development", "test"}:
+        return None
+
+    if not actor.authenticated:
+        raise _forbidden("authenticated identity is required")
+
+    if actor.actor_type == "human":
+        role = _bound_human_role(db, actor)
+        if scope not in HUMAN_READ_SCOPES.get(role, frozenset()):
+            raise _forbidden(
+                f"human role {role.value} cannot read {scope.value} data"
+            )
+        return role
+
+    if actor.actor_type == "service-account":
+        agent = _bound_agent(db, actor)
+        if scope not in AGENT_READ_SCOPES.get(agent.key, frozenset()):
+            raise _forbidden(
+                f"canonical agent {agent.key} cannot read {scope.value} data"
+            )
+        return agent
+
+    raise _forbidden("actor type is not authorized for reads")
 
 
 def authorize_mutation(
