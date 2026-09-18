@@ -50,3 +50,21 @@ def test_password_database_secret_is_explicitly_rollback_only_for_migration_iden
     assert 'resource "google_secret_manager_secret_iam_member" "migration_database_url_rollback"' in (
         database_iam
     )
+
+
+def test_worker_recurrence_uses_cloud_scheduler_not_github_actions() -> None:
+    scheduler = _read("scheduler.tf")
+    assert 'resource "google_cloud_scheduler_job" "pmo_worker"' in scheduler
+    assert 'resource "google_cloud_scheduler_job" "knowledge_worker"' in scheduler
+    assert "https://run.googleapis.com/v2/projects/" in scheduler
+    assert "oauth_token" in scheduler
+    assert "github_main_scheduler_principal" not in scheduler
+    assert not Path(".github/workflows/autonomous-workers.yml").exists()
+
+
+def test_cloud_scheduler_identity_is_only_job_invoker_in_scheduler_contract() -> None:
+    scheduler = _read("scheduler.tf")
+    assert scheduler.count('role     = "roles/run.invoker"') == 2
+    assert "roles/run.admin" not in scheduler
+    assert "roles/editor" not in scheduler
+    assert "roles/owner" not in scheduler
