@@ -13,6 +13,7 @@ from app.models import (  # noqa: F401
     holding,
     holding_evidence,
     holding_governance,
+    human_identity,
     knowledge,
     routine,
 )
