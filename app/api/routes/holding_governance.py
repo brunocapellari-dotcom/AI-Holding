@@ -22,7 +22,11 @@ from app.schemas.holding_governance import (
 from app.services.audit import record_audit
 from app.services.governance_review import review_project_governance
 
-router = APIRouter(\n    prefix="/holding/governance",\n    tags=["holding-governance"],\n    dependencies=[Depends(require_governance_read)],\n)
+router = APIRouter(
+    prefix="/holding/governance",
+    tags=["holding-governance"],
+    dependencies=[Depends(require_governance_read)],
+)
 DbSession = Annotated[Session, Depends(get_db)]
 Actor = Annotated[ActorContext, Depends(get_actor)]
 
