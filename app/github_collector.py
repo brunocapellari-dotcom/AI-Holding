@@ -9,8 +9,6 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from types import TracebackType
-from typing import Any
-
 import httpx
 
 from app.pmo_worker import ControlPlaneClient, WorkerConfig, google_identity_token
@@ -76,7 +74,7 @@ class GitHubClient:
         self._client = httpx.Client(
             base_url=GITHUB_API_BASE,
             headers={
-                "Authorization": f"Bearer {token}",
+                "Authorization": f"Bearer {token.strip()}",
                 "Accept": "application/vnd.github+json",
                 "X-GitHub-Api-Version": GITHUB_API_VERSION,
                 "User-Agent": "ai-holding-github-collector/1.0",
@@ -103,6 +101,9 @@ class GitHubClient:
         normalized = repository.strip()
         if not REPOSITORY_PATTERN.fullmatch(normalized):
             raise ValueError("repository must use canonical owner/name form")
+        owner, name = normalized.split("/", maxsplit=1)
+        if owner in {".", ".."} or name in {".", ".."}:
+            raise ValueError("repository segments cannot be dot path components")
         return normalized
 
     def repository_snapshot(self, repository: str) -> dict[str, object]:
