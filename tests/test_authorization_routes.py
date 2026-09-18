@@ -359,3 +359,62 @@ def test_pmo_service_account_has_only_bounded_collector_mutations(
         assert forbidden_risk.status_code == 403
     finally:
         client.app.dependency_overrides.pop(get_actor, None)
+
+
+def test_pmo_cannot_read_sensitive_project_contract_or_executive_state(
+    client,
+    db_session,
+    monkeypatch,
+):
+    monkeypatch.setattr(settings, "environment", "production")
+    pmo, project, _, _ = _seed_runtime(db_session)
+    pmo.status = AgentStatus.active
+    db_session.commit()
+
+    client.app.dependency_overrides[get_actor] = _service_actor
+    try:
+        contract = client.get(f"/api/v1/holding/projects/{project.id}/contract")
+        assert contract.status_code == 403
+        assert "financial" in contract.json()["detail"]
+
+        executive = client.get("/api/v1/holding/executive-state")
+        assert executive.status_code == 403
+        assert "financial" in executive.json()["detail"]
+    finally:
+        client.app.dependency_overrides.pop(get_actor, None)
+
+
+def test_bound_owner_can_read_compound_executive_contract(
+    client,
+    db_session,
+    monkeypatch,
+):
+    monkeypatch.setattr(settings, "environment", "production")
+    _, project, _, _ = _seed_runtime(db_session)
+    db_session.add(
+        HumanIdentityRole(
+            issuer="https://accounts.google.com",
+            subject="owner-compound-subject",
+            email="owner-compound@example.com",
+            role=HumanRole.owner.value,
+        )
+    )
+    db_session.commit()
+
+    def owner_actor() -> ActorContext:
+        return ActorContext(
+            name="owner-compound@example.com",
+            actor_type="human",
+            subject="owner-compound-subject",
+            issuer="https://accounts.google.com",
+            authenticated=True,
+        )
+
+    client.app.dependency_overrides[get_actor] = owner_actor
+    try:
+        contract = client.get(f"/api/v1/holding/projects/{project.id}/contract")
+        assert contract.status_code == 200, contract.text
+        executive = client.get("/api/v1/holding/executive-state")
+        assert executive.status_code == 200, executive.text
+    finally:
+        client.app.dependency_overrides.pop(get_actor, None)
