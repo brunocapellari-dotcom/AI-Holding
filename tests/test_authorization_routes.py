@@ -2,6 +2,7 @@ from app.core.actor import ActorContext, get_actor
 from app.core.config import settings
 from app.models.agent_identity import AgentIdentity
 from app.models.entities import Agent, AgentStatus, Project, Task, WorkStatus
+from app.models.human_identity import HumanIdentityRole, HumanRole
 
 
 def _service_actor() -> ActorContext:
@@ -186,5 +187,102 @@ def test_unbound_service_account_is_denied_at_route_boundary(client, db_session,
             },
         )
         assert incident.status_code == 403
+    finally:
+        client.app.dependency_overrides.pop(get_actor, None)
+
+
+def test_scoped_reads_prevent_cross_domain_service_access(client, db_session, monkeypatch):
+    monkeypatch.setattr(settings, "environment", "production")
+    pmo, _, _, _ = _seed_runtime(db_session)
+    pmo.status = AgentStatus.active
+    db_session.commit()
+
+    client.app.dependency_overrides[get_actor] = _service_actor
+    try:
+        operational = client.get("/api/v1/holding/projects/registry")
+        assert operational.status_code == 200, operational.text
+
+        financial = client.get("/api/v1/holding/costs/summary")
+        assert financial.status_code == 403
+        assert "financial" in financial.json()["detail"]
+    finally:
+        client.app.dependency_overrides.pop(get_actor, None)
+
+
+def test_knowledge_agent_is_bounded_to_knowledge_reads(client, db_session, monkeypatch):
+    monkeypatch.setattr(settings, "environment", "production")
+    knowledge = Agent(
+        key="KNOWLEDGE_IA",
+        name="Knowledge IA",
+        role="Knowledge worker",
+        status=AgentStatus.active,
+        max_autonomy=4,
+        model_policy={"status": "unconfigured"},
+        capabilities=["knowledge-ingestion"],
+    )
+    db_session.add(knowledge)
+    db_session.flush()
+    db_session.add(
+        AgentIdentity(
+            agent_id=knowledge.id,
+            issuer="https://accounts.google.com",
+            subject="subject-knowledge-route",
+            email="holding-knowledge-worker@ai-holding-prod-bc.iam.gserviceaccount.com",
+        )
+    )
+    db_session.commit()
+
+    def knowledge_actor() -> ActorContext:
+        return ActorContext(
+            name="holding-knowledge-worker@ai-holding-prod-bc.iam.gserviceaccount.com",
+            actor_type="service-account",
+            subject="subject-knowledge-route",
+            issuer="https://accounts.google.com",
+            authenticated=True,
+        )
+
+    client.app.dependency_overrides[get_actor] = knowledge_actor
+    try:
+        knowledge_queue = client.get("/api/v1/knowledge/gaps")
+        assert knowledge_queue.status_code == 200, knowledge_queue.text
+
+        holding_state = client.get("/api/v1/holding/projects/registry")
+        assert holding_state.status_code == 403
+        assert "operational" in holding_state.json()["detail"]
+    finally:
+        client.app.dependency_overrides.pop(get_actor, None)
+
+
+def test_bound_owner_can_read_sensitive_holding_domains(client, db_session, monkeypatch):
+    monkeypatch.setattr(settings, "environment", "production")
+    db_session.add(
+        HumanIdentityRole(
+            issuer="https://accounts.google.com",
+            subject="owner-route-subject",
+            email="owner@example.com",
+            role=HumanRole.owner.value,
+        )
+    )
+    db_session.commit()
+
+    def owner_actor() -> ActorContext:
+        return ActorContext(
+            name="owner@example.com",
+            actor_type="human",
+            subject="owner-route-subject",
+            issuer="https://accounts.google.com",
+            authenticated=True,
+        )
+
+    client.app.dependency_overrides[get_actor] = owner_actor
+    try:
+        for path in (
+            "/api/v1/holding/projects/registry",
+            "/api/v1/holding/costs/summary",
+            "/api/v1/holding/security/findings",
+            "/api/v1/holding/tool-decisions",
+        ):
+            response = client.get(path)
+            assert response.status_code == 200, (path, response.text)
     finally:
         client.app.dependency_overrides.pop(get_actor, None)
