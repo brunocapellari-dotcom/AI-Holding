@@ -286,3 +286,76 @@ def test_bound_owner_can_read_sensitive_holding_domains(client, db_session, monk
             assert response.status_code == 200, (path, response.text)
     finally:
         client.app.dependency_overrides.pop(get_actor, None)
+
+
+def test_pmo_service_account_has_only_bounded_collector_mutations(
+    client,
+    db_session,
+    monkeypatch,
+):
+    monkeypatch.setattr(settings, "environment", "production")
+    pmo, project, _, _ = _seed_runtime(db_session)
+    pmo.status = AgentStatus.active
+    db_session.commit()
+
+    client.app.dependency_overrides[get_actor] = _service_actor
+    try:
+        project_id = str(project.id)
+        collector_payload = {
+            "key": "github-repository",
+            "source": "github-api",
+            "data_type": "repository_and_ci_state",
+            "frequency_seconds": 600,
+            "freshness_sla_seconds": 1800,
+            "retry_policy": {"max_attempts": 3},
+            "status": "degraded",
+            "last_success_at": None,
+            "last_failure_at": None,
+            "last_latency_ms": None,
+            "consecutive_failures": 0,
+            "metadata_json": {},
+        }
+        collector = client.put(
+            f"/api/v1/holding/projects/{project_id}/collectors/github-repository",
+            json=collector_payload,
+        )
+        assert collector.status_code == 200, collector.text
+
+        execution = client.post(
+            (
+                f"/api/v1/holding/projects/{project_id}/collectors/"
+                "github-repository/executions"
+            ),
+            json={
+                "status": "success",
+                "started_at": "2026-09-18T12:00:00Z",
+                "finished_at": "2026-09-18T12:00:01Z",
+                "records_seen": 2,
+                "records_written": 1,
+                "evidence": [{"source": "test"}],
+                "metadata_json": {},
+            },
+        )
+        assert execution.status_code == 201, execution.text
+
+        health = client.post(f"/api/v1/holding/projects/{project_id}/health/recompute")
+        assert health.status_code == 200, health.text
+
+        forbidden_risk = client.post(
+            "/api/v1/holding/risks",
+            json={
+                "project_id": project_id,
+                "key": "PMO_SCOPE_TEST",
+                "description": "PMO must not create arbitrary risk records",
+                "probability": 10,
+                "impact": 1,
+                "severity": "low",
+                "mitigation": "",
+                "owner": "risk-ai",
+                "status": "open",
+                "metadata_json": {},
+            },
+        )
+        assert forbidden_risk.status_code == 403
+    finally:
+        client.app.dependency_overrides.pop(get_actor, None)
