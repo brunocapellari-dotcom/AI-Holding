@@ -83,3 +83,10 @@ def test_github_collector_is_secret_gated_and_disabled_by_default() -> None:
     assert "github.com/" not in collector
     assert "ghp_" not in collector
     assert "github_pat_" not in collector
+
+
+def test_audit_events_have_postgresql_append_only_trigger_migration() -> None:
+    migration = Path("alembic/versions/0018_audit_immutability.py").read_text(encoding="utf-8")
+    assert "BEFORE UPDATE OR DELETE ON audit_events" in migration
+    assert "audit_events is append-only" in migration
+    assert 'bind.dialect.name != "postgresql"' in migration
