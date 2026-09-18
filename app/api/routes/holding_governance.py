@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.access_dependencies import require_governance_read
 from app.core.actor import ActorContext, get_actor
 from app.core.authorization import authorize_mutation
 from app.db.session import get_db
@@ -21,7 +22,7 @@ from app.schemas.holding_governance import (
 from app.services.audit import record_audit
 from app.services.governance_review import review_project_governance
 
-router = APIRouter(prefix="/holding/governance", tags=["holding-governance"])
+router = APIRouter(\n    prefix="/holding/governance",\n    tags=["holding-governance"],\n    dependencies=[Depends(require_governance_read)],\n)
 DbSession = Annotated[Session, Depends(get_db)]
 Actor = Annotated[ActorContext, Depends(get_actor)]
 
