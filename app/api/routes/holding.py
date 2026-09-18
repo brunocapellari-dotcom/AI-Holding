@@ -16,7 +16,7 @@ from app.core.access_dependencies import (
     require_security_read,
 )
 from app.core.actor import ActorContext, get_actor
-from app.core.authorization import authorize_mutation
+from app.core.authorization import AgentPermission, authorize_mutation
 from app.db.session import get_db
 from app.models.entities import Project
 from app.models.holding import (
@@ -190,7 +190,11 @@ def upsert_collector(
     db: DbSession,
     actor: Actor,
 ) -> CollectorRegistration:
-    authorize_mutation(db, actor)
+    authorize_mutation(
+        db,
+        actor,
+        permission=AgentPermission.manage_collectors,
+    )
     _require_project(db, project_id)
     if payload.key != collector_key:
         raise HTTPException(status_code=400, detail="collector key mismatch")
@@ -245,7 +249,11 @@ def create_collector_execution(
     db: DbSession,
     actor: Actor,
 ) -> CollectorExecution:
-    authorize_mutation(db, actor)
+    authorize_mutation(
+        db,
+        actor,
+        permission=AgentPermission.record_collector_execution,
+    )
     _require_project(db, project_id)
     collector = db.scalar(
         select(CollectorRegistration).where(
