@@ -296,7 +296,7 @@ def run_once(
             if cached is None:
                 try:
                     cached = github.repository_snapshot(repository)
-                except Exception as exc:
+                except (httpx.HTTPError, ValueError, RuntimeError) as exc:
                     cached = exc
                 snapshot_cache[repository] = cached
 
