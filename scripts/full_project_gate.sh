@@ -81,4 +81,4 @@ terraform -chdir=infra/terraform validate
 
 docker build --pull --tag holding-control-plane:ci .
 docker run --rm holding-control-plane:ci python -c \
-  "import app.main, app.db_migrate, app.bootstrap, app.pmo_worker, app.pmo_acceptance, app.knowledge_acceptance"
+  "import app.main, app.db_migrate, app.bootstrap, app.pmo_worker, app.github_collector, app.pmo_acceptance, app.knowledge_acceptance"
