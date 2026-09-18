@@ -68,3 +68,18 @@ def test_cloud_scheduler_identity_is_only_job_invoker_in_scheduler_contract() ->
     assert "roles/run.admin" not in scheduler
     assert "roles/editor" not in scheduler
     assert "roles/owner" not in scheduler
+
+
+def test_github_collector_is_secret_gated_and_disabled_by_default() -> None:
+    collector = _read("github_collector.tf")
+    assert 'variable "github_collector_enabled"' in collector
+    assert "default     = false" in collector
+    assert 'variable "github_collector_token_secret_id"' in collector
+    assert 'data "google_secret_manager_secret" "github_collector_token"' in collector
+    assert "GITHUB_TOKEN" in collector
+    assert "roles/secretmanager.secretAccessor" in collector
+    assert 'service_account = google_service_account.pmo_worker.email' in collector
+    assert 'resource "google_cloud_scheduler_job" "github_collector"' in collector
+    assert "github.com/" not in collector
+    assert "ghp_" not in collector
+    assert "github_pat_" not in collector
