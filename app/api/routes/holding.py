@@ -9,6 +9,12 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.access_dependencies import (
+    require_financial_read,
+    require_governance_read,
+    require_operational_read,
+    require_security_read,
+)
 from app.core.actor import ActorContext, get_actor
 from app.core.authorization import authorize_mutation
 from app.db.session import get_db
@@ -81,7 +87,7 @@ from app.services.holding import (
 )
 from app.services.holding_analysis import analyze_finops, completion_gate, evaluate_venture
 
-router = APIRouter(prefix="/holding", tags=["holding"])
+router = APIRouter(\n    prefix="/holding",\n    tags=["holding"],\n    dependencies=[Depends(require_operational_read)],\n)
 DbSession = Annotated[Session, Depends(get_db)]
 Actor = Annotated[ActorContext, Depends(get_actor)]
 
@@ -337,7 +343,7 @@ def create_risk(payload: RiskCreate, db: DbSession, actor: Actor) -> RiskRegiste
     return risk
 
 
-@router.get("/risks", response_model=list[RiskOut])
+@router.get(\n    "/risks",\n    response_model=list[RiskOut],\n    dependencies=[Depends(require_governance_read)],\n)
 def list_risks(db: DbSession, project_id: UUID | None = None) -> list[RiskRegisterEntry]:
     statement = select(RiskRegisterEntry).order_by(
         RiskRegisterEntry.severity.desc(), RiskRegisterEntry.date_detected.desc()
@@ -373,7 +379,7 @@ def create_security_finding(
     return finding
 
 
-@router.get("/security/findings", response_model=list[SecurityFindingOut])
+@router.get(\n    "/security/findings",\n    response_model=list[SecurityFindingOut],\n    dependencies=[Depends(require_security_read)],\n)
 def list_security_findings(
     db: DbSession,
     project_id: UUID | None = None,
@@ -407,7 +413,7 @@ def create_cost(payload: CostCreate, db: DbSession, actor: Actor) -> CostEntry:
     return cost
 
 
-@router.get("/costs/summary", response_model=CostSummary)
+@router.get(\n    "/costs/summary",\n    response_model=CostSummary,\n    dependencies=[Depends(require_financial_read)],\n)
 def get_cost_summary(db: DbSession, project_id: UUID | None = None) -> CostSummary:
     if project_id is not None:
         _require_project(db, project_id)
@@ -456,7 +462,7 @@ def create_revenue(payload: RevenueCreate, db: DbSession, actor: Actor) -> Reven
     return revenue
 
 
-@router.get("/revenues/summary", response_model=RevenueSummary)
+@router.get(\n    "/revenues/summary",\n    response_model=RevenueSummary,\n    dependencies=[Depends(require_financial_read)],\n)
 def get_revenue_summary(db: DbSession, project_id: UUID | None = None) -> RevenueSummary:
     if project_id is not None:
         _require_project(db, project_id)
@@ -495,7 +501,7 @@ def create_financial_snapshot(
     return snapshot
 
 
-@router.get("/financial-snapshots", response_model=list[FinancialSnapshotOut])
+@router.get(\n    "/financial-snapshots",\n    response_model=list[FinancialSnapshotOut],\n    dependencies=[Depends(require_financial_read)],\n)
 def list_financial_snapshots(
     db: DbSession,
     project_id: UUID | None = None,
@@ -707,7 +713,7 @@ def create_resource_allocation(
     return allocation
 
 
-@router.get("/resource-allocations", response_model=list[ResourceAllocationOut])
+@router.get(\n    "/resource-allocations",\n    response_model=list[ResourceAllocationOut],\n    dependencies=[Depends(require_financial_read)],\n)
 def list_resource_allocations(
     db: DbSession,
     project_id: UUID | None = None,
@@ -751,7 +757,7 @@ def create_portfolio_review(
     return review
 
 
-@router.get("/portfolio-reviews", response_model=list[PortfolioReviewOut])
+@router.get(\n    "/portfolio-reviews",\n    response_model=list[PortfolioReviewOut],\n    dependencies=[Depends(require_governance_read)],\n)
 def list_portfolio_reviews(
     db: DbSession,
     project_id: UUID | None = None,
@@ -797,7 +803,7 @@ def create_tool_decision(
     return decision
 
 
-@router.get("/tool-decisions", response_model=list[ToolDecisionOut])
+@router.get(\n    "/tool-decisions",\n    response_model=list[ToolDecisionOut],\n    dependencies=[Depends(require_governance_read)],\n)
 def list_tool_decisions(db: DbSession) -> list[ToolDecision]:
     return list(db.scalars(select(ToolDecision).order_by(ToolDecision.reviewed_at.desc())))
 
