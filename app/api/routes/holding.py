@@ -167,7 +167,11 @@ def get_project_contract(project_id: UUID, db: DbSession) -> ProjectContractOut:
 
 @router.post("/projects/{project_id}/health/recompute", response_model=HealthOut)
 def recompute_health(project_id: UUID, db: DbSession, actor: Actor) -> HealthOut:
-    authorize_mutation(db, actor)
+    authorize_mutation(
+        db,
+        actor,
+        permission=AgentPermission.recompute_project_health,
+    )
     _require_project(db, project_id)
     result = compute_project_health(db, project_id, persist=True)
     record_audit(
