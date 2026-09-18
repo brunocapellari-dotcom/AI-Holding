@@ -104,6 +104,7 @@ jobs:
       SERVICE_NAME: holding-control-plane
       PMO_SERVICE_ACCOUNT: holding-pmo-worker@ai-holding-prod-bc.iam.gserviceaccount.com
       KNOWLEDGE_SERVICE_ACCOUNT: holding-knowledge-worker@ai-holding-prod-bc.iam.gserviceaccount.com
+      MIGRATION_SERVICE_ACCOUNT: holding-db-migration@ai-holding-prod-bc.iam.gserviceaccount.com
       SCHEDULER_SERVICE_ACCOUNT: holding-worker-scheduler@ai-holding-prod-bc.iam.gserviceaccount.com
       TF_STATE_BUCKET: ai-holding-prod-bc-tfstate
       WIF_PROVIDER: projects/868946857614/locations/global/workloadIdentityPools/github-actions/providers/ai-holding-main
@@ -264,7 +265,7 @@ jobs:
           test -n "${actual_knowledge_subject}"
           test "${actual_knowledge_subject}" = "${expected_knowledge_subject}"
 
-      - name: Verify least privilege and keyless worker federation
+      - name: Verify least privilege and Cloud Scheduler recurrence
         run: |
           URL="$(gcloud run services describe "${SERVICE_NAME}" \
             --project="${PROJECT_ID}" \
@@ -291,12 +292,16 @@ jobs:
                 'any(.bindings[]?; .role == "roles/run.invoker" and any(.members[]?; . == $member))'
           done
 
-          expected_principal="$(terraform -chdir=infra/terraform output -raw worker_scheduler_wif_principal)"
-          scheduler_policy="$(gcloud iam service-accounts get-iam-policy \
-            "${SCHEDULER_SERVICE_ACCOUNT}" --project="${PROJECT_ID}" --format=json)"
-          printf '%s\n' "${scheduler_policy}" \
-            | jq -e --arg member "${expected_principal}" \
-              'any(.bindings[]?; .role == "roles/iam.workloadIdentityUser" and any(.members[]?; . == $member))'
+          expected_migration_service_account="$(
+            terraform -chdir=infra/terraform output -raw migration_runtime_service_account
+          )"
+          test "${expected_migration_service_account}" = "${MIGRATION_SERVICE_ACCOUNT}"
+
+          for scheduler in "${SERVICE_NAME}-pmo-schedule" "${SERVICE_NAME}-knowledge-schedule"; do
+            scheduler_state="$(gcloud scheduler jobs describe "${scheduler}" \
+              --project="${PROJECT_ID}" --location="${REGION}" --format='value(state)')"
+            test "${scheduler_state}" = "ENABLED"
+          done
 
           echo "Production Control Plane deployed at ${URL}"
 
@@ -351,4 +356,4 @@ jobs:
       - name: Mark production deployment accepted
         run: |
           echo "Production deploy, migration, identity checks, PMO acceptance and Knowledge IA acceptance succeeded."
-          echo "Recurring worker triggers are isolated in autonomous-workers.yml and authenticate as the bounded scheduler identity."
+          echo "Recurring PMO and Knowledge jobs are triggered directly by Cloud Scheduler using a bounded invoker identity."
