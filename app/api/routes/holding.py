@@ -87,7 +87,11 @@ from app.services.holding import (
 )
 from app.services.holding_analysis import analyze_finops, completion_gate, evaluate_venture
 
-router = APIRouter(\n    prefix="/holding",\n    tags=["holding"],\n    dependencies=[Depends(require_operational_read)],\n)
+router = APIRouter(
+    prefix="/holding",
+    tags=["holding"],
+    dependencies=[Depends(require_operational_read)],
+)
 DbSession = Annotated[Session, Depends(get_db)]
 Actor = Annotated[ActorContext, Depends(get_actor)]
 
