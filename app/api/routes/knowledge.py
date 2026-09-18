@@ -34,7 +34,11 @@ from app.services.knowledge import (
 from app.services.knowledge_gap import find_knowledge_gaps
 from app.services.knowledge_outcome_review import find_outcome_review_candidates
 
-router = APIRouter(\n    prefix="/knowledge",\n    tags=["knowledge"],\n    dependencies=[Depends(require_knowledge_read)],\n)
+router = APIRouter(
+    prefix="/knowledge",
+    tags=["knowledge"],
+    dependencies=[Depends(require_knowledge_read)],
+)
 DbSession = Annotated[Session, Depends(get_db)]
 Actor = Annotated[ActorContext, Depends(get_actor)]
 
