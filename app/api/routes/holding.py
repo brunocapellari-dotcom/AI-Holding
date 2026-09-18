@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.core.access_dependencies import (
     require_financial_read,
+    require_full_holding_read,
     require_governance_read,
     require_operational_read,
     require_security_read,
@@ -161,7 +162,11 @@ def upsert_project_profile(
     return profile
 
 
-@router.get("/projects/{project_id}/contract", response_model=ProjectContractOut)
+@router.get(
+    "/projects/{project_id}/contract",
+    response_model=ProjectContractOut,
+    dependencies=[Depends(require_full_holding_read)],
+)
 def get_project_contract(project_id: UUID, db: DbSession) -> ProjectContractOut:
     try:
         return project_contract(db, project_id)
@@ -824,6 +829,10 @@ def list_tool_decisions(db: DbSession) -> list[ToolDecision]:
     return list(db.scalars(select(ToolDecision).order_by(ToolDecision.reviewed_at.desc())))
 
 
-@router.get("/executive-state", response_model=ExecutiveStateOut)
+@router.get(
+    "/executive-state",
+    response_model=ExecutiveStateOut,
+    dependencies=[Depends(require_full_holding_read)],
+)
 def get_executive_state(db: DbSession) -> ExecutiveStateOut:
     return executive_state(db)
