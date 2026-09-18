@@ -162,6 +162,7 @@ jobs:
             'google_cloud_run_v2_job.bootstrap[0]' \
             'google_cloud_run_v2_job.pmo_worker[0]' \
             'google_cloud_run_v2_job.knowledge_worker[0]' \
+            'google_cloud_run_v2_job.github_collector[0]' \
             'google_cloud_run_v2_job.pmo_acceptance[0]' \
             'google_cloud_run_v2_job.knowledge_acceptance[0]'; do
             state="$(terraform -chdir=infra/terraform state show "${address}" 2>/dev/null || true)"
@@ -302,6 +303,16 @@ jobs:
               --project="${PROJECT_ID}" --location="${REGION}" --format='value(state)')"
             test "${scheduler_state}" = "ENABLED"
           done
+
+          github_collector_job="$(
+            terraform -chdir=infra/terraform output -raw github_collector_job 2>/dev/null || true
+          )"
+          if [ -n "${github_collector_job}" ]; then
+            collector_scheduler_state="$(gcloud scheduler jobs describe \
+              "${SERVICE_NAME}-github-collector-schedule" \
+              --project="${PROJECT_ID}" --location="${REGION}" --format='value(state)')"
+            test "${collector_scheduler_state}" = "ENABLED"
+          fi
 
           echo "Production Control Plane deployed at ${URL}"
 
