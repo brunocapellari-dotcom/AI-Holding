@@ -33,3 +33,13 @@ def require_knowledge_read(db: DbSession, actor: Actor) -> None:
 
 def require_audit_read(db: DbSession, actor: Actor) -> None:
     authorize_read(db, actor, scope=ReadScope.audit)
+
+
+def require_full_holding_read(db: DbSession, actor: Actor) -> None:
+    for scope in (
+        ReadScope.operational,
+        ReadScope.governance,
+        ReadScope.financial,
+        ReadScope.security,
+    ):
+        authorize_read(db, actor, scope=scope)
