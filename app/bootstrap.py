@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.db.session import SessionLocal
 from app.models.agent_identity import AgentIdentity
 from app.models.entities import Agent, AgentStatus, Project, ProjectStatus
+from app.models.human_identity import HumanIdentityRole, HumanRole
 from app.models.routine import Routine
 
 
@@ -517,6 +518,64 @@ def bootstrap_canonical_portfolio(
     }
 
 
+
+
+def _owner_identity_from_env() -> tuple[str, str, str] | None:
+    values = {
+        "issuer": os.getenv("OWNER_IDENTITY_ISSUER"),
+        "subject": os.getenv("OWNER_IDENTITY_SUBJECT"),
+        "email": os.getenv("OWNER_IDENTITY_EMAIL"),
+    }
+    configured = [value for value in values.values() if value]
+    if not configured:
+        return None
+    if len(configured) != len(values):
+        raise RuntimeError("OWNER runtime identity configuration must be complete")
+    return (
+        (values["issuer"] or "").strip(),
+        (values["subject"] or "").strip(),
+        (values["email"] or "").strip(),
+    )
+
+
+def bootstrap_owner_identity(db: Session) -> bool:
+    identity = _owner_identity_from_env()
+    if identity is None:
+        return False
+
+    issuer, subject, email = identity
+    if not issuer or not subject or not email:
+        raise RuntimeError("OWNER runtime identity configuration cannot contain blank values")
+
+    existing = db.scalar(
+        select(HumanIdentityRole).where(
+            HumanIdentityRole.issuer == issuer,
+            HumanIdentityRole.subject == subject,
+        )
+    )
+    if existing is not None:
+        if existing.email.casefold() != email.casefold() or existing.role != HumanRole.owner.value:
+            raise RuntimeError("owner identity drift detected")
+        return False
+
+    email_owner = db.scalar(
+        select(HumanIdentityRole).where(HumanIdentityRole.email == email)
+    )
+    if email_owner is not None:
+        raise RuntimeError("owner email is already bound to another verified subject")
+
+    db.add(
+        HumanIdentityRole(
+            issuer=issuer,
+            subject=subject,
+            email=email,
+            role=HumanRole.owner.value,
+        )
+    )
+    db.flush()
+    return True
+
+
 def main() -> None:
     runtime_identities = _runtime_identity_seeds_from_env()
     with SessionLocal() as db:
@@ -524,6 +583,9 @@ def main() -> None:
             db,
             runtime_identities=runtime_identities,
         )
+        owner_created = bootstrap_owner_identity(db)
+        db.commit()
+    result["owner_identity_created"] = int(owner_created)
     print(json.dumps(result, sort_keys=True))
 
 
