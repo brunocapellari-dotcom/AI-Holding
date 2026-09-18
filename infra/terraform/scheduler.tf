@@ -49,10 +49,7 @@ resource "google_cloud_scheduler_job" "pmo_worker" {
 
   http_target {
     http_method = "POST"
-    uri = (
-      "https://run.googleapis.com/v2/projects/${var.project_id}/locations/"
-      ~ "${var.region}/jobs/${google_cloud_run_v2_job.pmo_worker[0].name}:run"
-    )
+    uri = "https://run.googleapis.com/v2/projects/${var.project_id}/locations/${var.region}/jobs/${google_cloud_run_v2_job.pmo_worker[0].name}:run"
     body = base64encode("{}")
     headers = {
       "Content-Type" = "application/json"
@@ -90,10 +87,7 @@ resource "google_cloud_scheduler_job" "knowledge_worker" {
 
   http_target {
     http_method = "POST"
-    uri = (
-      "https://run.googleapis.com/v2/projects/${var.project_id}/locations/"
-      ~ "${var.region}/jobs/${google_cloud_run_v2_job.knowledge_worker[0].name}:run"
-    )
+    uri = "https://run.googleapis.com/v2/projects/${var.project_id}/locations/${var.region}/jobs/${google_cloud_run_v2_job.knowledge_worker[0].name}:run"
     body = base64encode("{}")
     headers = {
       "Content-Type" = "application/json"
