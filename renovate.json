@@ -1,0 +1,38 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:best-practices",
+    ":dependencyDashboard"
+  ],
+  "timezone": "America/Cuiaba",
+  "labels": ["dependencies"],
+  "minimumReleaseAge": "7 days",
+  "internalChecksFilter": "strict",
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 2,
+  "rebaseWhen": "conflicted",
+  "dependencyDashboard": true,
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 06:00 on Monday"]
+  },
+  "packageRules": [
+    {
+      "description": "All major upgrades require explicit dashboard approval and human review",
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true,
+      "automerge": false,
+      "labels": ["dependencies", "major-review"]
+    },
+    {
+      "description": "Never automerge production or infrastructure dependencies",
+      "matchManagers": ["pep621", "terraform", "dockerfile", "docker-compose", "github-actions", "mise"],
+      "automerge": false
+    },
+    {
+      "description": "Keep uv lockfile maintenance bounded and reviewable",
+      "matchManagers": ["pep621"],
+      "rangeStrategy": "replace"
+    }
+  ]
+}
