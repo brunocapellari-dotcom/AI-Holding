@@ -1,0 +1,24 @@
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: Ruff lint
+        entry: uv run --extra dev ruff check app tests alembic
+        language: system
+        pass_filenames: false
+      - id: ruff-format-check
+        name: Ruff format check
+        entry: uv run --extra dev ruff format --check app tests alembic
+        language: system
+        pass_filenames: false
+      - id: mypy
+        name: MyPy strict
+        entry: uv run --extra dev mypy app
+        language: system
+        pass_filenames: false
+      - id: full-project-gate
+        name: Full project gate
+        entry: bash scripts/full_project_gate.sh
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
