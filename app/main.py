@@ -8,6 +8,7 @@ from starlette.middleware.base import RequestResponseEndpoint
 
 from app.api.routes import (
     audit,
+    corporate_registry,
     agents,
     decisions,
     executive,
@@ -67,6 +68,7 @@ def metrics() -> Response:
 
 
 app.include_router(audit.router, prefix=settings.api_prefix)
+app.include_router(corporate_registry.router, prefix=settings.api_prefix)
 app.include_router(projects.router, prefix=settings.api_prefix)
 app.include_router(tasks.router, prefix=settings.api_prefix)
 app.include_router(decisions.router, prefix=settings.api_prefix)
