@@ -1,0 +1,34 @@
+FROM python:3.12-bookworm
+
+ARG TERRAFORM_VERSION=1.9.8
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+        docker.io \
+        git \
+        unzip \
+    && curl -fsSLo /tmp/terraform.zip \
+        "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip" \
+    && curl -fsSLo /tmp/terraform_SHA256SUMS \
+        "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_SHA256SUMS" \
+    && cd /tmp \
+    && grep " terraform_${TERRAFORM_VERSION}_linux_amd64.zip$" terraform_SHA256SUMS > terraform_linux_amd64.sha256 \
+    && sha256sum -c terraform_linux_amd64.sha256 \
+    && unzip terraform.zip -d /usr/local/bin \
+    && terraform version \
+    && docker --version \
+    && rm -rf /var/lib/apt/lists/* /tmp/terraform*
+
+WORKDIR /workspace
+
+COPY . .
+
+RUN python -m pip install --no-cache-dir -e '.[dev]'
+
+CMD ["bash", "scripts/full_project_gate.sh"]
