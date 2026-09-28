@@ -8,6 +8,8 @@ REGION="${REGION:-southamerica-east1}"
 CONNECTION="${GCP_GITHUB_CONNECTION:-ai-github}"
 EXECUTOR_SA_NAME="${EXECUTOR_SA_NAME:-ai-build-executor}"
 EXECUTOR_SA="${EXECUTOR_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
+RELEASE_SA_NAME="${RELEASE_SA_NAME:-github-deployer}"
+RELEASE_SA="${RELEASE_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 AR_REPO="${AR_REPO:-ai-execution}"
 EVIDENCE_BUCKET="${EVIDENCE_BUCKET:-${PROJECT_ID}-ai-execution-evidence}"
 GITHUB_OWNER="${GITHUB_OWNER:-brunocapellari-dotcom}"
@@ -96,6 +98,31 @@ fi
 gcloud storage buckets add-iam-policy-binding "gs://${EVIDENCE_BUCKET}" \
   --member="serviceAccount:${EXECUTOR_SA}" \
   --role="roles/storage.objectAdmin" >/dev/null
+
+# Reuse the existing bounded production deployer as the Cloud Build release identity.
+# Do not create a second production authority in parallel.
+if gcloud iam service-accounts describe "${RELEASE_SA}" --project="${PROJECT_ID}" >/dev/null 2>&1; then
+  gcloud iam service-accounts add-iam-policy-binding "${RELEASE_SA}" \
+    --member="serviceAccount:${CB_AGENT}" \
+    --role="roles/iam.serviceAccountTokenCreator" \
+    --project="${PROJECT_ID}" \
+    --quiet >/dev/null
+  gcloud iam service-accounts add-iam-policy-binding "${RELEASE_SA}" \
+    --member="serviceAccount:${RELEASE_SA}" \
+    --role="roles/iam.serviceAccountOpenIdTokenCreator" \
+    --project="${PROJECT_ID}" \
+    --quiet >/dev/null
+  gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
+    --member="serviceAccount:${RELEASE_SA}" \
+    --role="roles/logging.logWriter" \
+    --condition=None \
+    --quiet >/dev/null
+  gcloud storage buckets add-iam-policy-binding "gs://${EVIDENCE_BUCKET}" \
+    --member="serviceAccount:${RELEASE_SA}" \
+    --role="roles/storage.objectAdmin" >/dev/null
+else
+  echo "release service account not present yet: ${RELEASE_SA}; production promotion remains disabled"
+fi
 
 if ! gcloud builds connections describe "${CONNECTION}" --region="${REGION}" --project="${PROJECT_ID}" >/dev/null 2>&1; then
   echo "Criando conexao Cloud Build <-> GitHub. O comando exibira um link de autorizacao no navegador."
