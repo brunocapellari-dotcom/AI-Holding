@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-export PROJECT_ID="${PROJECT_ID:-ai-holding-prod-bc}"
+export PROJECT_ID="ai-holding-prod-bc"
 export REGION="${REGION:-southamerica-east1}"
 export GCP_GITHUB_CONNECTION="${GCP_GITHUB_CONNECTION:-ai-github}"
 export MANIFEST="${ROOT_DIR}/infra/gcp/holding-shared-projects.json"
