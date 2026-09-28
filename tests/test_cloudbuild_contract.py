@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -52,3 +53,34 @@ def test_holding_manual_gates_are_separated_by_service_account() -> None:
     assert "--build-config=cloudbuild.yaml" in script
     assert "--build-config=cloudbuild.release.yaml" in script
     assert "--require-approval" in script
+
+
+_ALLOWED_CLOUD_BUILD_SUBSTITUTIONS = {
+    "PROJECT_ID",
+    "PROJECT_NUMBER",
+    "BUILD_ID",
+    "LOCATION",
+    "TRIGGER_NAME",
+    "COMMIT_SHA",
+    "REVISION_ID",
+    "SHORT_SHA",
+    "REPO_NAME",
+    "REPO_FULL_NAME",
+    "BRANCH_NAME",
+    "TAG_NAME",
+    "REF_NAME",
+    "TRIGGER_BUILD_CONFIG_PATH",
+    "SERVICE_ACCOUNT_EMAIL",
+    "SERVICE_ACCOUNT",
+}
+
+
+def test_cloudbuild_yaml_does_not_leak_shell_variables_into_substitution() -> None:
+    pattern = re.compile(r"(?<!\$)\$(?:\{([A-Za-z_][A-Za-z0-9_]*)\}|([A-Za-z_][A-Za-z0-9_]*))")
+    for path in ("cloudbuild.yaml", "cloudbuild.release.yaml"):
+        invalid: list[str] = []
+        for match in pattern.finditer(_read(path)):
+            name = match.group(1) or match.group(2)
+            if name not in _ALLOWED_CLOUD_BUILD_SUBSTITUTIONS and not name.startswith("_"):
+                invalid.append(name)
+        assert invalid == [], f"{path} has unescaped shell variables: {invalid}"
