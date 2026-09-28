@@ -1,5 +1,5 @@
 substitutions:
-  _GITLEAKS_IMAGE: "gitleaks/gitleaks:v8.30.1"
+  _GITLEAKS_IMAGE: "ghcr.io/gitleaks/gitleaks:v8.30.1"
   _TRIVY_IMAGE: "aquasec/trivy:0.74.0"
   _SYFT_IMAGE: "anchore/syft:v1.52.0"
 
