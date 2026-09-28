@@ -29,7 +29,8 @@ TOOL_DECISIONS = (
             "instead of leaving build evidence as isolated files."
         ),
         "maintenance_cost": (
-            "Adds a persistent security application, database, upgrades and another availability surface."
+            "Adds a persistent security application, database, upgrades and another "
+            "availability surface."
         ),
         "license": "Apache-2.0",
         "risk": (
@@ -146,9 +147,13 @@ TOOL_DECISIONS = (
         "classification": "reject",
         "replaces_key": None,
         "benefit": "No missing canonical catalog function currently justifies another portal.",
-        "maintenance_cost": "Large plugin ecosystem and an additional service catalog/control surface.",
+        "maintenance_cost": (
+            "Large plugin ecosystem and an additional service catalog/control surface."
+        ),
         "license": "Apache-2.0",
-        "risk": "Would duplicate Project Registry, Integration Registry and corporate catalog truth.",
+        "risk": (
+            "Would duplicate Project Registry, Integration Registry and corporate catalog truth."
+        ),
         "rationale": "Holding remains the canonical project/control-plane catalog.",
         "evidence": ["github:backstage/backstage@v1.55.2"],
     },
@@ -159,7 +164,9 @@ TOOL_DECISIONS = (
         "capability": "secrets-management",
         "classification": "reject",
         "replaces_key": "SECOND_SECRETS_CONTROL_PLANE",
-        "benefit": "No current capability gap versus Google Secret Manager for the selected runtime.",
+        "benefit": (
+            "No current capability gap versus Google Secret Manager for the selected runtime."
+        ),
         "maintenance_cost": "Requires operating another highly sensitive secrets control plane.",
         "license": "MPL-2.0",
         "risk": "Expands credential attack surface and splits the secret source of truth.",
