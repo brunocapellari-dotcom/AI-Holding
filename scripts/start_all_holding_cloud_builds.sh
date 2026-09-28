@@ -39,7 +39,7 @@ while IFS=$'\t' read -r repo branch; do
   resource_name="$(printf '%s' "${repo}" | tr '[:upper:]_' '[:lower:]-' | tr -cd 'a-z0-9-')"
   trigger="holding-quality-${resource_name}"
   repository="projects/${PROJECT_ID}/locations/${REGION}/connections/${CONNECTION}/repositories/${resource_name}"
-  escaped_branch="$(python3 -c 'import re,sys; print(re.escape(sys.argv[1]))' "${branch}")"
+  escaped_branch="${branch}"
 
   echo
   echo "== ${repo} =="
