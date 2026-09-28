@@ -3,7 +3,7 @@ set -euo pipefail
 
 PROJECT_ID="ai-holding-prod-bc"
 REGION="southamerica-east1"
-FILE="${1:-/tmp/holding-cloud-builds.tsv}"
+FILE="${1:-${HOME}/holding-cloud-builds.tsv}"
 
 if [[ ! -f "${FILE}" ]]; then
   echo "No local build-id file found. Showing recent Holding builds instead."
