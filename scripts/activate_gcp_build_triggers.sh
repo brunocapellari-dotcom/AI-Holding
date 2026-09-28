@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-MANIFEST="${ROOT_DIR}/infra/gcp/ecosystem-projects.json"
+MANIFEST="${MANIFEST:-${ROOT_DIR}/infra/gcp/ecosystem-projects.json}"
 PROJECT_ID="${PROJECT_ID:-$(gcloud config get-value project 2>/dev/null)}"
 REGION="${REGION:-southamerica-east1}"
 CONNECTION="${GCP_GITHUB_CONNECTION:-ai-github}"
