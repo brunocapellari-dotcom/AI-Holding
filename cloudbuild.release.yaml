@@ -18,6 +18,7 @@ steps:
       - |
         test -n "${_CANDIDATE_BUILD_ID}"
         test -n "${_SOURCE_COMMIT_SHA}"
+        test "${COMMIT_SHA}" = "${_SOURCE_COMMIT_SHA}"
         mkdir -p /workspace/release
 
         test "${SERVICE_ACCOUNT_EMAIL}" = "${_RELEASE_SERVICE_ACCOUNT_EMAIL}"
