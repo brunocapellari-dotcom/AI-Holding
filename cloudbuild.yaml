@@ -149,7 +149,7 @@ steps:
           sbom.cdx.json \
           image-id.txt \
           candidate-image.txt \
-          "${evidence_dir}/"
+          "$${evidence_dir}/"
 
 timeout: 3600s
 serviceAccount: "projects/${PROJECT_ID}/serviceAccounts/ai-build-executor@${PROJECT_ID}.iam.gserviceaccount.com"
