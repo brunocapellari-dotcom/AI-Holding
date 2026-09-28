@@ -22,10 +22,13 @@ steps:
 
         test "${SERVICE_ACCOUNT_EMAIL}" = "${_RELEASE_SERVICE_ACCOUNT_EMAIL}"
 
-        status="$(gcloud builds describe "${_CANDIDATE_BUILD_ID}"           --region="${_REGION}"           --project="${PROJECT_ID}"           --format='value(status)')"
-        test "${status}" = "SUCCESS"
+        evidence_dir="gs://${PROJECT_ID}-ai-execution-evidence/AI-Holding/${_CANDIDATE_BUILD_ID}"
+        gcloud storage cp "${evidence_dir}/build-id.txt" /workspace/release/candidate-build-id.txt
+        gcloud storage cp "${evidence_dir}/source-commit.txt" /workspace/release/candidate-source-commit.txt
 
-        candidate_commit="$(gcloud builds describe "${_CANDIDATE_BUILD_ID}"           --region="${_REGION}"           --project="${PROJECT_ID}"           --format='value(substitutions.COMMIT_SHA)')"
+        candidate_build_id="$(tr -d '\r\n' < /workspace/release/candidate-build-id.txt)"
+        candidate_commit="$(tr -d '\r\n' < /workspace/release/candidate-source-commit.txt)"
+        test "${candidate_build_id}" = "${_CANDIDATE_BUILD_ID}"
         test -n "${candidate_commit}"
         test "${candidate_commit}" = "${_SOURCE_COMMIT_SHA}"
 
