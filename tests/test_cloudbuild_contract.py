@@ -51,3 +51,4 @@ def test_holding_manual_gates_are_separated_by_service_account() -> None:
     assert "github-deployer@" in script
     assert "--build-config=cloudbuild.yaml" in script
     assert "--build-config=cloudbuild.release.yaml" in script
+    assert "--require-approval" in script
