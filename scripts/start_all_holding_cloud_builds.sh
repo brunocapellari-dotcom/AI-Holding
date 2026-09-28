@@ -6,10 +6,23 @@ TARGETS="${TARGETS:-${ROOT_DIR}/infra/gcp/holding-quality-targets.json}"
 PROJECT_ID="ai-holding-prod-bc"
 REGION="southamerica-east1"
 CONNECTION="ai-github"
-EXECUTOR_SA="projects/${PROJECT_ID}/serviceAccounts/ai-build-executor@${PROJECT_ID}.iam.gserviceaccount.com"
+EXECUTOR_SA_EMAIL="ai-build-executor@${PROJECT_ID}.iam.gserviceaccount.com"
+EXECUTOR_SA="projects/${PROJECT_ID}/serviceAccounts/${EXECUTOR_SA_EMAIL}"
 BUILD_FILE="${HOME}/holding-cloud-builds.tsv"
 
 gcloud config set project "${PROJECT_ID}" >/dev/null
+
+ACTIVE_ACCOUNT="$(gcloud auth list --filter=status:ACTIVE --format='value(account)' | head -n1)"
+if [[ -z "${ACTIVE_ACCOUNT}" ]]; then
+  echo "ERROR: no active gcloud account" >&2
+  exit 3
+fi
+
+gcloud iam service-accounts add-iam-policy-binding "${EXECUTOR_SA_EMAIL}" \
+  --project="${PROJECT_ID}" \
+  --member="user:${ACTIVE_ACCOUNT}" \
+  --role="roles/iam.serviceAccountUser" \
+  --quiet >/dev/null
 
 python3 - "${TARGETS}" <<'PY' > /tmp/holding-quality-targets.tsv
 import json
