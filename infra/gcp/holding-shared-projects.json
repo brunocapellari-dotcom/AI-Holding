@@ -1,0 +1,25 @@
+{
+  "gcp_project_id": "ai-holding-prod-bc",
+  "region": "southamerica-east1",
+  "connection": "ai-github",
+  "scope": "holding-shared-execution",
+  "excluded_external_projects": [
+    {
+      "repo": "AgroLogMT",
+      "reason": "AgroLog MT already operates in its own dedicated Google Cloud project."
+    }
+  ],
+  "projects": [
+    {"repo":"Geopolitical-Watch","runtime":["cloud-build","cloud-run-jobs","cloud-scheduler","gcs","postgres"]},
+    {"repo":"AI-Holding","runtime":["cloud-build","cloud-run","cloud-run-jobs","cloud-scheduler","cloud-sql"]},
+    {"repo":"Mercado-Financeiro","runtime":["cloud-build","cloud-run-jobs","cloud-scheduler","bigquery","gcs"]},
+    {"repo":"Sports-Intelligence","runtime":["cloud-build","cloud-run","cloud-run-jobs","cloud-scheduler","bigquery"]},
+    {"repo":"Game-Studio","runtime":["cloud-build"]},
+    {"repo":"Second-Brain","runtime":["cloud-build","cloud-run","cloud-run-jobs","cloud-sql","gcs","graph"]},
+    {"repo":"Hermes-AI-Platform","runtime":["cloud-build","cloud-run","cloud-run-jobs"]},
+    {"repo":"Personal-Performance-Health-OS","runtime":["cloud-build","cloud-run","cloud-run-jobs","cloud-sql"]},
+    {"repo":"Research-AI","runtime":["cloud-build","cloud-run-jobs","cloud-scheduler","gcs"]},
+    {"repo":"Content-Factory","runtime":["cloud-build","cloud-run-jobs","gcs","artifact-registry","gpu-on-demand"]},
+    {"repo":"WHATSAPP_AI","runtime":["cloud-build","cloud-run","cloud-run-jobs","pubsub","cloud-sql"]}
+  ]
+}
