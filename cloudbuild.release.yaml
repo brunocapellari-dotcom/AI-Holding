@@ -1,0 +1,104 @@
+substitutions:
+  _REGION: "southamerica-east1"
+  _AR_REPO: "ai-execution"
+  _IMAGE_NAME: "ai-holding"
+  _CANDIDATE_BUILD_ID: ""
+  _SOURCE_COMMIT_SHA: ""
+  _RELEASE_SERVICE_ACCOUNT_EMAIL: "github-deployer@${PROJECT_ID}.iam.gserviceaccount.com"
+  _SERVICE_NAME: "holding-control-plane"
+  _TF_STATE_BUCKET: "${PROJECT_ID}-tfstate"
+  _COSIGN_IMAGE: "gcr.io/projectsigstore/cosign"
+
+steps:
+  - id: resolve-and-verify-candidate
+    name: gcr.io/cloud-builders/gcloud
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        test -n "${_CANDIDATE_BUILD_ID}"
+        test -n "${_SOURCE_COMMIT_SHA}"
+        mkdir -p /workspace/release
+
+        active_account="$(gcloud auth list --filter=status:ACTIVE --format='value(account)' | head -n1)"
+        test "${active_account}" = "${_RELEASE_SERVICE_ACCOUNT_EMAIL}"
+
+        status="$(gcloud builds describe "${_CANDIDATE_BUILD_ID}"           --region="${_REGION}"           --project="${PROJECT_ID}"           --format='value(status)')"
+        test "${status}" = "SUCCESS"
+
+        candidate_commit="$(gcloud builds describe "${_CANDIDATE_BUILD_ID}"           --region="${_REGION}"           --project="${PROJECT_ID}"           --format='value(substitutions.COMMIT_SHA)')"
+        test -n "${candidate_commit}"
+        test "${candidate_commit}" = "${_SOURCE_COMMIT_SHA}"
+
+        candidate="${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_IMAGE_NAME}:${_CANDIDATE_BUILD_ID}"
+        gcloud artifacts docker images describe "${candidate}"           --project="${PROJECT_ID}"           --format='value(image_summary.fully_qualified_digest)'           > /workspace/release/image-ref.txt
+        test -s /workspace/release/image-ref.txt
+
+        image_ref="$(cat /workspace/release/image-ref.txt)"
+        gcloud artifacts docker images describe "${image_ref}"           --project="${PROJECT_ID}"           --show-provenance           --format=json > /workspace/release/provenance.json
+
+        python3 - /workspace/release/provenance.json <<'PY'
+        import json
+        import sys
+
+        data = json.load(open(sys.argv[1], encoding="utf-8"))
+        provenance = ((data.get("provenance_summary") or {}).get("provenance") or [])
+        if not provenance:
+            raise SystemExit("candidate has no Cloud Build provenance")
+        PY
+
+  - id: generate-release-identity-token
+    name: gcr.io/cloud-builders/gcloud
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        gcloud auth print-identity-token --audiences=sigstore > /workspace/release/identity-token.txt
+        test -s /workspace/release/identity-token.txt
+
+  - id: sign-and-verify-release-candidate
+    name: gcr.io/cloud-builders/docker
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        image_ref="$(cat /workspace/release/image-ref.txt)"
+        identity_token="$(cat /workspace/release/identity-token.txt)"
+
+        docker run           --network=cloudbuild           --mount source=home-volume,target=/builder/home           --rm           -e SIGSTORE_NO_CACHE=true           -e HOME=/builder/home           "${_COSIGN_IMAGE}"           sign --identity-token="${identity_token}" "${image_ref}" -y
+
+        docker run           --network=cloudbuild           --mount source=home-volume,target=/builder/home           --rm           -e SIGSTORE_NO_CACHE=true           -e HOME=/builder/home           "${_COSIGN_IMAGE}"           verify           --certificate-identity="${_RELEASE_SERVICE_ACCOUNT_EMAIL}"           --certificate-oidc-issuer="https://accounts.google.com"           "${image_ref}"           > /workspace/release/cosign-verify.json
+
+  - id: deploy-and-run-production-acceptance
+    name: gcr.io/google.com/cloudsdktool/google-cloud-cli:stable
+    entrypoint: bash
+    env:
+      - PROJECT_ID=${PROJECT_ID}
+      - REGION=${_REGION}
+      - SERVICE_NAME=${_SERVICE_NAME}
+      - TF_STATE_BUCKET=${_TF_STATE_BUCKET}
+    args:
+      - -ceu
+      - |
+        bash scripts/install_terraform.sh /workspace/.bin
+        export PATH="/workspace/.bin:${PATH}"
+        export IMAGE_REF="$(cat /workspace/release/image-ref.txt)"
+        bash scripts/deploy_release_candidate.sh
+        mv /workspace/release-summary.json /workspace/release/release-summary.json
+
+  - id: persist-release-evidence
+    name: gcr.io/cloud-builders/gcloud
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        evidence_dir="gs://${PROJECT_ID}-ai-execution-evidence/AI-Holding/releases/${_SOURCE_COMMIT_SHA}/${BUILD_ID}"
+        printf '%s\n' "${_CANDIDATE_BUILD_ID}" > /workspace/release/candidate-build-id.txt
+        printf '%s\n' "${_SOURCE_COMMIT_SHA}" > /workspace/release/source-commit.txt
+        gcloud storage cp /workspace/release/* "${evidence_dir}/"
+
+timeout: 5400s
+serviceAccount: "projects/${PROJECT_ID}/serviceAccounts/${_RELEASE_SERVICE_ACCOUNT_EMAIL}"
+options:
+  dynamic_substitutions: true
+  logging: CLOUD_LOGGING_ONLY
