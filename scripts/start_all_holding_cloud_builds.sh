@@ -7,18 +7,19 @@ PROJECT_ID="ai-holding-prod-bc"
 REGION="southamerica-east1"
 CONNECTION="ai-github"
 EXECUTOR_SA="projects/${PROJECT_ID}/serviceAccounts/ai-build-executor@${PROJECT_ID}.iam.gserviceaccount.com"
+BUILD_FILE="${HOME}/holding-cloud-builds.tsv"
 
 gcloud config set project "${PROJECT_ID}" >/dev/null
 
 python3 - "${TARGETS}" <<'PY' > /tmp/holding-quality-targets.tsv
 import json
 import sys
+
 data = json.load(open(sys.argv[1], encoding="utf-8"))
 for item in data["targets"]:
     print(item["repo"] + "\t" + item["branch"])
 PY
 
-BUILD_FILE="${HOME}/holding-cloud-builds.tsv"
 : > "${BUILD_FILE}"
 
 while IFS=$'\t' read -r repo branch; do
@@ -37,7 +38,8 @@ while IFS=$'\t' read -r repo branch; do
     --project="${PROJECT_ID}" >/dev/null
 
   if ! gcloud builds triggers describe "${trigger}" \
-      --region="${REGION}" --project="${PROJECT_ID}" >/dev/null 2>&1; then
+      --region="${REGION}" \
+      --project="${PROJECT_ID}" >/dev/null 2>&1; then
     gcloud builds triggers create github \
       --name="${trigger}" \
       --repository="${repository}" \
@@ -70,13 +72,10 @@ echo
 echo "============================================================"
 echo " 11 HOLDING BUILDS STARTED"
 echo "============================================================"
-column -t -s 
+cat "${BUILD_FILE}"
 echo
-echo "The builds are now running in Google Cloud and continue after Cloud Shell is closed."
-gcloud storage cp "${BUILD_FILE}" "gs://${PROJECT_ID}-ai-execution-evidence/Holding/build-batches/latest.tsv" >/dev/null
+gcloud storage cp "${BUILD_FILE}" \
+  "gs://${PROJECT_ID}-ai-execution-evidence/Holding/build-batches/latest.tsv" >/dev/null
 echo "Build IDs saved to: ${BUILD_FILE}"
-echo "Use later: bash scripts/status_holding_cloud_builds.sh"
-\t' "${BUILD_FILE}" 2>/dev/null || cat "${BUILD_FILE}"
-echo
-echo "The builds are now running in Google Cloud and continue after Cloud Shell is closed."
-echo "Use: bash scripts/status_holding_cloud_builds.sh"
+echo "The builds continue in Google Cloud after Cloud Shell is closed."
+echo "Status later: bash scripts/status_holding_cloud_builds.sh"
