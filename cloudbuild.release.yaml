@@ -7,7 +7,7 @@ substitutions:
   _RELEASE_SERVICE_ACCOUNT_EMAIL: "github-deployer@${PROJECT_ID}.iam.gserviceaccount.com"
   _SERVICE_NAME: "holding-control-plane"
   _TF_STATE_BUCKET: "${PROJECT_ID}-tfstate"
-  _COSIGN_IMAGE: "gcr.io/projectsigstore/cosign"
+  _COSIGN_IMAGE: "ghcr.io/sigstore/cosign/cosign:v3.1.3"
 
 steps:
   - id: resolve-and-verify-candidate
@@ -20,8 +20,7 @@ steps:
         test -n "${_SOURCE_COMMIT_SHA}"
         mkdir -p /workspace/release
 
-        active_account="$(gcloud auth list --filter=status:ACTIVE --format='value(account)' | head -n1)"
-        test "${active_account}" = "${_RELEASE_SERVICE_ACCOUNT_EMAIL}"
+        test "${SERVICE_ACCOUNT_EMAIL}" = "${_RELEASE_SERVICE_ACCOUNT_EMAIL}"
 
         status="$(gcloud builds describe "${_CANDIDATE_BUILD_ID}"           --region="${_REGION}"           --project="${PROJECT_ID}"           --format='value(status)')"
         test "${status}" = "SUCCESS"
