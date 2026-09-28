@@ -12,6 +12,7 @@ RUN apt-get update \
         curl \
         docker.io \
         git \
+        postgresql-client \
         unzip \
     && curl -fsSLo /tmp/terraform.zip \
         "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip" \
