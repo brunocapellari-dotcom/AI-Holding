@@ -61,3 +61,25 @@ A project is considered migrated only when:
 - the project can run with GitHub Actions hosted minutes set effectively to zero;
 - rollback/re-run is documented and tested;
 - no duplicate scheduler remains active.
+
+
+## First proof for AI-Holding
+
+Before enabling any permanent trigger, validate the final Holding branch directly from Cloud Shell:
+
+```bash
+git checkout holding-official-spec-2026-09-15
+gcloud builds submit \
+  --config=cloudbuild.yaml \
+  --region=southamerica-east1 \
+  --project="${PROJECT_ID}" \
+  .
+```
+
+This build must pass the whole-project gate and persist its Gitleaks report, Trivy IaC report, CycloneDX SBOM, Trivy image report and image identifier under:
+
+```text
+gs://${PROJECT_ID}-ai-execution-evidence/AI-Holding/<BUILD_ID>/
+```
+
+Only after that proof is green should the permanent Cloud Build trigger be enabled for the repository. Production deployment/cutover remains blocked until the production acceptance matrix is also green. Existing GitHub-hosted workflows are not evidence of failure while they continue to terminate before allocating a runner.
