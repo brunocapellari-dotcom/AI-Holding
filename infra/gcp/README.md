@@ -85,6 +85,17 @@ gs://${PROJECT_ID}-ai-execution-evidence/AI-Holding/<BUILD_ID>/
 Only after that proof is green should the permanent Cloud Build trigger be enabled for the repository. Production deployment/cutover remains blocked until the production acceptance matrix is also green. Existing GitHub-hosted workflows are not evidence of failure while they continue to terminate before allocating a runner.
 
 
+## Fast continuation after GitHub App authorization
+
+For the Holding itself, the normal continuation command is:
+
+```bash
+git checkout holding-official-spec-2026-09-15
+bash scripts/continue_holding_gcp.sh
+```
+
+The script is fail-closed. It requires a clean working tree, bootstraps the execution fabric, creates the separated manual quality/release triggers, and executes the quality gate against the exact checked-out commit. If the GitHub App still needs browser authorization, the bootstrap stops with exit code 20 and prints the authorization URL; after authorization, run the same command again.
+
 ## Holding quality and release gates
 
 After the GitHub App connection is complete, configure the two Holding-only manual gates:
