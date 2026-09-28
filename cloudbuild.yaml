@@ -58,22 +58,14 @@ steps:
           -e DATABASE_URL=postgresql+psycopg://holding:holding@holding-postgres:5432/holding_test \
           holding-ci:$BUILD_ID \
           bash -ceu '
-            python - <<"PY"
-        import time
-        import psycopg
-
-        dsn = "postgresql://holding:holding@holding-postgres:5432/holding_test"
-        deadline = time.time() + 60
-        while True:
-            try:
-                with psycopg.connect(dsn):
-                    break
-            except Exception:
-                if time.time() >= deadline:
-                    raise
-                time.sleep(2)
-        PY
-            bash scripts/full_project_gate.sh
+            for attempt in $(seq 1 30); do
+              if pg_isready -h holding-postgres -U holding -d holding_test; then
+                exec bash scripts/full_project_gate.sh
+              fi
+              sleep 2
+            done
+            echo "PostgreSQL did not become ready within 60 seconds." >&2
+            exit 41
           '
 
   - id: terraform-misconfiguration-gate
