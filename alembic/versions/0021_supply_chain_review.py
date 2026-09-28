@@ -154,7 +154,8 @@ TOOL_DECISIONS = (
         "classification": "reject",
         "replaces_key": None,
         "benefit": (
-            "Strong asset-oriented orchestration, but the Holding is not an asset-orchestrator product."
+            "Strong asset-oriented orchestration, but the Holding is not an "
+            "asset-orchestrator product."
         ),
         "maintenance_cost": "Additional control plane, metadata model and operational surface.",
         "license": "Apache-2.0",
