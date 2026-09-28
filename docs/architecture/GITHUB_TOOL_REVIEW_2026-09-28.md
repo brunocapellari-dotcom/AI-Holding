@@ -81,3 +81,19 @@ Do not add it to the Holding. It is GitHub-Actions-centric and would reverse the
 - ToolHive stays benchmark/reference-only.
 - Prefect/Dagster are not added.
 - OPA/Cerbos/OpenFGA are not added as parallel policy engines.
+
+
+## Second focused round — supply-chain portfolio and platform duplication
+
+A second review checked additional active repositories against the now-converged GCP architecture.
+
+- **OWASP Dependency-Track 5.1.1 — BENCHMARK.** Its portfolio-level CycloneDX/SBOM intelligence is a real capability gap worth measuring. It must compete against a native Holding collector that indexes the SBOM and scan evidence already produced in GCS; it is not adopted as a second security truth by default.
+- **OpenTofu 1.12.6 — BENCHMARK.** Evaluate only as a complete Terraform replacement with plan/state/provider/rollback equivalence. Terraform and OpenTofu must never independently own the same production state.
+- **GUAC 1.1.0 — RESERVE.** A software supply-chain graph may become useful at larger portfolio scale, but currently overlaps the Holding dependency/evidence graph.
+- **OSV-Scanner 2.6.0 — RESERVE.** Keep for targeted call-analysis/license investigations when it demonstrably improves Trivy/pip-audit triage; do not add it to every build.
+- **Grype 0.119.0 — REJECT as parallel gate.** Trivy + Syft already own the mandatory vulnerability/SBOM path.
+- **Dagger 0.21.9 — REJECT in Holding core.** Portability is already preserved by `scripts/full_project_gate.sh`; Cloud Build stays the single CI executor.
+- **Backstage 1.55.2 — REJECT as parallel portal.** It would duplicate Project Registry and Integration Registry ownership.
+- **OpenBao 2.7.0 — REJECT as second secrets plane.** Google Secret Manager remains canonical for the selected GCP runtime.
+
+These decisions are persisted in Alembic revision `0022_platform_review_round2`.
