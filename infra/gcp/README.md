@@ -83,3 +83,65 @@ gs://${PROJECT_ID}-ai-execution-evidence/AI-Holding/<BUILD_ID>/
 ```
 
 Only after that proof is green should the permanent Cloud Build trigger be enabled for the repository. Production deployment/cutover remains blocked until the production acceptance matrix is also green. Existing GitHub-hosted workflows are not evidence of failure while they continue to terminate before allocating a runner.
+
+
+## Holding quality and release gates
+
+After the GitHub App connection is complete, configure the two Holding-only manual gates:
+
+```bash
+bash scripts/activate_holding_gcp_triggers.sh
+```
+
+The quality gate runs with the low-privilege `ai-build-executor`. The release gate runs with the existing production deployer and additionally requires Cloud Build approval before execution.
+
+For the current release candidate, use the exact Git commit rather than a mutable branch:
+
+```bash
+RC_SHA="$(git rev-parse HEAD)"
+
+QUALITY_BUILD_ID="$(
+  gcloud builds triggers run ai-holding-quality-manual \
+    --region=southamerica-east1 \
+    --project="${PROJECT_ID}" \
+    --sha="${RC_SHA}" \
+    --format='value(metadata.build.id)'
+)"
+
+gcloud builds log --stream "${QUALITY_BUILD_ID}" \
+  --region=southamerica-east1 \
+  --project="${PROJECT_ID}"
+
+test "$(
+  gcloud builds describe "${QUALITY_BUILD_ID}" \
+    --region=southamerica-east1 \
+    --project="${PROJECT_ID}" \
+    --format='value(status)'
+)" = "SUCCESS"
+```
+
+A successful quality build stores `build-id.txt`, `source-commit.txt`, Gitleaks, Trivy, SBOM and image identity evidence in GCS. It also publishes the candidate image through the Cloud Build `images` field with `requestedVerifyOption: VERIFIED`, so the build is not successful unless build provenance is generated.
+
+Production promotion uses the exact candidate Build ID and the same immutable commit:
+
+```bash
+gcloud builds triggers run ai-holding-release-manual \
+  --region=southamerica-east1 \
+  --project="${PROJECT_ID}" \
+  --sha="${RC_SHA}" \
+  --substitutions="_CANDIDATE_BUILD_ID=${QUALITY_BUILD_ID},_SOURCE_COMMIT_SHA=${RC_SHA}"
+```
+
+Cloud Build then holds the release for explicit human approval. After approval, the release pipeline:
+
+1. checks that its own source commit equals the approved commit;
+2. checks the candidate Build ID/commit evidence from GCS;
+3. resolves the candidate tag to an immutable Artifact Registry digest;
+4. requires Cloud Build provenance for that digest;
+5. signs and verifies the digest with Cosign using the release service-account OIDC identity;
+6. runs the non-destructive Terraform production plan;
+7. deploys the same digest without rebuilding it;
+8. runs migrations, runtime identity checks, scheduler checks, PMO acceptance and Knowledge acceptance;
+9. stores the release evidence under `AI-Holding/releases/<commit>/<release-build-id>/`.
+
+The production trigger is intentionally not automatic. A repository push must never be sufficient by itself to exercise production deployment authority.
