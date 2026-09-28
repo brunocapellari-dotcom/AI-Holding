@@ -138,7 +138,11 @@ steps:
       - -ceu
       - |
         evidence_dir="gs://${PROJECT_ID}-ai-execution-evidence/AI-Holding/${BUILD_ID}"
+        printf '%s\n' "${BUILD_ID}" > build-id.txt
+        printf '%s\n' "${COMMIT_SHA}" > source-commit.txt
         gcloud storage cp \
+          build-id.txt \
+          source-commit.txt \
           gitleaks.json \
           trivy-iac.json \
           trivy-image.json \
