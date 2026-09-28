@@ -32,6 +32,7 @@ echo "connection=${CONNECTION}"
 
 gcloud services enable \
   cloudbuild.googleapis.com \
+  containeranalysis.googleapis.com \
   secretmanager.googleapis.com \
   artifactregistry.googleapis.com \
   run.googleapis.com \
@@ -61,6 +62,14 @@ for role in roles/logging.logWriter roles/artifactregistry.writer roles/storage.
     --condition=None \
     --quiet >/dev/null
  done
+
+# User-specified Cloud Build identities need this self-binding to mint short-lived
+# OIDC identity tokens for Sigstore/Cosign release signing. No static signing key is created.
+gcloud iam service-accounts add-iam-policy-binding "${EXECUTOR_SA}" \
+  --member="serviceAccount:${EXECUTOR_SA}" \
+  --role="roles/iam.serviceAccountOpenIdTokenCreator" \
+  --project="${PROJECT_ID}" \
+  --quiet >/dev/null
 
 if ! gcloud artifacts repositories describe "${AR_REPO}" --location="${REGION}" --project="${PROJECT_ID}" >/dev/null 2>&1; then
   gcloud artifacts repositories create "${AR_REPO}" \
