@@ -55,6 +55,13 @@ if ! gcloud iam service-accounts describe "${EXECUTOR_SA}" --project="${PROJECT_
     --project="${PROJECT_ID}"
 fi
 
+# Scope Cloud Build's service-agent impersonation to the designated executor only.
+gcloud iam service-accounts add-iam-policy-binding "${EXECUTOR_SA}" \
+  --member="serviceAccount:${CB_AGENT}" \
+  --role="roles/iam.serviceAccountTokenCreator" \
+  --project="${PROJECT_ID}" \
+  --quiet >/dev/null
+
 for role in roles/logging.logWriter roles/artifactregistry.writer roles/storage.objectViewer; do
   gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
     --member="serviceAccount:${EXECUTOR_SA}" \
