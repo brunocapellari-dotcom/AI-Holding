@@ -40,7 +40,10 @@ TOOL_DECISIONS = (
         ),
         "evidence": [
             "cloudbuild.yaml",
-            "https://cloud.google.com/build/docs/securing-builds/generate-validate-build-provenance",
+            (
+                "https://cloud.google.com/build/docs/securing-builds/"
+                "generate-validate-build-provenance"
+            ),
         ],
     },
     {
@@ -66,7 +69,10 @@ TOOL_DECISIONS = (
         ),
         "evidence": [
             "github:sigstore/cosign@v3.1.3",
-            "https://cloud.google.com/build/docs/building/build-containers#signing-container-images",
+            (
+                "https://cloud.google.com/build/docs/building/"
+                "build-containers#signing-container-images"
+            ),
         ],
     },
     {
@@ -82,7 +88,10 @@ TOOL_DECISIONS = (
         ),
         "maintenance_cost": "Run during intake/re-evaluation, not as another application runtime.",
         "license": "Apache-2.0",
-        "risk": "Scores are heuristics and never replace license review, CVE analysis or code review.",
+        "risk": (
+            "Scores are heuristics and never replace license review, CVE analysis "
+            "or code review."
+        ),
         "rationale": (
             "The existing intake policy already requires Scorecard; this records it as the "
             "canonical upstream-posture tool without duplicating Trivy, Semgrep or Gitleaks."
@@ -100,9 +109,14 @@ TOOL_DECISIONS = (
         "classification": "reject",
         "replaces_key": None,
         "benefit": "No incremental benefit over the selected Cloud Build provenance path.",
-        "maintenance_cost": "Would restore a GitHub Actions dependency to the canonical release chain.",
+        "maintenance_cost": (
+            "Would restore a GitHub Actions dependency to the canonical release chain."
+        ),
         "license": "Apache-2.0",
-        "risk": "Creates a parallel provenance implementation and conflicts with the GCP execution decision.",
+        "risk": (
+            "Creates a parallel provenance implementation and conflicts with the "
+            "GCP execution decision."
+        ),
         "rationale": (
             "The project is GitHub-Actions-centric and its own repository points new users toward "
             "GitHub artifact attestations; the Holding instead uses Cloud Build native provenance."
@@ -119,11 +133,17 @@ TOOL_DECISIONS = (
         "capability": "workflow-orchestration",
         "classification": "reject",
         "replaces_key": None,
-        "benefit": "Strong workflow platform, but no uncovered Holding requirement currently justifies it.",
-        "maintenance_cost": "Adds another orchestration/runtime state plane beside PMO and Cloud Scheduler.",
+        "benefit": (
+            "Strong workflow platform, but no uncovered Holding requirement currently justifies it."
+        ),
+        "maintenance_cost": (
+            "Adds another orchestration/runtime state plane beside PMO and Cloud Scheduler."
+        ),
         "license": "Apache-2.0",
         "risk": "Split execution truth and overlapping retries/scheduling semantics.",
-        "rationale": "Do not add beside the current stack; Temporal remains the only replacement benchmark.",
+        "rationale": (
+            "Do not add beside the current stack; Temporal remains the only replacement benchmark."
+        ),
         "evidence": ["github:PrefectHQ/prefect@3.8.7"],
     },
     {
@@ -133,11 +153,15 @@ TOOL_DECISIONS = (
         "capability": "data-and-workflow-orchestration",
         "classification": "reject",
         "replaces_key": None,
-        "benefit": "Strong asset-oriented orchestration, but the Holding is not an asset-orchestrator product.",
+        "benefit": (
+            "Strong asset-oriented orchestration, but the Holding is not an asset-orchestrator product."
+        ),
         "maintenance_cost": "Additional control plane, metadata model and operational surface.",
         "license": "Apache-2.0",
         "risk": "Duplicates project/collector/workflow ownership and increases tool sprawl.",
-        "rationale": "Use in a project only if its asset model proves necessary; not in the Holding core.",
+        "rationale": (
+            "Use in a project only if its asset model proves necessary; not in the Holding core."
+        ),
         "evidence": ["github:dagster-io/dagster@1.13.24"],
     },
 )
