@@ -47,9 +47,11 @@ def test_terraform_never_grants_public_iam_membership() -> None:
 
 def test_password_database_secret_is_explicitly_rollback_only_for_migration_identity() -> None:
     database_iam = _read("database_iam.tf")
-    assert 'resource "google_secret_manager_secret_iam_member" "migration_database_url_rollback"' in (
-        database_iam
+    rollback_binding = (
+        'resource "google_secret_manager_secret_iam_member" '
+        '"migration_database_url_rollback"'
     )
+    assert rollback_binding in database_iam
 
 
 def test_worker_recurrence_uses_cloud_scheduler_not_github_actions() -> None:
