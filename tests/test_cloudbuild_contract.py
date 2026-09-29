@@ -106,3 +106,22 @@ def test_github_actions_is_manual_diagnostic_only() -> None:
     assert "terraform apply" not in workflow
     assert "gcloud run jobs execute" not in workflow
     assert "manual diagnostic fallback only" in workflow
+
+
+
+def test_legacy_github_wif_bootstrap_is_fail_closed() -> None:
+    legacy = _read("infra/bootstrap/bootstrap_gcp_wif.sh")
+    assert "exit 64" in legacy
+    assert "workload-identity-pools create" not in legacy
+    assert "token.actions.githubusercontent.com" not in legacy
+    assert "add-iam-policy-binding" not in legacy
+
+
+def test_cloud_build_release_identity_has_no_github_oidc_or_static_key() -> None:
+    release = _read("infra/bootstrap/bootstrap_gcp_release_identity.sh")
+    assert "Cloud Build Release Deployer" in release
+    assert "roles/iam.serviceAccountTokenCreator" in release
+    assert "roles/iam.serviceAccountOpenIdTokenCreator" in release
+    assert "token.actions.githubusercontent.com" not in release
+    assert "workload-identity-pools" not in release
+    assert "service-accounts keys create" not in release
