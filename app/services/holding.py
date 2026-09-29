@@ -632,6 +632,10 @@ def execution_fabric_state(db: Session) -> ExecutionFabricOut:
         commit_sha: str | None = None
         log_url: str | None = None
         evidence_uri: str | None = None
+        failure_type: str | None = None
+        failed_step_id: str | None = None
+        failed_step_name: str | None = None
+        failed_step_exit_code: int | None = None
         observed_at: datetime | None = None
 
         if execution is not None:
@@ -673,6 +677,39 @@ def execution_fabric_state(db: Session) -> ExecutionFabricOut:
             if isinstance(raw_log_url, str):
                 log_url = raw_log_url
 
+            raw_failure_type = snapshot.get("failure_type")
+            if isinstance(raw_failure_type, str):
+                failure_type = raw_failure_type
+
+            steps = snapshot.get("steps")
+            if isinstance(steps, list):
+                failed_step = next(
+                    (
+                        item
+                        for item in steps
+                        if isinstance(item, dict)
+                        and str(item.get("status") or "").upper()
+                        in {
+                            "FAILURE",
+                            "INTERNAL_ERROR",
+                            "TIMEOUT",
+                            "CANCELLED",
+                            "EXPIRED",
+                        }
+                    ),
+                    None,
+                )
+                if isinstance(failed_step, dict):
+                    raw_step_id = failed_step.get("id")
+                    raw_step_name = failed_step.get("name")
+                    raw_exit_code = failed_step.get("exit_code")
+                    if isinstance(raw_step_id, str):
+                        failed_step_id = raw_step_id
+                    if isinstance(raw_step_name, str):
+                        failed_step_name = raw_step_name
+                    if isinstance(raw_exit_code, int):
+                        failed_step_exit_code = raw_exit_code
+
             metadata = (
                 execution.metadata_json
                 if isinstance(execution.metadata_json, dict)
@@ -697,6 +734,10 @@ def execution_fabric_state(db: Session) -> ExecutionFabricOut:
                 commit_sha=commit_sha,
                 log_url=log_url,
                 evidence_uri=evidence_uri,
+                failure_type=failure_type,
+                failed_step_id=failed_step_id,
+                failed_step_name=failed_step_name,
+                failed_step_exit_code=failed_step_exit_code,
                 observed_at=observed_at,
             )
         )
