@@ -84,3 +84,12 @@ def test_cloudbuild_yaml_does_not_leak_shell_variables_into_substitution() -> No
             if name not in _ALLOWED_CLOUD_BUILD_SUBSTITUTIONS and not name.startswith("_"):
                 invalid.append(name)
         assert invalid == [], f"{path} has unescaped shell variables: {invalid}"
+
+
+
+def test_ci_toolchain_uses_official_terraform_stage() -> None:
+    dockerfile = _read("Dockerfile.ci")
+    assert "FROM hashicorp/terraform:1.9.8 AS terraform" in dockerfile
+    assert "COPY --from=terraform /bin/terraform /usr/local/bin/terraform" in dockerfile
+    assert "releases.hashicorp.com" not in dockerfile
+    assert "terraform.zip" not in dockerfile
