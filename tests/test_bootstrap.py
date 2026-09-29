@@ -239,3 +239,19 @@ def test_owner_identity_bootstrap_rejects_identity_drift(db_session, monkeypatch
     monkeypatch.setenv("OWNER_IDENTITY_EMAIL", "different@example.com")
     with pytest.raises(RuntimeError, match="owner identity drift"):
         bootstrap_owner_identity(db_session)
+
+
+
+def test_bootstrap_contains_shared_execution_projects(db_session):
+    bootstrap_canonical_portfolio(db_session)
+    projects = {item.key: item for item in db_session.scalars(select(Project))}
+
+    expected = {
+        "RESEARCH_AI": "brunocapellari-dotcom/Research-AI",
+        "CONTENT_FACTORY": "brunocapellari-dotcom/Content-Factory",
+        "WHATSAPP_AI": "brunocapellari-dotcom/WHATSAPP_AI",
+    }
+    for key, repository in expected.items():
+        assert key in projects
+        assert projects[key].repository == repository
+        assert projects[key].status in {ProjectStatus.active, ProjectStatus.incubating}
