@@ -91,6 +91,10 @@ class ExecutionFabricProjectState(BaseModel):
     failed_step_id: str | None = None
     failed_step_name: str | None = None
     failed_step_exit_code: int | None = None
+    failure_category: str | None = None
+    remediation_owner: str | None = None
+    recommended_action: str | None = None
+    retry_safe: bool = False
     observed_at: datetime | None = None
 
 
