@@ -588,6 +588,76 @@ def executive_state(db: Session) -> ExecutiveStateOut:
     )
 
 
+
+def _cloud_build_remediation(
+    failed_step_id: str | None,
+    failed_step_name: str | None,
+    failure_type: str | None,
+) -> tuple[str | None, str | None, str | None, bool]:
+    text = " ".join(
+        value.casefold()
+        for value in (failed_step_id, failed_step_name, failure_type)
+        if value
+    )
+    if not text:
+        return None, None, None, False
+
+    if any(token in text for token in ("secret", "gitleaks", "credential")):
+        return (
+            "security-secret",
+            "security",
+            "Investigate secret exposure or scanner finding before any rerun.",
+            False,
+        )
+    if any(token in text for token in ("trivy", "vulnerability", "sbom", "syft", "bandit", "semgrep")):
+        return (
+            "security-supply-chain",
+            "security",
+            "Remediate the security or supply-chain finding; do not bypass the gate.",
+            False,
+        )
+    if any(token in text for token in ("terraform", "iac", "infrastructure")):
+        return (
+            "infrastructure",
+            "platform",
+            "Repair the IaC or infrastructure contract and rerun the exact commit gate.",
+            False,
+        )
+    if any(token in text for token in ("build-ci-toolchain", "dockerfile", "container-build")):
+        return (
+            "ci-toolchain",
+            "platform",
+            "Repair the build toolchain or container definition, then rerun the gate.",
+            False,
+        )
+    if any(token in text for token in ("pytest", "test", "e2e", "full-project", "quality")):
+        return (
+            "project-quality",
+            "project",
+            "Fix the failing project test or acceptance contract before rerun.",
+            False,
+        )
+    if any(token in text for token in ("audit", "dependency", "pip", "npm")):
+        return (
+            "dependency-quality",
+            "project",
+            "Resolve dependency or audit failures and rerun the same quality gate.",
+            False,
+        )
+    if any(token in text for token in ("timeout", "internal_error", "internal error")):
+        return (
+            "transient-platform",
+            "platform",
+            "Verify platform health; one bounded rerun is safe if source and config are unchanged.",
+            True,
+        )
+    return (
+        "unknown",
+        "pmo",
+        "Inspect sanitized Cloud Build step metadata before choosing a remediation path.",
+        False,
+    )
+
 def execution_fabric_state(db: Session) -> ExecutionFabricOut:
     now = datetime.now(UTC)
     registry = project_registry(db)
@@ -636,6 +706,10 @@ def execution_fabric_state(db: Session) -> ExecutionFabricOut:
         failed_step_id: str | None = None
         failed_step_name: str | None = None
         failed_step_exit_code: int | None = None
+        failure_category: str | None = None
+        remediation_owner: str | None = None
+        recommended_action: str | None = None
+        retry_safe = False
         observed_at: datetime | None = None
 
         if execution is not None:
@@ -710,6 +784,17 @@ def execution_fabric_state(db: Session) -> ExecutionFabricOut:
                     if isinstance(raw_exit_code, int):
                         failed_step_exit_code = raw_exit_code
 
+            (
+                failure_category,
+                remediation_owner,
+                recommended_action,
+                retry_safe,
+            ) = _cloud_build_remediation(
+                failed_step_id,
+                failed_step_name,
+                failure_type,
+            )
+
             metadata = (
                 execution.metadata_json
                 if isinstance(execution.metadata_json, dict)
@@ -738,6 +823,10 @@ def execution_fabric_state(db: Session) -> ExecutionFabricOut:
                 failed_step_id=failed_step_id,
                 failed_step_name=failed_step_name,
                 failed_step_exit_code=failed_step_exit_code,
+                failure_category=failure_category,
+                remediation_owner=remediation_owner,
+                recommended_action=recommended_action,
+                retry_safe=retry_safe,
                 observed_at=observed_at,
             )
         )
