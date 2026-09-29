@@ -14,14 +14,14 @@ RUN apt-get update \
         git \
         postgresql-client \
         unzip \
-    && curl -fsSLo /tmp/terraform.zip \
+    && curl -fsSLo "/tmp/terraform_${TERRAFORM_VERSION}_linux_amd64.zip" \
         "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip" \
     && curl -fsSLo /tmp/terraform_SHA256SUMS \
         "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_SHA256SUMS" \
     && cd /tmp \
     && grep " terraform_${TERRAFORM_VERSION}_linux_amd64.zip$" terraform_SHA256SUMS > terraform_linux_amd64.sha256 \
     && sha256sum -c terraform_linux_amd64.sha256 \
-    && unzip terraform.zip -d /usr/local/bin \
+    && unzip "terraform_${TERRAFORM_VERSION}_linux_amd64.zip" -d /usr/local/bin \
     && terraform version \
     && docker --version \
     && rm -rf /var/lib/apt/lists/* /tmp/terraform*
