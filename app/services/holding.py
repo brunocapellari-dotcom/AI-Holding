@@ -547,6 +547,7 @@ def executive_state(db: Session) -> ExecutiveStateOut:
         )
     )
     integrations = list(db.scalars(select(IntegrationState)))
+    execution_fabric = execution_fabric_state(db)
 
     return ExecutiveStateOut(
         generated_at=now,
@@ -579,6 +580,7 @@ def executive_state(db: Session) -> ExecutiveStateOut:
             for risk in risks
         ],
         priorities=priorities,
+        execution_fabric=execution_fabric.model_dump(mode="json"),
     )
 
 
