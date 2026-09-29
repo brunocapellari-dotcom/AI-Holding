@@ -30,6 +30,7 @@ TERMINAL_FAILURES = frozenset({"FAILURE", "INTERNAL_ERROR", "TIMEOUT", "CANCELLE
 RUNNING_STATUSES = frozenset({"QUEUED", "PENDING", "WORKING"})
 PROJECT_PATTERN = re.compile(r"^[a-z][a-z0-9-]{4,62}$")
 REGION_PATTERN = re.compile(r"^[a-z0-9-]+$")
+REPOSITORY_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+$")
 
 AccessTokenProvider = Callable[[], str]
 IdentityTokenProvider = Callable[[str], str]
@@ -42,6 +43,7 @@ class CloudBuildCollectorConfig:
     region: str = DEFAULT_REGION
     audience: str = "holding-control-plane"
     max_builds: int = DEFAULT_MAX_BUILDS
+    repositories: frozenset[str] = frozenset()
     collector_key: str = DEFAULT_COLLECTOR_KEY
 
     @classmethod
@@ -66,12 +68,25 @@ class CloudBuildCollectorConfig:
                 f"CLOUD_BUILD_MAX_BUILDS must be between 1 and {MAX_BUILDS_LIMIT}"
             )
 
+        repositories_raw = os.getenv("CLOUD_BUILD_REPOSITORIES", "")
+        repositories = frozenset(
+            item.strip().casefold()
+            for item in repositories_raw.split(",")
+            if item.strip()
+        )
+        if any(
+            not REPOSITORY_NAME_PATTERN.fullmatch(item)
+            for item in repositories
+        ):
+            raise RuntimeError("CLOUD_BUILD_REPOSITORIES contains an invalid repository name")
+
         return cls(
             control_plane_url=control_plane_url,
             project_id=project_id,
             region=region,
             audience=os.getenv("CONTROL_PLANE_AUDIENCE", "holding-control-plane"),
             max_builds=max_builds,
+            repositories=repositories,
         )
 
 
@@ -363,6 +378,11 @@ def run_once(
             if item.get("legacy_status") in TRACKED_PROJECT_STATUSES
             and isinstance(item.get("repository"), str)
             and str(item.get("repository", "")).strip()
+            and (
+                not config.repositories
+                or str(item.get("repository", "")).rsplit("/", 1)[-1].casefold()
+                in config.repositories
+            )
         ]
 
         for project in tracked:
