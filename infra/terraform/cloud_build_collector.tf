@@ -63,6 +63,11 @@ resource "google_cloud_run_v2_job" "cloud_build_collector" {
           name  = "CLOUD_BUILD_MAX_BUILDS"
           value = "100"
         }
+
+        env {
+          name  = "CLOUD_BUILD_REPOSITORIES"
+          value = "AI-Holding,Geopolitical-Watch,Mercado-Financeiro,Sports-Intelligence,Game-Studio,Second-Brain,Hermes-AI-Platform,Personal-Performance-Health-OS,Research-AI,Content-Factory,WHATSAPP_AI"
+        }
       }
     }
   }
