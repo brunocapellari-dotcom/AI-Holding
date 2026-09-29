@@ -110,3 +110,9 @@ def test_cloud_build_collector_uses_scheduler_invoker_only() -> None:
     assert "roles/run.admin" not in collector
     assert "roles/editor" not in collector
     assert "roles/owner" not in collector
+
+
+
+def test_cloud_build_api_is_a_canonical_required_service() -> None:
+    main = _read("main.tf")
+    assert '"cloudbuild.googleapis.com"' in main
