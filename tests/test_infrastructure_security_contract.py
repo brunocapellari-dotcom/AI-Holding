@@ -118,3 +118,11 @@ def test_cloud_build_collector_uses_scheduler_invoker_only() -> None:
 def test_cloud_build_api_is_a_canonical_required_service() -> None:
     main = _read("main.tf")
     assert '"cloudbuild.googleapis.com"' in main
+
+
+
+def test_release_acceptance_executes_cloud_build_collector() -> None:
+    script = Path("scripts/deploy_release_candidate.sh").read_text(encoding="utf-8")
+    assert '== controlled Execution Fabric acceptance ==' in script
+    assert '"${SERVICE_NAME}-cloud-build-collector"' in script
+    assert '"cloud_build_collector_acceptance": "passed"' in script
