@@ -15,6 +15,7 @@ class CompletionGateOut(BaseModel):
     blocking_risks: int
     blocking_alerts: int
     blocking_security_findings: int
+    blocking_build_evidence: int = 0
     reasons: list[str]
 
 
