@@ -74,7 +74,6 @@ class SecurityFindingOut(SecurityFindingCreate):
     updated_at: datetime
 
 
-
 class ExecutionFabricProjectState(BaseModel):
     project_id: UUID
     project_key: str
