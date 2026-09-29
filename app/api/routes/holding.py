@@ -74,9 +74,9 @@ from app.schemas.holding_analysis import CompletionGateOut, FinOpsAnalysisOut, V
 from app.schemas.holding_evidence import (
     CollectorExecutionCreate,
     CollectorExecutionOut,
+    ExecutionFabricOut,
     SecurityFindingCreate,
     SecurityFindingOut,
-    ExecutionFabricOut,
 )
 from app.services.audit import record_audit
 from app.services.holding import (
