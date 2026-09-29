@@ -162,6 +162,12 @@ gcloud run jobs execute "${SERVICE_NAME}-pmo-acceptance"   --project="${PROJECT_
 gcloud run jobs execute "${SERVICE_NAME}-pmo-worker"   --project="${PROJECT_ID}" --region="${REGION}" --wait
 gcloud run jobs execute "${SERVICE_NAME}-pmo-acceptance"   --project="${PROJECT_ID}" --region="${REGION}" --args=finalize --wait
 
+echo "== controlled Execution Fabric acceptance =="
+gcloud run jobs execute "${SERVICE_NAME}-cloud-build-collector" \
+  --project="${PROJECT_ID}" \
+  --region="${REGION}" \
+  --wait
+
 echo "== controlled Knowledge acceptance =="
 gcloud run jobs execute "${SERVICE_NAME}-knowledge-acceptance"   --project="${PROJECT_ID}" --region="${REGION}" --args=prepare --wait
 gcloud run jobs execute "${SERVICE_NAME}-knowledge-worker"   --project="${PROJECT_ID}" --region="${REGION}" --wait
@@ -187,6 +193,7 @@ print(
             "pmo_acceptance": "passed",
             "knowledge_acceptance": "passed",
             "cloud_build_supervision": "passed",
+            "cloud_build_collector_acceptance": "passed",
         },
         sort_keys=True,
     )
