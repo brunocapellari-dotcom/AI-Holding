@@ -52,7 +52,7 @@ else
 fi
 
 echo "== recover stale Terraform taint only for known deployable runtime resources =="
-for address in   'google_cloud_run_v2_service.api[0]'   'google_cloud_run_v2_job.migrate[0]'   'google_cloud_run_v2_job.bootstrap[0]'   'google_cloud_run_v2_job.pmo_worker[0]'   'google_cloud_run_v2_job.knowledge_worker[0]'   'google_cloud_run_v2_job.github_collector[0]'   'google_cloud_run_v2_job.pmo_acceptance[0]'   'google_cloud_run_v2_job.knowledge_acceptance[0]'; do
+for address in   'google_cloud_run_v2_service.api[0]'   'google_cloud_run_v2_job.migrate[0]'   'google_cloud_run_v2_job.bootstrap[0]'   'google_cloud_run_v2_job.pmo_worker[0]'   'google_cloud_run_v2_job.knowledge_worker[0]'   'google_cloud_run_v2_job.github_collector[0]'   'google_cloud_run_v2_job.cloud_build_collector[0]'   'google_cloud_run_v2_job.pmo_acceptance[0]'   'google_cloud_run_v2_job.knowledge_acceptance[0]'; do
   state="$("${TF_BIN}" -chdir="${TF_DIR}" state show "${address}" 2>/dev/null || true)"
   if printf '%s\n' "${state}" | head -n 1 | grep -q '(tainted)'; then
     "${TF_BIN}" -chdir="${TF_DIR}" untaint "${address}"
@@ -123,7 +123,7 @@ if not has_invoker(knowledge):
     raise SystemExit("Knowledge service account is missing Cloud Run invoker")
 PY
 
-for job in "${SERVICE_NAME}-pmo-worker" "${SERVICE_NAME}-knowledge-worker"; do
+for job in "${SERVICE_NAME}-pmo-worker" "${SERVICE_NAME}-knowledge-worker" "${SERVICE_NAME}-cloud-build-collector"; do
   policy_file="/tmp/${job}-policy.json"
   gcloud run jobs get-iam-policy "${job}"     --project="${PROJECT_ID}" --region="${REGION}" --format=json > "${policy_file}"
   python3 - "${policy_file}" "${SCHEDULER_SERVICE_ACCOUNT}" <<'PY'
@@ -146,7 +146,7 @@ done
 expected_migration_service_account="$("${TF_BIN}" -chdir="${TF_DIR}" output -raw migration_runtime_service_account)"
 test "${expected_migration_service_account}" = "${MIGRATION_SERVICE_ACCOUNT}"
 
-for scheduler in "${SERVICE_NAME}-pmo-schedule" "${SERVICE_NAME}-knowledge-schedule"; do
+for scheduler in "${SERVICE_NAME}-pmo-schedule" "${SERVICE_NAME}-knowledge-schedule" "${SERVICE_NAME}-cloud-build-collector-schedule"; do
   scheduler_state="$(gcloud scheduler jobs describe "${scheduler}"     --project="${PROJECT_ID}" --location="${REGION}" --format='value(state)')"
   test "${scheduler_state}" = "ENABLED"
 done
@@ -186,6 +186,7 @@ print(
             "scheduler_checks": "passed",
             "pmo_acceptance": "passed",
             "knowledge_acceptance": "passed",
+            "cloud_build_supervision": "passed",
         },
         sort_keys=True,
     )
