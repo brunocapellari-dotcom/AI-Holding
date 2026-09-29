@@ -93,3 +93,16 @@ def test_ci_toolchain_uses_official_terraform_stage() -> None:
     assert "COPY --from=terraform /bin/terraform /usr/local/bin/terraform" in dockerfile
     assert "releases.hashicorp.com" not in dockerfile
     assert "terraform.zip" not in dockerfile
+
+
+
+def test_github_actions_is_manual_diagnostic_only() -> None:
+    workflow = _read(".github/workflows/ci.yml")
+    assert "workflow_dispatch:" in workflow
+    assert "pull_request:" not in workflow
+    assert "branches: [main]" not in workflow
+    assert "deploy-production" not in workflow
+    assert "google-github-actions/auth" not in workflow
+    assert "terraform apply" not in workflow
+    assert "gcloud run jobs execute" not in workflow
+    assert "manual diagnostic fallback only" in workflow
