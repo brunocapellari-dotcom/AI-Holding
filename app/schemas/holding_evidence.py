@@ -87,6 +87,10 @@ class ExecutionFabricProjectState(BaseModel):
     commit_sha: str | None = None
     log_url: str | None = None
     evidence_uri: str | None = None
+    failure_type: str | None = None
+    failed_step_id: str | None = None
+    failed_step_name: str | None = None
+    failed_step_exit_code: int | None = None
     observed_at: datetime | None = None
 
 
