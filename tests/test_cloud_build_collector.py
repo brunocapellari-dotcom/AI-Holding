@@ -103,6 +103,14 @@ def test_cloud_build_client_selects_latest_build_and_sanitizes_failure_detail() 
                             "type": "USER_BUILD_STEP",
                             "detail": "private secret-like upstream diagnostic",
                         },
+                        "steps": [
+                            {
+                                "id": "pytest",
+                                "name": "python:3.12",
+                                "status": "FAILURE",
+                                "exitCode": 1,
+                            }
+                        ],
                         "substitutions": {
                             "REPO_NAME": "Research-AI",
                             "BRANCH_NAME": "integration/final-runtime",
@@ -125,6 +133,8 @@ def test_cloud_build_client_selects_latest_build_and_sanitizes_failure_detail() 
     assert snapshot["id"] == "new"
     assert snapshot["status"] == "FAILURE"
     assert snapshot["failure_type"] == "USER_BUILD_STEP"
+    assert snapshot["steps"][0]["id"] == "pytest"
+    assert snapshot["steps"][0]["exit_code"] == 1
     assert "detail" not in snapshot
     assert "private secret-like" not in json.dumps(snapshot)
 
