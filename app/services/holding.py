@@ -584,7 +584,6 @@ def executive_state(db: Session) -> ExecutiveStateOut:
     )
 
 
-
 def execution_fabric_state(db: Session) -> ExecutionFabricOut:
     now = datetime.now(UTC)
     registry = project_registry(db)
