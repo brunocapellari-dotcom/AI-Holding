@@ -30,7 +30,7 @@ The canonical inventory is `ecosystem-projects.json`. The bootstrap links every 
 5. Builds write evidence to the dedicated GCS evidence bucket, not GitHub Actions artifacts.
 6. Production data, vaults, raw ingested content, quarantine, database dumps and CONFIDENTIAL/RESTRICTED material never become repository content.
 7. Scheduled production work is migrated away from GitHub Actions cron after the corresponding Cloud Scheduler/Cloud Run Job is verified.
-8. GitHub Actions workflows remain only as temporary fallback until their GCP replacement has passed the whole-project gate.
+8. AI-Holding GitHub Actions is manual diagnostic fallback only. Other project workflows may remain temporarily until their corresponding Cloud Build gate is proven green; they never gain Holding production authority.
 
 ## Bootstrap
 
@@ -156,3 +156,22 @@ Cloud Build then holds the release for explicit human approval. After approval, 
 9. stores the release evidence under `AI-Holding/releases/<commit>/<release-build-id>/`.
 
 The production trigger is intentionally not automatic. A repository push must never be sufficient by itself to exercise production deployment authority.
+
+
+## Production release identity
+
+The canonical production deploy identity is the existing bounded service account
+`github-deployer@${PROJECT_ID}.iam.gserviceaccount.com`, retained only as a
+name for backward compatibility.
+
+It is now a Cloud Build release identity, not a GitHub Actions identity.
+
+Bootstrap it explicitly with:
+
+```bash
+bash infra/bootstrap/bootstrap_gcp_release_identity.sh
+```
+
+The deprecated `infra/bootstrap/bootstrap_gcp_wif.sh` exits without mutation.
+No GitHub OIDC provider or static service-account key is part of the canonical
+production path.
