@@ -90,3 +90,23 @@ def test_audit_events_have_postgresql_append_only_trigger_migration() -> None:
     assert "BEFORE UPDATE OR DELETE ON audit_events" in migration
     assert "audit_events is append-only" in migration
     assert 'bind.dialect.name != "postgresql"' in migration
+
+
+
+def test_cloud_build_collector_is_read_only_and_excludes_agrolog() -> None:
+    collector = _read("cloud_build_collector.tf")
+    assert 'role    = "roles/cloudbuild.builds.viewer"' in collector
+    assert 'service_account = google_service_account.pmo_worker.email' in collector
+    assert 'resource "google_cloud_scheduler_job" "cloud_build_collector"' in collector
+    assert "CLOUD_BUILD_REPOSITORIES" in collector
+    assert "AgroLogMT" not in collector
+    assert "roles/cloudbuild.builds.editor" not in collector
+    assert "roles/cloudbuild.builds.builder" not in collector
+
+
+def test_cloud_build_collector_uses_scheduler_invoker_only() -> None:
+    collector = _read("cloud_build_collector.tf")
+    assert 'role    = "roles/run.invoker"' in collector
+    assert "roles/run.admin" not in collector
+    assert "roles/editor" not in collector
+    assert "roles/owner" not in collector
