@@ -255,6 +255,45 @@ PROJECT_SEEDS: tuple[ProjectSeed, ...] = (
         business_unit="Personal Performance",
     ),
     ProjectSeed(
+        key="RESEARCH_AI",
+        name="Research AI",
+        strategic_goal=(
+            "Operate shared autonomous research infrastructure for source discovery, "
+            "validation, acquisition and evidence delivery across the Holding."
+        ),
+        priority=0,
+        autonomy_level=4,
+        status=ProjectStatus.incubating,
+        repository="brunocapellari-dotcom/Research-AI",
+        business_unit="Shared Core",
+    ),
+    ProjectSeed(
+        key="CONTENT_FACTORY",
+        name="Content Factory",
+        strategic_goal=(
+            "Produce audited multimodal content from approved knowledge while preserving "
+            "provenance, rights, continuity and quality."
+        ),
+        priority=3,
+        autonomy_level=3,
+        status=ProjectStatus.incubating,
+        repository="brunocapellari-dotcom/Content-Factory",
+        business_unit="Content Operations",
+    ),
+    ProjectSeed(
+        key="WHATSAPP_AI",
+        name="WhatsApp AI",
+        strategic_goal=(
+            "Operate secure messaging automation and freight-intelligence workflows with "
+            "canonical entities, provenance and bounded integrations."
+        ),
+        priority=2,
+        autonomy_level=3,
+        status=ProjectStatus.incubating,
+        repository="brunocapellari-dotcom/WHATSAPP_AI",
+        business_unit="Business Automation",
+    ),
+    ProjectSeed(
         key="MAINTENANCE_FIELD_INTELLIGENCE",
         name="Maintenance & Field Intelligence",
         strategic_goal=(
