@@ -189,3 +189,7 @@ def test_execution_fabric_reports_failed_step_without_log_content(
     assert row["failure_type"] == "USER_BUILD_STEP"
     assert row["failed_step_id"] == "quality-and-e2e"
     assert row["failed_step_exit_code"] == 2
+    assert row["failure_category"] == "project-quality"
+    assert row["remediation_owner"] == "project"
+    assert row["retry_safe"] is False
+    assert "Fix the failing project test" in row["recommended_action"]
