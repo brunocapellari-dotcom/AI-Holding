@@ -1,35 +1,29 @@
-FROM python:3.12-bookworm
+FROM hashicorp/terraform:1.9.8 AS terraform
 
-ARG TERRAFORM_VERSION=1.9.8
+FROM python:3.12-bookworm
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
+COPY --from=terraform /bin/terraform /usr/local/bin/terraform
+
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates \
-        curl \
         docker.io \
         git \
         postgresql-client \
-        unzip \
-    && curl -fsSLo "/tmp/terraform_${TERRAFORM_VERSION}_linux_amd64.zip" \
-        "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip" \
-    && curl -fsSLo /tmp/terraform_SHA256SUMS \
-        "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_SHA256SUMS" \
-    && cd /tmp \
-    && grep " terraform_${TERRAFORM_VERSION}_linux_amd64.zip$" terraform_SHA256SUMS > terraform_linux_amd64.sha256 \
-    && sha256sum -c terraform_linux_amd64.sha256 \
-    && unzip "terraform_${TERRAFORM_VERSION}_linux_amd64.zip" -d /usr/local/bin \
     && terraform version \
     && docker --version \
-    && rm -rf /var/lib/apt/lists/* /tmp/terraform*
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace
 
 COPY . .
 
-RUN python -m pip install --no-cache-dir -e '.[dev]'
+RUN python -m pip install --no-cache-dir --upgrade pip \
+    && python -m pip install --no-cache-dir -e '.[dev]' \
+    && python -m pip check
 
 CMD ["bash", "scripts/full_project_gate.sh"]
