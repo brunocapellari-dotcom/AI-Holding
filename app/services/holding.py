@@ -52,7 +52,11 @@ def _sync_collector_health_alerts(
         dedupe_key = f"collector-failing:{project_id}:{collector.key}"
         alert = db.scalar(select(HoldingAlert).where(HoldingAlert.dedupe_key == dedupe_key))
 
-        if collector.status == "failing" and collector.consecutive_failures >= 3:
+        failure_threshold = 1 if collector.key == "gcp-cloud-build" else 3
+        if (
+            collector.status == "failing"
+            and collector.consecutive_failures >= failure_threshold
+        ):
             details = {
                 "collector_key": collector.key,
                 "consecutive_failures": collector.consecutive_failures,
