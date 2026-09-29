@@ -386,3 +386,4 @@ class ExecutiveStateOut(BaseModel):
     revenues: dict[str, object]
     risks: list[dict[str, object]]
     priorities: list[dict[str, object]]
+    execution_fabric: dict[str, object] = Field(default_factory=dict)
