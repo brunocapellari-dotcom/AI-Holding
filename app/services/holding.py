@@ -609,7 +609,10 @@ def _cloud_build_remediation(
             "Investigate secret exposure or scanner finding before any rerun.",
             False,
         )
-    if any(token in text for token in ("trivy", "vulnerability", "sbom", "syft", "bandit", "semgrep")):
+    if any(
+        token in text
+        for token in ("trivy", "vulnerability", "sbom", "syft", "bandit", "semgrep")
+    ):
         return (
             "security-supply-chain",
             "security",
