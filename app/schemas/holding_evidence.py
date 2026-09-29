@@ -72,3 +72,26 @@ class SecurityFindingOut(SecurityFindingCreate):
     detected_at: datetime
     created_at: datetime
     updated_at: datetime
+
+
+
+class ExecutionFabricProjectState(BaseModel):
+    project_id: UUID
+    project_key: str
+    name: str
+    repository: str | None = None
+    health_state: str
+    health_score: int = Field(ge=0, le=100)
+    cloud_build_state: str
+    build_id: str | None = None
+    branch: str | None = None
+    commit_sha: str | None = None
+    log_url: str | None = None
+    evidence_uri: str | None = None
+    observed_at: datetime | None = None
+
+
+class ExecutionFabricOut(BaseModel):
+    generated_at: datetime
+    totals: dict[str, int]
+    projects: list[ExecutionFabricProjectState]
