@@ -9,13 +9,14 @@ from sqlalchemy.orm import Session
 
 from app.models.entities import Task, WorkStatus
 from app.models.holding import (
+    CollectorRegistration,
     CostEntry,
     HoldingAlert,
     ProjectOperationalProfile,
     RiskRegisterEntry,
     VentureEvaluation,
 )
-from app.models.holding_evidence import SecurityFinding
+from app.models.holding_evidence import CollectorExecution, SecurityFinding
 from app.schemas.holding_analysis import (
     CompletionGateOut,
     FinOpsAnalysisOut,
@@ -63,6 +64,38 @@ def completion_gate(db: Session, project_id: UUID) -> CompletionGateOut:
         )
     )
 
+    build_evidence_blocked = 0
+    cloud_build_collector = db.scalar(
+        select(CollectorRegistration).where(
+            CollectorRegistration.project_id == project_id,
+            CollectorRegistration.key == "gcp-cloud-build",
+        )
+    )
+    if cloud_build_collector is not None:
+        latest_build_execution = db.scalar(
+            select(CollectorExecution)
+            .where(CollectorExecution.collector_id == cloud_build_collector.id)
+            .order_by(
+                CollectorExecution.started_at.desc(),
+                CollectorExecution.id.desc(),
+            )
+            .limit(1)
+        )
+        raw_build_status: str | None = None
+        if latest_build_execution is not None:
+            evidence = (
+                latest_build_execution.evidence
+                if isinstance(latest_build_execution.evidence, list)
+                else []
+            )
+            snapshot = evidence[0] if evidence and isinstance(evidence[0], dict) else {}
+            raw_status = snapshot.get("status")
+            if isinstance(raw_status, str):
+                raw_build_status = raw_status.upper()
+
+        if raw_build_status != "SUCCESS":
+            build_evidence_blocked = 1
+
     reasons: list[str] = []
     if progress.criteria_total == 0:
         reasons.append("no acceptance criteria exist")
@@ -78,6 +111,8 @@ def completion_gate(db: Session, project_id: UUID) -> CompletionGateOut:
         reasons.append("action-required or critical alerts remain")
     if blocking_security:
         reasons.append("high or critical unresolved security findings remain")
+    if build_evidence_blocked:
+        reasons.append("latest Holding Cloud Build evidence is not successful")
 
     return CompletionGateOut(
         project_id=project_id,
@@ -89,6 +124,7 @@ def completion_gate(db: Session, project_id: UUID) -> CompletionGateOut:
         blocking_risks=len(blocking_risks),
         blocking_alerts=len(blocking_alerts),
         blocking_security_findings=len(blocking_security),
+        blocking_build_evidence=build_evidence_blocked,
         reasons=reasons,
     )
 
