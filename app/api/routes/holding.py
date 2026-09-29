@@ -297,7 +297,12 @@ def create_collector_execution(
     elif payload.status == "failure":
         collector.consecutive_failures += 1
         collector.last_failure_at = payload.finished_at
-        collector.status = "failing" if collector.consecutive_failures >= 3 else "degraded"
+        failure_threshold = 1 if collector.key == "gcp-cloud-build" else 3
+        collector.status = (
+            "failing"
+            if collector.consecutive_failures >= failure_threshold
+            else "degraded"
+        )
     if payload.latency_ms is not None:
         collector.last_latency_ms = payload.latency_ms
 
