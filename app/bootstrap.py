@@ -249,7 +249,6 @@ PROJECT_SEEDS: tuple[ProjectSeed, ...] = (
             "Operate a local-first personal performance system that turns goals, "
             "training, nutrition, recovery and health context into audited adaptive "
             "plans without overriding medical authority."
-
         ),
         priority=3,
         autonomy_level=2,
@@ -299,7 +298,8 @@ PROJECT_SEEDS: tuple[ProjectSeed, ...] = (
         key="MAINTENANCE_FIELD_INTELLIGENCE",
         name="Maintenance & Field Intelligence",
         strategic_goal=(
-            "Validate a low-touch field-maintenance intelligence venture before scaling investment."
+            "Validate a low-touch field-maintenance intelligence venture before "
+            "scaling investment."
         ),
         priority=4,
         autonomy_level=1,
