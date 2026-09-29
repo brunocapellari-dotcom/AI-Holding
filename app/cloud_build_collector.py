@@ -180,6 +180,25 @@ class CloudBuildClient:
 
         failure = build.get("failureInfo")
         failure_type = failure.get("type") if isinstance(failure, dict) else None
+
+        step_summaries: list[dict[str, object]] = []
+        steps = build.get("steps")
+        if isinstance(steps, list):
+            for index, step in enumerate(steps):
+                if not isinstance(step, dict):
+                    continue
+                status = step.get("status")
+                exit_code = step.get("exitCode")
+                step_summaries.append(
+                    {
+                        "index": index,
+                        "id": step.get("id"),
+                        "name": step.get("name"),
+                        "status": status,
+                        "exit_code": exit_code,
+                    }
+                )
+
         return {
             "id": build.get("id"),
             "status": build.get("status"),
@@ -190,6 +209,7 @@ class CloudBuildClient:
             "finish_time": build.get("finishTime"),
             "log_url": build.get("logUrl"),
             "failure_type": failure_type,
+            "steps": step_summaries,
             "substitutions": selected_substitutions,
         }
 
