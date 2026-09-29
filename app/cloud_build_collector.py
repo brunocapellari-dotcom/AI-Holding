@@ -301,7 +301,7 @@ def _execution_payload(
         error_class = None
         error_message = None
     elif build_status in RUNNING_STATUSES:
-        collector_status = "degraded"
+        collector_status = "success"
         error_class = None
         error_message = None
     else:
