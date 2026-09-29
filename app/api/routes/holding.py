@@ -76,11 +76,13 @@ from app.schemas.holding_evidence import (
     CollectorExecutionOut,
     SecurityFindingCreate,
     SecurityFindingOut,
+    ExecutionFabricOut,
 )
 from app.services.audit import record_audit
 from app.services.holding import (
     compute_project_health,
     executive_state,
+    execution_fabric_state,
     project_contract,
     project_registry,
     summarize_costs,
@@ -112,6 +114,11 @@ def _require_human(actor: ActorContext, detail: str) -> None:
 @router.get("/projects/registry", response_model=list[ProjectRegistryEntryOut])
 def get_project_registry(db: DbSession) -> list[ProjectRegistryEntryOut]:
     return project_registry(db)
+
+
+@router.get("/execution-fabric", response_model=ExecutionFabricOut)
+def get_execution_fabric(db: DbSession) -> ExecutionFabricOut:
+    return execution_fabric_state(db)
 
 
 @router.get("/projects/{project_id}/completion-gate", response_model=CompletionGateOut)
