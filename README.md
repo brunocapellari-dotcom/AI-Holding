@@ -36,7 +36,8 @@ Este repositório não é protótipo. Ele contém o núcleo definitivo para regi
 - Secret Manager: credenciais
 - Artifact Registry: imagens de produção
 - Cloud Logging/Monitoring: telemetria
-- GitHub Actions: qualidade e entrega
+- Google Cloud Build: qualidade, provenance, promoção e entrega controlada
+- GitHub Actions: diagnóstico manual legado, sem autoridade de produção
 - BigQuery: dados analíticos das unidades; não substitui o PostgreSQL operacional
 - Hermes + Llama: Assistente Executivo, acima do Control Plane
 
