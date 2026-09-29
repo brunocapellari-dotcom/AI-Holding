@@ -595,6 +595,7 @@ def execution_fabric_state(db: Session) -> ExecutionFabricOut:
             )
         )
     )
+    collector_project_ids = {collector.project_id for collector in collectors}
     latest_by_project: dict[UUID, CollectorExecution] = {}
     for collector in collectors:
         execution = db.scalar(
@@ -616,7 +617,7 @@ def execution_fabric_state(db: Session) -> ExecutionFabricOut:
     }
 
     for project_id, row in projects_by_id.items():
-        if not row.repository:
+        if project_id not in collector_project_ids or not row.repository:
             continue
 
         execution = latest_by_project.get(project_id)
