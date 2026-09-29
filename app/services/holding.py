@@ -19,7 +19,7 @@ from app.models.holding import (
     RevenueEntry,
     RiskRegisterEntry,
 )
-from app.models.holding_evidence import SecurityFinding
+from app.models.holding_evidence import CollectorExecution, SecurityFinding
 from app.schemas.holding import (
     AlertOut,
     CostSummary,
@@ -32,6 +32,7 @@ from app.schemas.holding import (
     RevenueSummary,
     SecurityLevel,
 )
+from app.schemas.holding_evidence import ExecutionFabricOut, ExecutionFabricProjectState
 
 
 def _utc(value: datetime) -> datetime:
@@ -578,4 +579,125 @@ def executive_state(db: Session) -> ExecutiveStateOut:
             for risk in risks
         ],
         priorities=priorities,
+    )
+
+
+
+def execution_fabric_state(db: Session) -> ExecutionFabricOut:
+    now = datetime.now(UTC)
+    registry = project_registry(db)
+    projects_by_id = {row.project_id: row for row in registry}
+
+    collectors = list(
+        db.scalars(
+            select(CollectorRegistration).where(
+                CollectorRegistration.key == "gcp-cloud-build"
+            )
+        )
+    )
+    latest_by_project: dict[UUID, CollectorExecution] = {}
+    for collector in collectors:
+        execution = db.scalar(
+            select(CollectorExecution)
+            .where(CollectorExecution.collector_id == collector.id)
+            .order_by(CollectorExecution.started_at.desc(), CollectorExecution.id.desc())
+            .limit(1)
+        )
+        if execution is not None:
+            latest_by_project[collector.project_id] = execution
+
+    projects: list[ExecutionFabricProjectState] = []
+    totals = {
+        "success": 0,
+        "working": 0,
+        "queued": 0,
+        "failure": 0,
+        "unknown": 0,
+    }
+
+    for project_id, row in projects_by_id.items():
+        if not row.repository:
+            continue
+
+        execution = latest_by_project.get(project_id)
+        cloud_state = "unknown"
+        build_id: str | None = None
+        branch: str | None = None
+        commit_sha: str | None = None
+        log_url: str | None = None
+        evidence_uri: str | None = None
+        observed_at: datetime | None = None
+
+        if execution is not None:
+            observed_at = execution.finished_at or execution.started_at
+            evidence = execution.evidence if isinstance(execution.evidence, list) else []
+            snapshot = evidence[0] if evidence and isinstance(evidence[0], dict) else {}
+            raw_status = str(snapshot.get("status") or "").upper()
+            if raw_status == "SUCCESS":
+                cloud_state = "success"
+            elif raw_status in {"WORKING"}:
+                cloud_state = "working"
+            elif raw_status in {"QUEUED", "PENDING"}:
+                cloud_state = "queued"
+            elif raw_status in {
+                "FAILURE",
+                "INTERNAL_ERROR",
+                "TIMEOUT",
+                "CANCELLED",
+                "EXPIRED",
+            }:
+                cloud_state = "failure"
+            elif execution.status == "failure":
+                cloud_state = "failure"
+
+            raw_id = snapshot.get("id")
+            if raw_id is not None:
+                build_id = str(raw_id)
+
+            substitutions = snapshot.get("substitutions")
+            if isinstance(substitutions, dict):
+                raw_branch = substitutions.get("BRANCH_NAME")
+                raw_commit = substitutions.get("COMMIT_SHA")
+                if isinstance(raw_branch, str):
+                    branch = raw_branch
+                if isinstance(raw_commit, str):
+                    commit_sha = raw_commit
+
+            raw_log_url = snapshot.get("log_url")
+            if isinstance(raw_log_url, str):
+                log_url = raw_log_url
+
+            metadata = (
+                execution.metadata_json
+                if isinstance(execution.metadata_json, dict)
+                else {}
+            )
+            raw_evidence_uri = metadata.get("evidence_uri")
+            if isinstance(raw_evidence_uri, str):
+                evidence_uri = raw_evidence_uri
+
+        totals[cloud_state] = totals.get(cloud_state, 0) + 1
+        projects.append(
+            ExecutionFabricProjectState(
+                project_id=project_id,
+                project_key=row.project_key,
+                name=row.name,
+                repository=row.repository,
+                health_state=row.health.state,
+                health_score=row.health.score,
+                cloud_build_state=cloud_state,
+                build_id=build_id,
+                branch=branch,
+                commit_sha=commit_sha,
+                log_url=log_url,
+                evidence_uri=evidence_uri,
+                observed_at=observed_at,
+            )
+        )
+
+    projects.sort(key=lambda item: (item.cloud_build_state, item.name.casefold()))
+    return ExecutionFabricOut(
+        generated_at=now,
+        totals=totals,
+        projects=projects,
     )
