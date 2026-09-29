@@ -222,3 +222,47 @@ def test_config_rejects_invalid_project_and_unbounded_build_limit(monkeypatch) -
     monkeypatch.setenv("CLOUD_BUILD_MAX_BUILDS", "9999")
     with pytest.raises(RuntimeError, match="must be between"):
         CloudBuildCollectorConfig.from_env()
+
+
+
+def test_collector_excludes_repositories_outside_holding_gcp_scope() -> None:
+    captured: list[tuple[str, str, object | None]] = []
+    result = run_once(
+        CloudBuildCollectorConfig(
+            control_plane_url="https://holding.example",
+            repositories=frozenset({"research-ai"}),
+        ),
+        access_token_provider=lambda: "access-token",
+        identity_token_provider=lambda audience: "identity-token",
+        control_plane_transport=_control_plane_transport(
+            [
+                _project(PROJECT_ONE, "RESEARCH_AI", "brunocapellari-dotcom/Research-AI"),
+                _project(PROJECT_TWO, "AGROLOG_MT", "brunocapellari-dotcom/AgroLogMT"),
+            ],
+            captured,
+        ),
+        cloud_build_transport=httpx.MockTransport(
+            lambda request: httpx.Response(
+                200,
+                json={
+                    "builds": [
+                        {
+                            "id": "research-build",
+                            "status": "SUCCESS",
+                            "createTime": "2026-09-29T11:00:00Z",
+                            "substitutions": {"REPO_NAME": "Research-AI"},
+                        }
+                    ]
+                },
+            )
+        ),
+    )
+
+    assert result["processed"] == 1
+    executions = [
+        body
+        for method, path, body in captured
+        if method == "POST" and path.endswith("/executions")
+    ]
+    assert len(executions) == 1
+    assert executions[0]["metadata_json"]["project_key"] == "RESEARCH_AI"
