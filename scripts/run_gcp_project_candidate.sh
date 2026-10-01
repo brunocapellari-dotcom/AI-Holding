@@ -67,7 +67,9 @@ BRANCH_PATTERN="$(python3 - "${BRANCH}" <<'PY'
 import re
 import sys
 
-print("^" + re.escape(sys.argv[1]) + "$")
+branch = sys.argv[1]
+escaped = re.sub(r'([\\.^$|?*+(){}\[\]])', r'\\\1', branch)
+print(f"^{escaped}$")
 PY
 )"
 
