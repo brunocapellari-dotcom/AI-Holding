@@ -305,10 +305,7 @@ class ControlPlaneClient:
     ) -> dict[str, object]:
         response = self._request(
             "POST",
-            (
-                f"/api/v1/holding/projects/{project_id}/collectors/"
-                f"{collector_key}/executions"
-            ),
+            (f"/api/v1/holding/projects/{project_id}/collectors/{collector_key}/executions"),
             json_body=payload,
         )
         body: object = response.json()

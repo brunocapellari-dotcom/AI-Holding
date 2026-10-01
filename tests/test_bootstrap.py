@@ -241,7 +241,6 @@ def test_owner_identity_bootstrap_rejects_identity_drift(db_session, monkeypatch
         bootstrap_owner_identity(db_session)
 
 
-
 def test_bootstrap_contains_shared_execution_projects(db_session):
     bootstrap_canonical_portfolio(db_session)
     projects = {item.key: item for item in db_session.scalars(select(Project))}

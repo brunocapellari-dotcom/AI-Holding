@@ -7,6 +7,7 @@ Revises: 0009_holding_operating_system
 from collections.abc import Sequence
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision: str = "0010_holding_finance_resource"
@@ -162,8 +163,7 @@ def upgrade() -> None:
         _json_object_column("metadata_json"),
         *_timestamps(),
         sa.CheckConstraint(
-            "resource_type IN "
-            "('cpu','gpu','storage','agent','model','budget','developer')",
+            "resource_type IN ('cpu','gpu','storage','agent','model','budget','developer')",
             name=op.f("ck_resource_allocations_resource_type_valid"),
         ),
         sa.CheckConstraint(

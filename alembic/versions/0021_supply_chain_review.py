@@ -8,6 +8,7 @@ import uuid
 from collections.abc import Sequence
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision: str = "0021_supply_chain_review"
@@ -89,8 +90,7 @@ TOOL_DECISIONS = (
         "maintenance_cost": "Run during intake/re-evaluation, not as another application runtime.",
         "license": "Apache-2.0",
         "risk": (
-            "Scores are heuristics and never replace license review, CVE analysis "
-            "or code review."
+            "Scores are heuristics and never replace license review, CVE analysis or code review."
         ),
         "rationale": (
             "The existing intake policy already requires Scorecard; this records it as the "

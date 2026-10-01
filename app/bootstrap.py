@@ -298,8 +298,7 @@ PROJECT_SEEDS: tuple[ProjectSeed, ...] = (
         key="MAINTENANCE_FIELD_INTELLIGENCE",
         name="Maintenance & Field Intelligence",
         strategic_goal=(
-            "Validate a low-touch field-maintenance intelligence venture before "
-            "scaling investment."
+            "Validate a low-touch field-maintenance intelligence venture before scaling investment."
         ),
         priority=4,
         autonomy_level=1,
@@ -381,10 +380,7 @@ def _ensure_project(db: Session, seed: ProjectSeed, by_key: dict[str, Project]) 
             existing.repository = seed.repository
         if seed.repository_path and existing.repository_path is None:
             existing.repository_path = seed.repository_path
-        if (
-            seed.repository_path
-            and existing.repository_path not in {None, seed.repository_path}
-        ):
+        if seed.repository_path and existing.repository_path not in {None, seed.repository_path}:
             raise RuntimeError(f"repository path drift detected for {seed.key}")
         expected_parent_id = parent.id if parent else None
         if existing.parent_project_id != expected_parent_id:
@@ -559,8 +555,6 @@ def bootstrap_canonical_portfolio(
     }
 
 
-
-
 def _owner_identity_from_env() -> tuple[str, str, str] | None:
     values = {
         "issuer": os.getenv("OWNER_IDENTITY_ISSUER"),
@@ -599,9 +593,7 @@ def bootstrap_owner_identity(db: Session) -> bool:
             raise RuntimeError("owner identity drift detected")
         return False
 
-    email_owner = db.scalar(
-        select(HumanIdentityRole).where(HumanIdentityRole.email == email)
-    )
+    email_owner = db.scalar(select(HumanIdentityRole).where(HumanIdentityRole.email == email))
     if email_owner is not None:
         raise RuntimeError("owner email is already bound to another verified subject")
 

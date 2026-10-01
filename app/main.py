@@ -7,9 +7,9 @@ from sqlalchemy import text
 from starlette.middleware.base import RequestResponseEndpoint
 
 from app.api.routes import (
+    agents,
     audit,
     corporate_registry,
-    agents,
     decisions,
     executive,
     holding,

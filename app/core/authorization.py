@@ -66,7 +66,6 @@ AGENT_PERMISSIONS: dict[str, frozenset[AgentPermission]] = {
 }
 
 
-
 class ReadScope(StrEnum):
     operational = "operational"
     governance = "governance"
@@ -160,7 +159,6 @@ def _bound_human_role(db: Session, actor: ActorContext) -> HumanRole:
         raise _forbidden("human identity binding is invalid") from exc
 
 
-
 def authorize_read(
     db: Session,
     actor: ActorContext,
@@ -178,17 +176,13 @@ def authorize_read(
     if actor.actor_type == "human":
         role = _bound_human_role(db, actor)
         if scope not in HUMAN_READ_SCOPES.get(role, frozenset()):
-            raise _forbidden(
-                f"human role {role.value} cannot read {scope.value} data"
-            )
+            raise _forbidden(f"human role {role.value} cannot read {scope.value} data")
         return role
 
     if actor.actor_type == "service-account":
         agent = _bound_agent(db, actor)
         if scope not in AGENT_READ_SCOPES.get(agent.key, frozenset()):
-            raise _forbidden(
-                f"canonical agent {agent.key} cannot read {scope.value} data"
-            )
+            raise _forbidden(f"canonical agent {agent.key} cannot read {scope.value} data")
         return agent
 
     raise _forbidden("actor type is not authorized for reads")
@@ -222,9 +216,7 @@ def authorize_mutation(
             raise _forbidden("this mutation requires a canonical service agent")
         human_role = _bound_human_role(db, actor)
         if human_role != HumanRole.owner:
-            raise _forbidden(
-                f"human role {human_role.value} is read-only for mutations"
-            )
+            raise _forbidden(f"human role {human_role.value} is read-only for mutations")
         return None
 
     if actor.actor_type != "service-account":

@@ -55,8 +55,7 @@ def _verify_acceptance(client: TestClient, project_id: object) -> None:
     assert criterion.status_code == 201
     criterion_id = criterion.json()["id"]
     verified = client.post(
-        f"/api/v1/projects/{project_id}/milestones/{milestone_id}"
-        f"/criteria/{criterion_id}/verify",
+        f"/api/v1/projects/{project_id}/milestones/{milestone_id}/criteria/{criterion_id}/verify",
         json={"evidence": ["security-gate-evidence"]},
     )
     assert verified.status_code == 200

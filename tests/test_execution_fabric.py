@@ -90,8 +90,7 @@ def test_execution_fabric_reports_latest_cloud_build_evidence(client: TestClient
                 "gcp_project_id": "ai-holding-prod-bc",
                 "region": "southamerica-east1",
                 "evidence_uri": (
-                    "gs://ai-holding-prod-bc-ai-execution-evidence/"
-                    "Research-AI/build-123/"
+                    "gs://ai-holding-prod-bc-ai-execution-evidence/Research-AI/build-123/"
                 ),
             },
         },
@@ -109,7 +108,6 @@ def test_execution_fabric_reports_latest_cloud_build_evidence(client: TestClient
     assert row["evidence_uri"].endswith("/Research-AI/build-123/")
     assert row["failed_step_id"] is None
     assert body["totals"]["success"] >= 1
-
 
 
 def test_execution_fabric_reports_failed_step_without_log_content(
@@ -178,9 +176,7 @@ def test_execution_fabric_reports_failed_step_without_log_content(
     )
     assert response.status_code == 201
 
-    collector = client.get(
-        f"/api/v1/holding/projects/{project_id}/collectors"
-    ).json()[0]
+    collector = client.get(f"/api/v1/holding/projects/{project_id}/collectors").json()[0]
     assert collector["status"] == "failing"
 
     fabric = client.get("/api/v1/holding/execution-fabric").json()

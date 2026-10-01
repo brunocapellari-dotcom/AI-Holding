@@ -127,8 +127,7 @@ def analyze_finops(
         baseline_total = sum(
             entry.amount_micros
             for entry in costs
-            if entry.currency == currency
-            and baseline_start <= entry.observed_at < baseline_end
+            if entry.currency == currency and baseline_start <= entry.observed_at < baseline_end
         )
         baseline_daily = baseline_total / 7
         ratio = current / baseline_daily if baseline_daily > 0 else None

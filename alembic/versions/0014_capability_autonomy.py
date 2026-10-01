@@ -7,6 +7,7 @@ Revises: 0013_seed_tool_decisions
 from collections.abc import Sequence
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision: str = "0014_capability_autonomy"

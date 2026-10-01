@@ -8,6 +8,7 @@ import uuid
 from collections.abc import Sequence
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision: str = "0022_platform_review_round2"

@@ -53,10 +53,7 @@ def _sync_collector_health_alerts(
         alert = db.scalar(select(HoldingAlert).where(HoldingAlert.dedupe_key == dedupe_key))
 
         failure_threshold = 1 if collector.key == "gcp-cloud-build" else 3
-        if (
-            collector.status == "failing"
-            and collector.consecutive_failures >= failure_threshold
-        ):
+        if collector.status == "failing" and collector.consecutive_failures >= failure_threshold:
             details = {
                 "collector_key": collector.key,
                 "consecutive_failures": collector.consecutive_failures,
@@ -254,11 +251,7 @@ def compute_project_health(db: Session, project_id: UUID, persist: bool = True) 
     alert_penalty = min(
         35,
         sum(
-            25
-            if alert.level == "critical"
-            else 12
-            if alert.level == "action_required"
-            else 4
+            25 if alert.level == "critical" else 12 if alert.level == "action_required" else 4
             for alert in active_alerts
         ),
     )
@@ -342,9 +335,7 @@ def compute_project_health(db: Session, project_id: UUID, persist: bool = True) 
         "security": {
             "open_findings": len(security_findings),
             "high": sum(finding.severity == "high" for finding in security_findings),
-            "critical": sum(
-                finding.severity == "critical" for finding in security_findings
-            ),
+            "critical": sum(finding.severity == "critical" for finding in security_findings),
         },
         "dependencies": {"blocking_unhealthy": len(blocked_dependencies)},
     }
@@ -453,9 +444,7 @@ def project_contract(db: Session, project_id: UUID) -> ProjectContractOut:
             "open_risks": len(risks),
             "critical_risks": sum(risk.severity == "critical" for risk in risks),
             "open_findings": len(security_findings),
-            "high_findings": sum(
-                finding.severity == "high" for finding in security_findings
-            ),
+            "high_findings": sum(finding.severity == "high" for finding in security_findings),
             "critical_findings": sum(
                 finding.severity == "critical" for finding in security_findings
             ),
@@ -588,16 +577,13 @@ def executive_state(db: Session) -> ExecutiveStateOut:
     )
 
 
-
 def _cloud_build_remediation(
     failed_step_id: str | None,
     failed_step_name: str | None,
     failure_type: str | None,
 ) -> tuple[str | None, str | None, str | None, bool]:
     text = " ".join(
-        value.casefold()
-        for value in (failed_step_id, failed_step_name, failure_type)
-        if value
+        value.casefold() for value in (failed_step_id, failed_step_name, failure_type) if value
     )
     if not text:
         return None, None, None, False
@@ -610,8 +596,7 @@ def _cloud_build_remediation(
             False,
         )
     if any(
-        token in text
-        for token in ("trivy", "vulnerability", "sbom", "syft", "bandit", "semgrep")
+        token in text for token in ("trivy", "vulnerability", "sbom", "syft", "bandit", "semgrep")
     ):
         return (
             "security-supply-chain",
@@ -661,6 +646,7 @@ def _cloud_build_remediation(
         False,
     )
 
+
 def execution_fabric_state(db: Session) -> ExecutionFabricOut:
     now = datetime.now(UTC)
     registry = project_registry(db)
@@ -668,9 +654,7 @@ def execution_fabric_state(db: Session) -> ExecutionFabricOut:
 
     collectors = list(
         db.scalars(
-            select(CollectorRegistration).where(
-                CollectorRegistration.key == "gcp-cloud-build"
-            )
+            select(CollectorRegistration).where(CollectorRegistration.key == "gcp-cloud-build")
         )
     )
     collector_project_ids = {collector.project_id for collector in collectors}
@@ -726,15 +710,17 @@ def execution_fabric_state(db: Session) -> ExecutionFabricOut:
                 cloud_state = "working"
             elif raw_status in {"QUEUED", "PENDING"}:
                 cloud_state = "queued"
-            elif raw_status in {
-                "FAILURE",
-                "INTERNAL_ERROR",
-                "TIMEOUT",
-                "CANCELLED",
-                "EXPIRED",
-            }:
-                cloud_state = "failure"
-            elif execution.status == "failure":
+            elif (
+                raw_status
+                in {
+                    "FAILURE",
+                    "INTERNAL_ERROR",
+                    "TIMEOUT",
+                    "CANCELLED",
+                    "EXPIRED",
+                }
+                or execution.status == "failure"
+            ):
                 cloud_state = "failure"
 
             raw_id = snapshot.get("id")
@@ -798,11 +784,7 @@ def execution_fabric_state(db: Session) -> ExecutionFabricOut:
                 failure_type,
             )
 
-            metadata = (
-                execution.metadata_json
-                if isinstance(execution.metadata_json, dict)
-                else {}
-            )
+            metadata = execution.metadata_json if isinstance(execution.metadata_json, dict) else {}
             raw_evidence_uri = metadata.get("evidence_uri")
             if isinstance(raw_evidence_uri, str):
                 evidence_uri = raw_evidence_uri

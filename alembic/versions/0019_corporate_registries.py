@@ -7,6 +7,7 @@ Revises: 0018_audit_immutability
 from collections.abc import Sequence
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision: str = "0019_corporate_registries"
@@ -72,11 +73,15 @@ def upgrade() -> None:
         sa.Column("capability", sa.String(length=160), nullable=False),
         sa.Column("owner_system", sa.String(length=120), nullable=False, server_default="holding"),
         sa.Column("status", sa.String(length=24), nullable=False, server_default="candidate"),
-        sa.Column("version_policy", sa.String(length=120), nullable=False, server_default="renovate"),
+        sa.Column(
+            "version_policy", sa.String(length=120), nullable=False, server_default="renovate"
+        ),
         sa.Column("license_spdx", sa.String(length=120), nullable=True),
         sa.Column("repository", sa.String(length=240), nullable=True),
         sa.Column("runtime_scope", sa.String(length=120), nullable=False, server_default="shared"),
-        sa.Column("security_class", sa.String(length=40), nullable=False, server_default="internal"),
+        sa.Column(
+            "security_class", sa.String(length=40), nullable=False, server_default="internal"
+        ),
         _json_list("capabilities"),
         _json_list("constraints"),
         _json_list("evidence"),
@@ -98,15 +103,21 @@ def upgrade() -> None:
         sa.Column("key", sa.String(length=160), nullable=False),
         sa.Column("name", sa.String(length=200), nullable=False),
         sa.Column("source_type", sa.String(length=80), nullable=False),
-        sa.Column("owner_system", sa.String(length=120), nullable=False, server_default="research-ai"),
+        sa.Column(
+            "owner_system", sa.String(length=120), nullable=False, server_default="research-ai"
+        ),
         sa.Column("status", sa.String(length=24), nullable=False, server_default="candidate"),
         sa.Column("authority", sa.String(length=24), nullable=False, server_default="reference"),
         sa.Column("endpoint", sa.String(length=500), nullable=True),
         sa.Column("license_spdx", sa.String(length=120), nullable=True),
-        sa.Column("data_classification", sa.String(length=40), nullable=False, server_default="public"),
+        sa.Column(
+            "data_classification", sa.String(length=40), nullable=False, server_default="public"
+        ),
         sa.Column("freshness_sla_seconds", sa.Integer(), nullable=True),
         _json_object("provenance_requirements"),
-        sa.Column("terms_review_status", sa.String(length=40), nullable=False, server_default="pending"),
+        sa.Column(
+            "terms_review_status", sa.String(length=40), nullable=False, server_default="pending"
+        ),
         _json_list("evidence"),
         _json_object("metadata_json"),
         *_timestamps(),
@@ -203,7 +214,10 @@ def upgrade() -> None:
             name=op.f("ck_evaluation_registry_evaluation_registry_status_valid"),
         ),
         sa.ForeignKeyConstraint(
-            ["project_id"], ["projects.id"], name=op.f("fk_evaluation_registry_project_id_projects"), ondelete="SET NULL"
+            ["project_id"],
+            ["projects.id"],
+            name=op.f("fk_evaluation_registry_project_id_projects"),
+            ondelete="SET NULL",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_evaluation_registry")),
         sa.UniqueConstraint("key", name="uq_evaluation_registry_key"),
@@ -229,7 +243,9 @@ def upgrade() -> None:
         *_timestamps(),
         sa.CheckConstraint(
             "status IN ('proposed','accepted','superseded','rejected','deprecated')",
-            name=op.f("ck_architecture_decision_registry_architecture_decision_registry_status_valid"),
+            name=op.f(
+                "ck_architecture_decision_registry_architecture_decision_registry_status_valid"
+            ),
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_architecture_decision_registry")),
         sa.UniqueConstraint("key", name="uq_architecture_decision_registry_key"),
@@ -270,7 +286,10 @@ def upgrade() -> None:
             name=op.f("ck_data_contract_registry_data_contract_registry_status_valid"),
         ),
         sa.ForeignKeyConstraint(
-            ["project_id"], ["projects.id"], name=op.f("fk_data_contract_registry_project_id_projects"), ondelete="SET NULL"
+            ["project_id"],
+            ["projects.id"],
+            name=op.f("fk_data_contract_registry_project_id_projects"),
+            ondelete="SET NULL",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_data_contract_registry")),
         sa.UniqueConstraint("key", name="uq_data_contract_registry_key"),

@@ -192,9 +192,7 @@ class AlertOut(AlertCreate):
 class IntegrationUpsert(BaseModel):
     service_key: str = Field(min_length=2, max_length=100)
     kind: str = Field(min_length=2, max_length=80)
-    status: Literal[
-        "healthy", "degraded", "blocked", "offline", "unconfigured"
-    ] = "unconfigured"
+    status: Literal["healthy", "degraded", "blocked", "offline", "unconfigured"] = "unconfigured"
     endpoint: str | None = Field(default=None, max_length=500)
     last_success_at: datetime | None = None
     last_failure_at: datetime | None = None
@@ -230,16 +228,14 @@ class VentureOut(VentureCreate):
 
 class ResourceAllocationCreate(BaseModel):
     project_id: UUID | None = None
-    resource_type: Literal[
-        "cpu", "gpu", "storage", "agent", "model", "budget", "developer"
-    ]
+    resource_type: Literal["cpu", "gpu", "storage", "agent", "model", "budget", "developer"]
     resource_key: str = Field(min_length=1, max_length=160)
     requested_units: int = Field(default=0, ge=0)
     allocated_units: int = Field(default=0, ge=0)
     unit: str = Field(min_length=1, max_length=40)
-    status: Literal[
-        "proposed", "approved", "active", "reduced", "released", "rejected"
-    ] = "proposed"
+    status: Literal["proposed", "approved", "active", "reduced", "released", "rejected"] = (
+        "proposed"
+    )
     reason: str = ""
     starts_at: datetime | None = None
     ends_at: datetime | None = None
@@ -261,9 +257,7 @@ class ResourceAllocationOut(ResourceAllocationCreate):
 
 class PortfolioReviewCreate(BaseModel):
     project_id: UUID
-    classification: Literal[
-        "accelerate", "maintain", "restructure", "pause", "sunset"
-    ]
+    classification: Literal["accelerate", "maintain", "restructure", "pause", "sunset"]
     value_score: int = Field(ge=0, le=100)
     progress_score: int = Field(ge=0, le=100)
     cost_score: int = Field(ge=0, le=100)

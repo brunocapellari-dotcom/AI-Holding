@@ -16,9 +16,7 @@ def review_project_governance(db: Session, project_id: UUID) -> GovernanceReview
         raise LookupError("project not found")
 
     entries = list(
-        db.scalars(
-            select(CapabilityAutonomy).where(CapabilityAutonomy.project_id == project_id)
-        )
+        db.scalars(select(CapabilityAutonomy).where(CapabilityAutonomy.project_id == project_id))
     )
     by_key = {entry.capability_key: entry for entry in entries}
     declared = project.metadata_json.get("capabilities", [])

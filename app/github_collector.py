@@ -9,6 +9,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from types import TracebackType
+
 import httpx
 
 from app.pmo_worker import ControlPlaneClient, WorkerConfig, google_identity_token
@@ -46,7 +47,9 @@ class GitHubCollectorConfig:
             raise RuntimeError("GITHUB_TOKEN is required")
 
         try:
-            max_projects = int(os.getenv("GITHUB_COLLECTOR_MAX_PROJECTS", str(DEFAULT_MAX_PROJECTS)))
+            max_projects = int(
+                os.getenv("GITHUB_COLLECTOR_MAX_PROJECTS", str(DEFAULT_MAX_PROJECTS))
+            )
         except ValueError as exc:
             raise RuntimeError("GITHUB_COLLECTOR_MAX_PROJECTS must be an integer") from exc
         if not 1 <= max_projects <= MAX_PROJECTS_LIMIT:

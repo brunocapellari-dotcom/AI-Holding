@@ -163,9 +163,7 @@ def test_collector_execution_history_drives_aggregate_state(client: TestClient) 
     )
     assert success.status_code == 201
 
-    executions = client.get(
-        f"/api/v1/holding/projects/{project_id}/collectors/github/executions"
-    )
+    executions = client.get(f"/api/v1/holding/projects/{project_id}/collectors/github/executions")
     assert executions.status_code == 200
     assert len(executions.json()) == 4
 
@@ -216,9 +214,7 @@ def test_finops_revenue_security_alerts_integrations_and_executive_state(
         },
     )
     assert revenue.status_code == 201
-    revenue_summary = client.get(
-        f"/api/v1/holding/revenues/summary?project_id={project_id}"
-    )
+    revenue_summary = client.get(f"/api/v1/holding/revenues/summary?project_id={project_id}")
     assert revenue_summary.status_code == 200
     assert revenue_summary.json()["totals_by_currency"]["BRL"] == 5_000_000
 
@@ -258,9 +254,7 @@ def test_finops_revenue_security_alerts_integrations_and_executive_state(
         },
     )
     assert security.status_code == 201
-    findings = client.get(
-        f"/api/v1/holding/security/findings?project_id={project_id}"
-    )
+    findings = client.get(f"/api/v1/holding/security/findings?project_id={project_id}")
     assert findings.status_code == 200
     assert findings.json()[0]["severity"] == "high"
 

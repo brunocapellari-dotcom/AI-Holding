@@ -11,9 +11,7 @@ def test_verified_repository_locations_are_canonical(db_session) -> None:
 
     assert projects["AI_HOLDING"].repository == "brunocapellari-dotcom/AI-Holding"
     assert projects["SECOND_BRAIN"].repository == "brunocapellari-dotcom/Second-Brain"
-    assert projects["HERMES_AI_PLATFORM"].repository == (
-        "brunocapellari-dotcom/Hermes-AI-Platform"
-    )
+    assert projects["HERMES_AI_PLATFORM"].repository == ("brunocapellari-dotcom/Hermes-AI-Platform")
     assert projects["INTELIGENCIA_ESPORTIVA"].repository == (
         "brunocapellari-dotcom/Sports-Intelligence"
     )

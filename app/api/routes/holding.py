@@ -81,8 +81,8 @@ from app.schemas.holding_evidence import (
 from app.services.audit import record_audit
 from app.services.holding import (
     compute_project_health,
-    executive_state,
     execution_fabric_state,
+    executive_state,
     project_contract,
     project_registry,
     summarize_costs,
@@ -299,9 +299,7 @@ def create_collector_execution(
         collector.last_failure_at = payload.finished_at
         failure_threshold = 1 if collector.key == "gcp-cloud-build" else 3
         collector.status = (
-            "failing"
-            if collector.consecutive_failures >= failure_threshold
-            else "degraded"
+            "failing" if collector.consecutive_failures >= failure_threshold else "degraded"
         )
     if payload.latency_ms is not None:
         collector.last_latency_ms = payload.latency_ms

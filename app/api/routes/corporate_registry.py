@@ -61,7 +61,9 @@ def _require_project(db: Session, project_id: UUID | None) -> None:
 
 @router.get("", response_model=list[RegistryDirectoryOut])
 def registry_directory(db: DbSession) -> list[RegistryDirectoryEntry]:
-    return list(db.scalars(select(RegistryDirectoryEntry).order_by(RegistryDirectoryEntry.registry_key)))
+    return list(
+        db.scalars(select(RegistryDirectoryEntry).order_by(RegistryDirectoryEntry.registry_key))
+    )
 
 
 @router.put("/tools/{key}", response_model=ToolRegistryOut)
@@ -111,7 +113,9 @@ def list_tools(
         statement = statement.where(ToolRegistration.status == status.strip())
     if capability:
         statement = statement.where(ToolRegistration.capability == capability.strip())
-    statement = statement.order_by(ToolRegistration.name).limit(effective_limit).offset(effective_offset)
+    statement = (
+        statement.order_by(ToolRegistration.name).limit(effective_limit).offset(effective_offset)
+    )
     return list(db.scalars(statement))
 
 
@@ -162,7 +166,9 @@ def list_sources(
         statement = statement.where(SourceRegistration.status == status.strip())
     if authority:
         statement = statement.where(SourceRegistration.authority == authority.strip())
-    statement = statement.order_by(SourceRegistration.name).limit(effective_limit).offset(effective_offset)
+    statement = (
+        statement.order_by(SourceRegistration.name).limit(effective_limit).offset(effective_offset)
+    )
     return list(db.scalars(statement))
 
 
@@ -210,7 +216,11 @@ def list_licenses(
     statement = select(LicenseRegistration)
     if usage_policy:
         statement = statement.where(LicenseRegistration.usage_policy == usage_policy.strip())
-    statement = statement.order_by(LicenseRegistration.spdx_id).limit(effective_limit).offset(effective_offset)
+    statement = (
+        statement.order_by(LicenseRegistration.spdx_id)
+        .limit(effective_limit)
+        .offset(effective_offset)
+    )
     return list(db.scalars(statement))
 
 
@@ -313,7 +323,9 @@ def list_evaluations(
     if project_id is not None:
         statement = statement.where(EvaluationRegistration.project_id == project_id)
     if evaluation_type:
-        statement = statement.where(EvaluationRegistration.evaluation_type == evaluation_type.strip())
+        statement = statement.where(
+            EvaluationRegistration.evaluation_type == evaluation_type.strip()
+        )
     statement = statement.order_by(EvaluationRegistration.updated_at.desc())
     statement = statement.limit(effective_limit).offset(effective_offset)
     return list(db.scalars(statement))

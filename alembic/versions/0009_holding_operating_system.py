@@ -7,6 +7,7 @@ Revises: 0008_knowledge_maintenance
 from collections.abc import Sequence
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision: str = "0009_holding_operating_system"

@@ -14,12 +14,12 @@ def test_quality_cloud_build_is_low_privilege_and_provenance_gated() -> None:
     config = _read("cloudbuild.yaml")
     assert "ai-build-executor@" in config
     assert "requestedVerifyOption: VERIFIED" in config
-    assert 'images:' in config
-    assert 'source-commit.txt' in config
-    assert 'build-id.txt' in config
-    assert 'gitleaks.json' in config
-    assert 'sbom.cdx.json' in config
-    assert 'trivy-image.json' in config
+    assert "images:" in config
+    assert "source-commit.txt" in config
+    assert "build-id.txt" in config
+    assert "gitleaks.json" in config
+    assert "sbom.cdx.json" in config
+    assert "trivy-image.json" in config
 
 
 def test_release_cloud_build_reuses_exact_candidate_and_release_identity() -> None:
@@ -84,7 +84,6 @@ def test_cloudbuild_yaml_does_not_leak_shell_variables_into_substitution() -> No
             if name not in _ALLOWED_CLOUD_BUILD_SUBSTITUTIONS and not name.startswith("_"):
                 invalid.append(name)
         assert invalid == [], f"{path} has unescaped shell variables: {invalid}"
-
 
 
 def test_ci_toolchain_uses_official_terraform_stage() -> None:

@@ -47,7 +47,7 @@ class CloudBuildCollectorConfig:
     collector_key: str = DEFAULT_COLLECTOR_KEY
 
     @classmethod
-    def from_env(cls) -> "CloudBuildCollectorConfig":
+    def from_env(cls) -> CloudBuildCollectorConfig:
         control_plane_url = os.getenv("CONTROL_PLANE_URL", "").rstrip("/")
         if not control_plane_url.startswith("https://"):
             raise RuntimeError("CONTROL_PLANE_URL must be an https URL")
@@ -64,20 +64,13 @@ class CloudBuildCollectorConfig:
         except ValueError as exc:
             raise RuntimeError("CLOUD_BUILD_MAX_BUILDS must be an integer") from exc
         if not 1 <= max_builds <= MAX_BUILDS_LIMIT:
-            raise RuntimeError(
-                f"CLOUD_BUILD_MAX_BUILDS must be between 1 and {MAX_BUILDS_LIMIT}"
-            )
+            raise RuntimeError(f"CLOUD_BUILD_MAX_BUILDS must be between 1 and {MAX_BUILDS_LIMIT}")
 
         repositories_raw = os.getenv("CLOUD_BUILD_REPOSITORIES", "")
         repositories = frozenset(
-            item.strip().casefold()
-            for item in repositories_raw.split(",")
-            if item.strip()
+            item.strip().casefold() for item in repositories_raw.split(",") if item.strip()
         )
-        if any(
-            not REPOSITORY_NAME_PATTERN.fullmatch(item)
-            for item in repositories
-        ):
+        if any(not REPOSITORY_NAME_PATTERN.fullmatch(item) for item in repositories):
             raise RuntimeError("CLOUD_BUILD_REPOSITORIES contains an invalid repository name")
 
         return cls(
@@ -129,7 +122,7 @@ class CloudBuildClient:
             follow_redirects=False,
         )
 
-    def __enter__(self) -> "CloudBuildClient":
+    def __enter__(self) -> CloudBuildClient:
         self._client.__enter__()
         return self
 
@@ -316,11 +309,7 @@ def _execution_payload(
     build_status = str(snapshot.get("status") or "UNKNOWN").upper()
     build_id = str(snapshot.get("id") or "")
     cursor = f"{build_id}:{build_status}"[:500] if build_id else build_status[:500]
-    if build_status == "SUCCESS":
-        collector_status = "success"
-        error_class = None
-        error_message = None
-    elif build_status in RUNNING_STATUSES:
+    if build_status == "SUCCESS" or build_status in RUNNING_STATUSES:
         collector_status = "success"
         error_class = None
         error_message = None

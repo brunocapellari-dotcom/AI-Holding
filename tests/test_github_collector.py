@@ -4,7 +4,7 @@ from uuid import UUID
 import httpx
 import pytest
 
-from app.github_collector import GitHubCollectorConfig, GitHubClient, run_once
+from app.github_collector import GitHubClient, GitHubCollectorConfig, run_once
 
 PROJECT_ONE = "11111111-1111-1111-1111-111111111111"
 PROJECT_TWO = "22222222-2222-2222-2222-222222222222"

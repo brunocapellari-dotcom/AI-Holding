@@ -6,7 +6,6 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-
 RegistryStatus = Literal["approved", "candidate", "restricted", "deprecated", "rejected"]
 
 
@@ -98,7 +97,11 @@ class LicenseRegistryUpsert(BaseModel):
 
     @model_validator(mode="after")
     def reviewed_policy_has_reviewer(self) -> LicenseRegistryUpsert:
-        if self.usage_policy != "rejected" and self.reviewed_at is not None and not self.reviewed_by:
+        if (
+            self.usage_policy != "rejected"
+            and self.reviewed_at is not None
+            and not self.reviewed_by
+        ):
             raise ValueError("reviewed license policy requires reviewed_by")
         return self
 
@@ -176,7 +179,10 @@ class ArchitectureDecisionRegistryUpsert(BaseModel):
 
     @model_validator(mode="after")
     def final_decisions_require_timestamp(self) -> ArchitectureDecisionRegistryUpsert:
-        if self.status in {"accepted", "superseded", "rejected", "deprecated"} and self.decided_at is None:
+        if (
+            self.status in {"accepted", "superseded", "rejected", "deprecated"}
+            and self.decided_at is None
+        ):
             raise ValueError("final architecture decision status requires decided_at")
         return self
 

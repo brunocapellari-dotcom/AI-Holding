@@ -184,9 +184,7 @@ def test_collector_records_build_quality_for_each_project() -> None:
     assert result["succeeded"] == 1
     assert result["failed"] == 1
     executions = [
-        body
-        for method, path, body in captured
-        if method == "POST" and path.endswith("/executions")
+        body for method, path, body in captured if method == "POST" and path.endswith("/executions")
     ]
     assert len(executions) == 2
     statuses = {str(item["metadata_json"]["project_key"]): item["status"] for item in executions}
@@ -214,9 +212,7 @@ def test_collector_marks_missing_build_as_degraded() -> None:
 
     assert result["degraded"] == 1
     execution = next(
-        body
-        for method, path, body in captured
-        if method == "POST" and path.endswith("/executions")
+        body for method, path, body in captured if method == "POST" and path.endswith("/executions")
     )
     assert execution["status"] == "degraded"
     assert execution["records_seen"] == 0
@@ -232,7 +228,6 @@ def test_config_rejects_invalid_project_and_unbounded_build_limit(monkeypatch) -
     monkeypatch.setenv("CLOUD_BUILD_MAX_BUILDS", "9999")
     with pytest.raises(RuntimeError, match="must be between"):
         CloudBuildCollectorConfig.from_env()
-
 
 
 def test_collector_excludes_repositories_outside_holding_gcp_scope() -> None:
@@ -270,9 +265,7 @@ def test_collector_excludes_repositories_outside_holding_gcp_scope() -> None:
 
     assert result["processed"] == 1
     executions = [
-        body
-        for method, path, body in captured
-        if method == "POST" and path.endswith("/executions")
+        body for method, path, body in captured if method == "POST" and path.endswith("/executions")
     ]
     assert len(executions) == 1
     assert executions[0]["metadata_json"]["project_key"] == "RESEARCH_AI"

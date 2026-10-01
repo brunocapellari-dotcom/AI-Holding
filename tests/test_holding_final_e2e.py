@@ -69,8 +69,7 @@ def test_completed_is_rejected_without_evidence_and_accepted_after_verification(
     criterion_id = criterion.json()["id"]
 
     verified = client.post(
-        f"/api/v1/projects/{project_id}/milestones/{milestone_id}"
-        f"/criteria/{criterion_id}/verify",
+        f"/api/v1/projects/{project_id}/milestones/{milestone_id}/criteria/{criterion_id}/verify",
         json={"evidence": ["full-project-gate-evidence"]},
     )
     assert verified.status_code == 200

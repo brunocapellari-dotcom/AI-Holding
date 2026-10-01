@@ -322,10 +322,7 @@ def test_pmo_service_account_has_only_bounded_collector_mutations(
         assert collector.status_code == 200, collector.text
 
         execution = client.post(
-            (
-                f"/api/v1/holding/projects/{project_id}/collectors/"
-                "github-repository/executions"
-            ),
+            (f"/api/v1/holding/projects/{project_id}/collectors/github-repository/executions"),
             json={
                 "status": "success",
                 "started_at": "2026-09-18T12:00:00Z",

@@ -9,10 +9,10 @@ def _read(name: str) -> str:
 
 def test_cloud_sql_remains_private_encrypted_and_destroy_protected() -> None:
     main = _read("main.tf")
-    assert 'ipv4_enabled                                  = false' in main
+    assert "ipv4_enabled                                  = false" in main
     assert 'ssl_mode                                      = "ENCRYPTED_ONLY"' in main
-    assert 'deletion_protection = true' in main
-    assert 'prevent_destroy = true' in main
+    assert "deletion_protection = true" in main
+    assert "prevent_destroy = true" in main
 
 
 def test_migration_job_uses_dedicated_runtime_identity() -> None:
@@ -38,8 +38,7 @@ def test_database_iam_defines_separate_api_and_migration_principals() -> None:
 
 def test_terraform_never_grants_public_iam_membership() -> None:
     combined = "\n".join(
-        path.read_text(encoding="utf-8")
-        for path in sorted(TERRAFORM_ROOT.glob("*.tf"))
+        path.read_text(encoding="utf-8") for path in sorted(TERRAFORM_ROOT.glob("*.tf"))
     )
     assert "allUsers" not in combined
     assert "allAuthenticatedUsers" not in combined
@@ -48,8 +47,7 @@ def test_terraform_never_grants_public_iam_membership() -> None:
 def test_password_database_secret_is_explicitly_rollback_only_for_migration_identity() -> None:
     database_iam = _read("database_iam.tf")
     rollback_binding = (
-        'resource "google_secret_manager_secret_iam_member" '
-        '"migration_database_url_rollback"'
+        'resource "google_secret_manager_secret_iam_member" "migration_database_url_rollback"'
     )
     assert rollback_binding in database_iam
 
@@ -80,7 +78,7 @@ def test_github_collector_is_secret_gated_and_disabled_by_default() -> None:
     assert 'data "google_secret_manager_secret" "github_collector_token"' in collector
     assert "GITHUB_TOKEN" in collector
     assert "roles/secretmanager.secretAccessor" in collector
-    assert 'service_account = google_service_account.pmo_worker.email' in collector
+    assert "service_account = google_service_account.pmo_worker.email" in collector
     assert 'resource "google_cloud_scheduler_job" "github_collector"' in collector
     assert "github.com/" not in collector
     assert "ghp_" not in collector
@@ -94,11 +92,10 @@ def test_audit_events_have_postgresql_append_only_trigger_migration() -> None:
     assert 'bind.dialect.name != "postgresql"' in migration
 
 
-
 def test_cloud_build_collector_is_read_only_and_excludes_agrolog() -> None:
     collector = _read("cloud_build_collector.tf")
     assert 'role    = "roles/cloudbuild.builds.viewer"' in collector
-    assert 'service_account = google_service_account.pmo_worker.email' in collector
+    assert "service_account = google_service_account.pmo_worker.email" in collector
     assert 'resource "google_cloud_scheduler_job" "cloud_build_collector"' in collector
     assert "CLOUD_BUILD_REPOSITORIES" in collector
     assert "AgroLogMT" not in collector
@@ -114,15 +111,13 @@ def test_cloud_build_collector_uses_scheduler_invoker_only() -> None:
     assert "roles/owner" not in collector
 
 
-
 def test_cloud_build_api_is_a_canonical_required_service() -> None:
     main = _read("main.tf")
     assert '"cloudbuild.googleapis.com"' in main
 
 
-
 def test_release_acceptance_executes_cloud_build_collector() -> None:
     script = Path("scripts/deploy_release_candidate.sh").read_text(encoding="utf-8")
-    assert '== controlled Execution Fabric acceptance ==' in script
+    assert "== controlled Execution Fabric acceptance ==" in script
     assert '"${SERVICE_NAME}-cloud-build-collector"' in script
     assert '"cloud_build_collector_acceptance": "passed"' in script

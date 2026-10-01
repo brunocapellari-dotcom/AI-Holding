@@ -7,6 +7,7 @@ Revises: 0010_holding_finance_resource
 from collections.abc import Sequence
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision: str = "0011_holding_evidence_security"

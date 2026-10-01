@@ -14,7 +14,6 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     Uuid,
-    func,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -91,7 +90,9 @@ class SourceRegistration(Base, TimestampMixin):
     source_type: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
     owner_system: Mapped[str] = mapped_column(String(120), nullable=False, default="research-ai")
     status: Mapped[str] = mapped_column(String(24), nullable=False, default="candidate", index=True)
-    authority: Mapped[str] = mapped_column(String(24), nullable=False, default="reference", index=True)
+    authority: Mapped[str] = mapped_column(
+        String(24), nullable=False, default="reference", index=True
+    )
     endpoint: Mapped[str | None] = mapped_column(String(500), nullable=True)
     license_spdx: Mapped[str | None] = mapped_column(String(120), nullable=True)
     data_classification: Mapped[str] = mapped_column(String(40), nullable=False, default="public")
@@ -173,7 +174,10 @@ class EvaluationRegistration(Base, TimestampMixin):
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     key: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
     project_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid(as_uuid=True), ForeignKey("projects.id", ondelete="SET NULL"), nullable=True, index=True
+        Uuid(as_uuid=True),
+        ForeignKey("projects.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     evaluation_type: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
@@ -226,18 +230,25 @@ class DataContractRegistration(Base, TimestampMixin):
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     key: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
     project_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid(as_uuid=True), ForeignKey("projects.id", ondelete="SET NULL"), nullable=True, index=True
+        Uuid(as_uuid=True),
+        ForeignKey("projects.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )
     dataset_key: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
     owner_system: Mapped[str] = mapped_column(String(120), nullable=False, default="holding")
     status: Mapped[str] = mapped_column(String(24), nullable=False, default="candidate", index=True)
-    contract_format: Mapped[str] = mapped_column(String(80), nullable=False, default="holding-data-contract-v1")
+    contract_format: Mapped[str] = mapped_column(
+        String(80), nullable=False, default="holding-data-contract-v1"
+    )
     engine: Mapped[str] = mapped_column(String(80), nullable=False, default="native")
     contract_ref: Mapped[str] = mapped_column(String(500), nullable=False)
     version: Mapped[str] = mapped_column(String(80), nullable=False)
     required_checks: Mapped[list[object]] = mapped_column(JSON, default=list)
     latest_result: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
-    last_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_verified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     blocking: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     evidence: Mapped[list[object]] = mapped_column(JSON, default=list)
     metadata_json: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)

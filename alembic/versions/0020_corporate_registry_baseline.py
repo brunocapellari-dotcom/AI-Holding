@@ -4,11 +4,12 @@ Revision ID: 0020_corporate_registry_baseline
 Revises: 0019_corporate_registries
 """
 
+import uuid
 from collections.abc import Sequence
 from datetime import UTC, datetime
-import uuid
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision: str = "0020_corporate_registry_baseline"
@@ -26,7 +27,12 @@ REGISTRIES = (
     ("source", "Source Registry", "holding", "holding-control-plane:source_registry"),
     ("license", "License Registry", "holding", "holding-control-plane:license_registry"),
     ("model", "Model Registry", "hermes", "holding-control-plane:model_registry"),
-    ("evaluation", "Evaluation Registry", "holding-auditor", "holding-control-plane:evaluation_registry"),
+    (
+        "evaluation",
+        "Evaluation Registry",
+        "holding-auditor",
+        "holding-control-plane:evaluation_registry",
+    ),
     ("risk", "Risk Registry", "holding", "holding-control-plane:risk_registry"),
     ("cost", "Cost Registry", "holding-finops", "holding-control-plane:cost_entries"),
     (
@@ -127,7 +133,10 @@ TOOLS = (
         "repository": "astral-sh/uv",
         "runtime_scope": "development-ci-build",
         "capabilities": ["uv.lock", "exact sync", "workspaces", "SBOM export"],
-        "constraints": ["uv.lock is canonical Python resolution", "do not maintain parallel pip lock truth"],
+        "constraints": [
+            "uv.lock is canonical Python resolution",
+            "do not maintain parallel pip lock truth",
+        ],
     },
     {
         "key": "RUFF_CORPORATE_LINT",
@@ -159,7 +168,13 @@ TOOLS = (
         "license_spdx": "AGPL-3.0-only",
         "repository": "renovatebot/renovate",
         "runtime_scope": "hosted-github-app",
-        "capabilities": ["dependency cooldown", "uv lock maintenance", "Actions", "Terraform", "Docker"],
+        "capabilities": [
+            "dependency cooldown",
+            "uv lock maintenance",
+            "Actions",
+            "Terraform",
+            "Docker",
+        ],
         "constraints": [
             "use hosted GitHub App rather than embedding Renovate into product runtime",
             "minimumReleaseAge enforced",
@@ -225,7 +240,14 @@ TOOLS = (
         "license_spdx": "Apache-2.0",
         "repository": "stacklok/toolhive",
         "runtime_scope": "mcp-platform",
-        "capabilities": ["registry", "gateway", "runtime isolation", "OIDC", "audit", "OpenTelemetry"],
+        "capabilities": [
+            "registry",
+            "gateway",
+            "runtime isolation",
+            "OIDC",
+            "audit",
+            "OpenTelemetry",
+        ],
         "constraints": [
             "benchmark registry/gateway first",
             "must not become a second Holding or Hermes control plane",
@@ -240,7 +262,15 @@ TOOLS = (
         "license_spdx": "AGPL-3.0-only",
         "repository": "makeplane/plane",
         "runtime_scope": "project-management",
-        "capabilities": ["projects", "work items", "cycles", "modules", "webhooks", "REST API", "MCP"],
+        "capabilities": [
+            "projects",
+            "work items",
+            "cycles",
+            "modules",
+            "webhooks",
+            "REST API",
+            "MCP",
+        ],
         "constraints": [
             "benchmark as UI/reference only until it proves replacement value",
             "do not duplicate Holding Project/Task/PMO truth",
@@ -577,8 +607,7 @@ def upgrade() -> None:
                 "rationale": benefit,
                 "evidence": ["docs/architecture/CORPORATE_STANDARDS_2026-09-21.md"],
             }
-            for key, tool_name, capability, classification, replaces_key, benefit, license_id
-            in TOOL_DECISIONS
+            for key, tool_name, capability, classification, replaces_key, benefit, license_id in TOOL_DECISIONS
         ],
     )
 

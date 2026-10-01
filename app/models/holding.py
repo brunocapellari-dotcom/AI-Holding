@@ -43,9 +43,7 @@ class ProjectOperationalProfile(Base, TimestampMixin):
         primary_key=True,
     )
     mission: Mapped[str] = mapped_column(Text, default="")
-    operational_status: Mapped[str] = mapped_column(
-        String(24), default="planned", index=True
-    )
+    operational_status: Mapped[str] = mapped_column(String(24), default="planned", index=True)
     knowledge_namespace: Mapped[str | None] = mapped_column(String(200), nullable=True)
     current_phase: Mapped[str | None] = mapped_column(String(160), nullable=True)
     security_level: Mapped[str] = mapped_column(String(24), default="internal")
@@ -60,18 +58,14 @@ class CollectorRegistration(Base, TimestampMixin):
         UniqueConstraint("project_id", "key", name="uq_collector_project_key"),
         CheckConstraint("frequency_seconds > 0", name="frequency_positive"),
         CheckConstraint("freshness_sla_seconds > 0", name="freshness_positive"),
-        CheckConstraint(
-            "consecutive_failures >= 0", name="collector_failures_nonnegative"
-        ),
+        CheckConstraint("consecutive_failures >= 0", name="collector_failures_nonnegative"),
         CheckConstraint(
             "status IN ('healthy','degraded','failing','disabled')",
             name="collector_status_valid",
         ),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     project_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
         ForeignKey("projects.id", ondelete="CASCADE"),
@@ -84,12 +78,8 @@ class CollectorRegistration(Base, TimestampMixin):
     freshness_sla_seconds: Mapped[int] = mapped_column(Integer)
     retry_policy: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
     status: Mapped[str] = mapped_column(String(24), default="degraded", index=True)
-    last_success_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    last_failure_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_failure_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     consecutive_failures: Mapped[int] = mapped_column(Integer, default=0)
     metadata_json: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
@@ -105,9 +95,7 @@ class ProjectHealthSnapshot(Base):
         ),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     project_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
         ForeignKey("projects.id", ondelete="CASCADE"),
@@ -141,9 +129,7 @@ class RiskRegisterEntry(Base, TimestampMixin):
         ),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     project_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True),
         ForeignKey("projects.id", ondelete="SET NULL"),
@@ -161,21 +147,15 @@ class RiskRegisterEntry(Base, TimestampMixin):
     date_detected: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
-    last_review: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    last_review: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     metadata_json: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
 
 
 class CostEntry(Base):
     __tablename__ = "cost_entries"
-    __table_args__ = (
-        CheckConstraint("amount_micros >= 0", name="cost_amount_nonnegative"),
-    )
+    __table_args__ = (CheckConstraint("amount_micros >= 0", name="cost_amount_nonnegative"),)
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     project_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True),
         ForeignKey("projects.id", ondelete="SET NULL"),
@@ -193,13 +173,9 @@ class CostEntry(Base):
 
 class RevenueEntry(Base):
     __tablename__ = "revenue_entries"
-    __table_args__ = (
-        CheckConstraint("amount_micros >= 0", name="revenue_amount_nonnegative"),
-    )
+    __table_args__ = (CheckConstraint("amount_micros >= 0", name="revenue_amount_nonnegative"),)
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     project_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True),
         ForeignKey("projects.id", ondelete="SET NULL"),
@@ -221,14 +197,10 @@ class FinancialSnapshot(Base):
         CheckConstraint("budget_micros >= 0", name="financial_budget_nonnegative"),
         CheckConstraint("confidence BETWEEN 0 AND 100", name="financial_confidence_range"),
         CheckConstraint("runway_days IS NULL OR runway_days >= 0", name="runway_nonnegative"),
-        CheckConstraint(
-            "payback_days IS NULL OR payback_days >= 0", name="payback_nonnegative"
-        ),
+        CheckConstraint("payback_days IS NULL OR payback_days >= 0", name="payback_nonnegative"),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     project_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
         ForeignKey("projects.id", ondelete="CASCADE"),
@@ -277,9 +249,7 @@ class DependencyEdge(Base, TimestampMixin):
         ),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     source_type: Mapped[str] = mapped_column(String(24), index=True)
     source_key: Mapped[str] = mapped_column(String(200), index=True)
     target_type: Mapped[str] = mapped_column(String(24), index=True)
@@ -302,9 +272,7 @@ class HoldingAlert(Base, TimestampMixin):
         CheckConstraint("occurrences >= 1", name="alert_occurrences_positive"),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     project_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True),
         ForeignKey("projects.id", ondelete="SET NULL"),
@@ -336,21 +304,13 @@ class IntegrationState(Base, TimestampMixin):
         ),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     service_key: Mapped[str] = mapped_column(String(100), index=True)
     kind: Mapped[str] = mapped_column(String(80), index=True)
-    status: Mapped[str] = mapped_column(
-        String(24), default="unconfigured", index=True
-    )
+    status: Mapped[str] = mapped_column(String(24), default="unconfigured", index=True)
     endpoint: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    last_success_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    last_failure_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_failure_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     freshness_sla_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
     metadata_json: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
 
@@ -370,9 +330,7 @@ class VentureEvaluation(Base, TimestampMixin):
         ),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     key: Mapped[str] = mapped_column(String(120), index=True)
     name: Mapped[str] = mapped_column(String(220))
     stage: Mapped[str] = mapped_column(String(80), default="idea")
@@ -388,8 +346,7 @@ class ResourceAllocationEntry(Base, TimestampMixin):
     __tablename__ = "resource_allocations"
     __table_args__ = (
         CheckConstraint(
-            "resource_type IN "
-            "('cpu','gpu','storage','agent','model','budget','developer')",
+            "resource_type IN ('cpu','gpu','storage','agent','model','budget','developer')",
             name="resource_type_valid",
         ),
         CheckConstraint("requested_units >= 0", name="requested_units_nonnegative"),
@@ -400,9 +357,7 @@ class ResourceAllocationEntry(Base, TimestampMixin):
         ),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     project_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True),
         ForeignKey("projects.id", ondelete="SET NULL"),
@@ -431,21 +386,13 @@ class PortfolioReview(Base, TimestampMixin):
         CheckConstraint("value_score BETWEEN 0 AND 100", name="value_score_range"),
         CheckConstraint("progress_score BETWEEN 0 AND 100", name="progress_score_range"),
         CheckConstraint("cost_score BETWEEN 0 AND 100", name="cost_score_range"),
-        CheckConstraint(
-            "complexity_score BETWEEN 0 AND 100", name="complexity_score_range"
-        ),
+        CheckConstraint("complexity_score BETWEEN 0 AND 100", name="complexity_score_range"),
         CheckConstraint("risk_score BETWEEN 0 AND 100", name="risk_score_range"),
-        CheckConstraint(
-            "monetization_score BETWEEN 0 AND 100", name="monetization_score_range"
-        ),
-        CheckConstraint(
-            "dependency_score BETWEEN 0 AND 100", name="dependency_score_range"
-        ),
+        CheckConstraint("monetization_score BETWEEN 0 AND 100", name="monetization_score_range"),
+        CheckConstraint("dependency_score BETWEEN 0 AND 100", name="dependency_score_range"),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     project_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
         ForeignKey("projects.id", ondelete="CASCADE"),
@@ -477,9 +424,7 @@ class ToolDecision(Base, TimestampMixin):
         ),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     key: Mapped[str] = mapped_column(String(120), index=True)
     tool_name: Mapped[str] = mapped_column(String(160), index=True)
     capability: Mapped[str] = mapped_column(String(160))
