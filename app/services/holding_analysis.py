@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from numbers import Real
 from uuid import UUID
 
 from sqlalchemy import select
@@ -212,9 +211,9 @@ def _cheap_validation_pass(venture: VentureEvaluation) -> bool:
         return True
     cap = venture.unit_economics.get("max_validation_cost_micros")
     return (
-        isinstance(cap, Real)
+        isinstance(cap, (int, float))
         and not isinstance(cap, bool)
-        and float(cap) >= 0
+        and cap >= 0
         and venture.validation_cost_micros <= int(cap)
     )
 
