@@ -13,6 +13,6 @@
     {"repo":"Personal-Performance-Health-OS","runtime":["cloud-build","cloud-run","cloud-run-jobs","cloud-sql"]},
     {"repo":"Research-AI","runtime":["cloud-build","cloud-run-jobs","cloud-scheduler","gcs"]},
     {"repo":"Content-Factory","runtime":["cloud-build","cloud-run-jobs","gcs","artifact-registry","gpu-on-demand"]},
-    {"repo":"WHATSAPP_AI","runtime":["cloud-build","cloud-run","cloud-run-jobs","pubsub","cloud-sql"]}
+    {"repo":"WHATSAPP_AI","candidate_branch":"build/final-foundation","runtime":["cloud-build","cloud-run","cloud-run-jobs","pubsub","cloud-sql"]}
   ]
 }
