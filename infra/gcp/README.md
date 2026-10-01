@@ -50,6 +50,41 @@ bash scripts/activate_gcp_build_triggers.sh
 
 Pull-request triggers and production schedules are added only after the project-specific full gate is translated and proven on Cloud Build. We do not disable the existing GitHub workflow before the GCP path produces equivalent or stronger evidence.
 
+
+## Project release-candidate gates
+
+Projects that are intentionally validating a branch ahead of `main` declare an
+exact `candidate_branch` in `infra/gcp/ecosystem-projects.json`. This is
+separate from the `main` trigger and does not promote anything to production.
+
+Run a configured candidate with:
+
+```bash
+PROJECT_ID="${PROJECT_ID:-ai-holding-prod-bc}" \
+  bash scripts/run_gcp_project_candidate.sh WHATSAPP_AI
+```
+
+The runner bootstraps the canonical execution fabric idempotently, verifies the
+linked Cloud Build repository, creates an exact-branch trigger when absent,
+starts the build, streams logs, and checks the final state.
+
+For WHATSAPP_AI, the first successful bootstrap pass is intentionally expected
+to end with `LOCKFILE_BLOCKER` / exit 42 when no committed `package-lock.json`
+exists. The generated lockfile is stored by exact source commit. From an
+up-to-date `WHATSAPP_AI` checkout on `build/final-foundation`:
+
+```bash
+PROJECT_ID="${PROJECT_ID:-ai-holding-prod-bc}" \
+COMMIT_LOCKFILE=true \
+PUSH_LOCKFILE=true \
+  bash scripts/adopt-cloud-lockfile.sh
+```
+
+The adoption script fails closed unless the stored artifact belongs to exactly
+the current Git `HEAD` and its root dependency contract matches `package.json`.
+After the lockfile commit, rerun the candidate gate. Production promotion remains
+blocked until the full project acceptance matrix and authorized live staging are green.
+
 ## Migration acceptance
 
 A project is considered migrated only when:
