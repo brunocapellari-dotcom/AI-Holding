@@ -1,6 +1,6 @@
 """register Cloud SQL automatic IAM connector decision
 
-Revision ID: 0016_cloud_sql_iam_connector_decision
+Revision ID: 0016_cloudsql_iam_connector
 Revises: 0015_maintenance_tool_decisions
 """
 
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0016_cloud_sql_iam_connector_decision"
+revision: str = "0016_cloudsql_iam_connector"
 down_revision: str | None = "0015_maintenance_tool_decisions"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
