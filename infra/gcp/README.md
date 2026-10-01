@@ -5,6 +5,7 @@ Google Cloud is the canonical execution substrate for the AI ecosystem. GitHub r
 ## Execution model
 
 - Pull-request and main-branch CI: Cloud Build.
+- Candidate/release branches: explicit Cloud Build candidate gates declared in `ecosystem-projects.json`.
 - APIs and long-lived HTTP services: Cloud Run services.
 - Batch, collectors, workers, evaluations and release gates: Cloud Run Jobs or Cloud Build when the workload is build/test-centric.
 - Recurring schedules: Cloud Scheduler, not GitHub cron.
@@ -21,6 +22,8 @@ Google Cloud is the canonical execution substrate for the AI ecosystem. GitHub r
 
 The canonical inventory is `ecosystem-projects.json`. The bootstrap links every repository to a single regional Cloud Build GitHub connection so private repositories can remain private.
 
+A project may declare `candidate_branch` while its release candidate is intentionally ahead of `main`. Candidate gates are exact-branch triggers and are kept separate from production/main triggers.
+
 ## Security invariants
 
 1. GitHub repository visibility must never be used as a workaround for runner capacity.
@@ -31,6 +34,7 @@ The canonical inventory is `ecosystem-projects.json`. The bootstrap links every 
 6. Production data, vaults, raw ingested content, quarantine, database dumps and CONFIDENTIAL/RESTRICTED material never become repository content.
 7. Scheduled production work is migrated away from GitHub Actions cron after the corresponding Cloud Scheduler/Cloud Run Job is verified.
 8. GitHub Actions workflows remain only as temporary fallback until their GCP replacement has passed the whole-project gate.
+9. Candidate gates never imply production promotion; merge/release remains blocked until the project-specific acceptance matrix is green.
 
 ## Bootstrap
 
@@ -47,6 +51,20 @@ After every repository contains its approved `cloudbuild.yaml`, activate main-br
 ```bash
 bash scripts/activate_gcp_build_triggers.sh
 ```
+
+For repositories with a declared candidate branch, create and immediately execute the candidate gate:
+
+```bash
+bash scripts/activate_gcp_candidate_triggers.sh
+```
+
+To execute only one candidate repository:
+
+```bash
+CANDIDATE_REPO=WHATSAPP_AI bash scripts/activate_gcp_candidate_triggers.sh
+```
+
+Set `RUN_NOW=false` only when the trigger should be provisioned without starting a build.
 
 Pull-request triggers and production schedules are added only after the project-specific full gate is translated and proven on Cloud Build. We do not disable the existing GitHub workflow before the GCP path produces equivalent or stronger evidence.
 
