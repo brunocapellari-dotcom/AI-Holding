@@ -95,15 +95,8 @@ echo "REPOSITORY=${REPO}"
 echo "BRANCH=${BRANCH}"
 
 if [[ "${STREAM_LOGS:-true}" == "true" ]]; then
-  set +e
-  gcloud beta builds log --stream "${BUILD_ID}" \
-    --region="${REGION}" \
-    --project="${PROJECT_ID}"
-  LOG_STATUS=$?
-  set -e
-  if [[ "${LOG_STATUS}" -ne 0 ]]; then
-    echo "Cloud Logging stream ended non-zero; checking final build state." >&2
-  fi
+  echo "Build logs use CLOUD_LOGGING_ONLY; live gcloud builds log streaming is unavailable."
+  echo "Polling build state; Cloud Logging diagnostics will be printed after completion."
 fi
 
 STATUS="$(gcloud builds describe "${BUILD_ID}" \
@@ -128,9 +121,12 @@ print_failure_diagnostics() {
 
   echo "== Last Cloud Logging lines ==" >&2
   set +e
-  gcloud beta builds log --stream "${BUILD_ID}" \
-    --region="${REGION}" \
-    --project="${PROJECT_ID}" 2>&1 | tail -n 120 >&2
+  gcloud logging read \
+    "resource.type=\"build\" AND resource.labels.build_id=\"${BUILD_ID}\"" \
+    --project="${PROJECT_ID}" \
+    --order=asc \
+    --limit=500 \
+    --format='value(timestamp,textPayload,jsonPayload.message)' 2>&1 | tail -n 160 >&2
   set -e
 }
 
