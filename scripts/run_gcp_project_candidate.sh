@@ -96,24 +96,51 @@ echo "BRANCH=${BRANCH}"
 
 if [[ "${STREAM_LOGS:-true}" == "true" ]]; then
   set +e
-  gcloud builds log --stream "${BUILD_ID}"     --region="${REGION}"     --project="${PROJECT_ID}"
+  gcloud beta builds log --stream "${BUILD_ID}" \
+    --region="${REGION}" \
+    --project="${PROJECT_ID}"
   LOG_STATUS=$?
   set -e
   if [[ "${LOG_STATUS}" -ne 0 ]]; then
-    echo "Cloud Build log stream ended non-zero; checking final build state." >&2
+    echo "Cloud Logging stream ended non-zero; checking final build state." >&2
   fi
 fi
 
-STATUS="$(gcloud builds describe "${BUILD_ID}"   --region="${REGION}"   --project="${PROJECT_ID}"   --format='value(status)')"
+STATUS="$(gcloud builds describe "${BUILD_ID}" \
+  --region="${REGION}" \
+  --project="${PROJECT_ID}" \
+  --format='value(status)')"
 
 echo "STATUS=${STATUS}"
+
+print_failure_diagnostics() {
+  echo "== Cloud Build step diagnostics ==" >&2
+  gcloud builds describe "${BUILD_ID}" \
+    --region="${REGION}" \
+    --project="${PROJECT_ID}" \
+    --format='table(steps.id,steps.status,steps.exitCode)' >&2 || true
+
+  echo "== Cloud Build failure detail ==" >&2
+  gcloud builds describe "${BUILD_ID}" \
+    --region="${REGION}" \
+    --project="${PROJECT_ID}" \
+    --format='yaml(status,statusDetail,failureInfo,logUrl)' >&2 || true
+
+  echo "== Last Cloud Logging lines ==" >&2
+  set +e
+  gcloud beta builds log --stream "${BUILD_ID}" \
+    --region="${REGION}" \
+    --project="${PROJECT_ID}" 2>&1 | tail -n 120 >&2
+  set -e
+}
 
 case "${STATUS}" in
   SUCCESS)
     echo "Candidate gate PASS: ${REPO}@${BRANCH}"
     ;;
   FAILURE)
-    echo "Candidate gate completed with FAILURE. Inspect the failing Cloud Build step and persisted evidence." >&2
+    echo "Candidate gate completed with FAILURE." >&2
+    print_failure_diagnostics
     if [[ "${REPO}" == "WHATSAPP_AI" ]]; then
       cat >&2 <<'EOF'
 
