@@ -1,0 +1,43 @@
+name: ruff-autofix-temporary
+
+on:
+  push:
+    branches: [holding-official-spec-2026-09-15]
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: "!contains(github.event.head_commit.message, '[ruff-autofix]')"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: holding-official-spec-2026-09-15
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Apply deterministic Ruff fixes
+        run: |
+          python -m pip install 'ruff==0.16.8'
+          ruff check --fix app tests alembic
+          ruff format app tests alembic
+
+      - name: Commit formatting only
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "No Ruff changes required."
+            exit 0
+          fi
+          git config user.name "holding-ci"
+          git config user.email "holding-ci@users.noreply.github.com"
+          git add app tests alembic
+          git commit -m "style: apply deterministic Ruff fixes [ruff-autofix]"
+          git push origin HEAD:holding-official-spec-2026-09-15
