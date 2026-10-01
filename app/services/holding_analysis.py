@@ -192,7 +192,7 @@ def _unit_economics_pass(venture: VentureEvaluation) -> bool:
     if explicit is True:
         return True
     margin = venture.unit_economics.get("gross_margin_target")
-    return isinstance(margin, Real) and not isinstance(margin, bool) and float(margin) > 0
+    return isinstance(margin, (int, float)) and not isinstance(margin, bool) and margin > 0
 
 
 def _risk_pass(venture: VentureEvaluation) -> bool:
