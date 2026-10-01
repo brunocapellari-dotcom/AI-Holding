@@ -9,9 +9,7 @@ def test_alembic_revision_ids_fit_default_version_table() -> None:
     script = ScriptDirectory.from_config(config)
 
     oversized = sorted(
-        revision.revision
-        for revision in script.walk_revisions()
-        if len(revision.revision) > 32
+        revision.revision for revision in script.walk_revisions() if len(revision.revision) > 32
     )
 
     assert oversized == [], (
