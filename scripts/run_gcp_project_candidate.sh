@@ -27,6 +27,11 @@ for cmd in gcloud python3 sha256sum; do
   }
 done
 
+if [[ "${BOOTSTRAP_EXECUTION_FABRIC:-true}" == "true" ]]; then
+  echo "== bootstrap canonical GCP execution fabric =="
+  bash "${ROOT_DIR}/scripts/bootstrap_gcp_execution_fabric.sh"
+fi
+
 readarray -t CONFIG < <(python3 - "${MANIFEST}" "${CANDIDATE_REPO}" <<'PY'
 import json
 import sys
@@ -107,6 +112,21 @@ case "${STATUS}" in
     ;;
   FAILURE)
     echo "Candidate gate completed with FAILURE. Inspect the failing Cloud Build step and persisted evidence." >&2
+    if [[ "${REPO}" == "WHATSAPP_AI" ]]; then
+      cat >&2 <<'EOF'
+
+WHATSAPP_AI first-run note:
+If the final Cloud Build step reports exit 42 / LOCKFILE_BLOCKER, the gate reached
+the intentional lockfile bootstrap boundary. In an up-to-date WHATSAPP_AI checkout
+on build/final-foundation, adopt only the artifact for that exact HEAD with:
+
+  PROJECT_ID="$PROJECT_ID" COMMIT_LOCKFILE=true PUSH_LOCKFILE=true \
+    bash scripts/adopt-cloud-lockfile.sh
+
+That commit will trigger a new candidate SHA; rerun this project candidate gate
+against the updated branch. Do not copy a lockfile from another build or commit.
+EOF
+    fi
     exit 10
     ;;
   CANCELLED|TIMEOUT|EXPIRED)
