@@ -17,14 +17,20 @@ if [[ -z "${PROJECT_ID}" || "${PROJECT_ID}" == "(unset)" ]]; then
 fi
 
 for cmd in gcloud python3 sha256sum; do
-  command -v "${cmd}" >/dev/null || { echo "ERROR: ${cmd} nao encontrado" >&2; exit 3; }
+  command -v "${cmd}" >/dev/null || {
+    echo "ERROR: ${cmd} nao encontrado" >&2
+    exit 3
+  }
 done
 
 mapfile -t CANDIDATES < <(python3 - "${MANIFEST}" "${CANDIDATE_REPO}" <<'PY'
-import json, sys
+import json
+import sys
+
 manifest, wanted = sys.argv[1], sys.argv[2]
 with open(manifest, encoding="utf-8") as fh:
     data = json.load(fh)
+
 for item in data["projects"]:
     branch = item.get("candidate_branch")
     if not branch:
@@ -52,17 +58,21 @@ for row in "${CANDIDATES[@]}"; do
   trigger="${trigger_base:0:50}-${fingerprint}"
 
   branch_pattern="$(python3 - "${branch}" <<'PY'
-import re, sys
-print("^" + re.escape(sys.argv[1]) + "$")
+import re
+import sys
+
+branch = sys.argv[1]
+escaped = re.sub(r'([\\.^$|?*+(){}\[\]])', r'\\\1', branch)
+print(f"^{escaped}$")
 PY
 )"
 
-  if ! gcloud builds repositories describe "${resource_name}"       --connection="${CONNECTION}" --region="${REGION}" --project="${PROJECT_ID}" >/dev/null 2>&1; then
+  if ! gcloud builds repositories describe "${resource_name}"       --connection="${CONNECTION}"       --region="${REGION}"       --project="${PROJECT_ID}" >/dev/null 2>&1; then
     echo "ERROR: repository not linked in Cloud Build: ${repo} (${resource_name})" >&2
     exit 5
   fi
 
-  if gcloud builds triggers describe "${trigger}" --region="${REGION}" --project="${PROJECT_ID}" >/dev/null 2>&1; then
+  if gcloud builds triggers describe "${trigger}"       --region="${REGION}"       --project="${PROJECT_ID}" >/dev/null 2>&1; then
     echo "candidate trigger exists: ${trigger}"
   else
     gcloud builds triggers create github       --name="${trigger}"       --repository="${repository}"       --branch-pattern="${branch_pattern}"       --build-config='cloudbuild.yaml'       --region="${REGION}"       --service-account="${EXECUTOR_SA}"       --project="${PROJECT_ID}"
