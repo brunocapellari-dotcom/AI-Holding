@@ -22,8 +22,13 @@ WORKDIR /workspace
 
 COPY . .
 
-RUN python -m pip install --no-cache-dir --upgrade pip \
+RUN python -m venv /opt/semgrep \
+    && /opt/semgrep/bin/python -m pip install --no-cache-dir --upgrade pip \
+    && /opt/semgrep/bin/python -m pip install --no-cache-dir 'semgrep==1.178.0' \
+    && ln -s /opt/semgrep/bin/semgrep /usr/local/bin/semgrep \
+    && python -m pip install --no-cache-dir --upgrade pip \
     && python -m pip install --no-cache-dir -e '.[dev]' \
-    && python -m pip check
+    && python -m pip check \
+    && semgrep --version
 
 CMD ["bash", "scripts/full_project_gate.sh"]
