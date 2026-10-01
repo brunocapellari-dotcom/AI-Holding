@@ -87,7 +87,7 @@ def google_access_token() -> str:
     credentials, _ = google.auth.default(
         scopes=["https://www.googleapis.com/auth/cloud-platform.read-only"]
     )
-    credentials.refresh(Request())
+    credentials.refresh(Request())  # type: ignore[no-untyped-call] -- google-auth typing gap
     token = credentials.token
     if not isinstance(token, str) or not token:
         raise RuntimeError("Google access-token provider returned an invalid token")
