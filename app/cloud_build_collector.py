@@ -149,14 +149,17 @@ class CloudBuildClient:
             value = stack.pop()
             if isinstance(value, dict):
                 for key, child in value.items():
-                    if key in {"repository", "repoName", "repo_name", "url", "uri"}:
-                        if isinstance(child, str) and child.strip():
-                            candidate = child.strip().rstrip("/").removesuffix(".git")
-                            if "/repositories/" in candidate:
-                                candidate = candidate.rsplit("/repositories/", 1)[-1]
-                            candidate = candidate.rsplit("/", 1)[-1]
-                            if candidate:
-                                return candidate
+                    if (
+                        key in {"repository", "repoName", "repo_name", "url", "uri"}
+                        and isinstance(child, str)
+                        and child.strip()
+                    ):
+                        candidate = child.strip().rstrip("/").removesuffix(".git")
+                        if "/repositories/" in candidate:
+                            candidate = candidate.rsplit("/repositories/", 1)[-1]
+                        candidate = candidate.rsplit("/", 1)[-1]
+                        if candidate:
+                            return candidate
                     stack.append(child)
             elif isinstance(value, list):
                 stack.extend(value)
