@@ -2,17 +2,120 @@
   "region": "southamerica-east1",
   "connection": "ai-github",
   "projects": [
-    {"repo":"AgroLogMT","runtime":["cloud-build","cloud-run","cloud-run-jobs","cloud-scheduler","bigquery","gcs"]},
-    {"repo":"Geopolitical-Watch","runtime":["cloud-build","cloud-run-jobs","cloud-scheduler","gcs","postgres"]},
-    {"repo":"AI-Holding","runtime":["cloud-build","cloud-run","cloud-run-jobs","cloud-scheduler","cloud-sql"]},
-    {"repo":"Mercado-Financeiro","runtime":["cloud-build","cloud-run-jobs","cloud-scheduler","bigquery","gcs"]},
-    {"repo":"Sports-Intelligence","runtime":["cloud-build","cloud-run","cloud-run-jobs","cloud-scheduler","bigquery"]},
-    {"repo":"Game-Studio","runtime":["cloud-build"]},
-    {"repo":"Second-Brain","runtime":["cloud-build","cloud-run","cloud-run-jobs","cloud-sql","gcs","graph"]},
-    {"repo":"Hermes-AI-Platform","runtime":["cloud-build","cloud-run","cloud-run-jobs"]},
-    {"repo":"Personal-Performance-Health-OS","runtime":["cloud-build","cloud-run","cloud-run-jobs","cloud-sql"]},
-    {"repo":"Research-AI","runtime":["cloud-build","cloud-run-jobs","cloud-scheduler","gcs"]},
-    {"repo":"Content-Factory","runtime":["cloud-build","cloud-run-jobs","gcs","artifact-registry","gpu-on-demand"]},
-    {"repo":"WHATSAPP_AI","runtime":["cloud-build","cloud-run","cloud-run-jobs","pubsub","cloud-sql"]}
+    {
+      "repo": "AgroLogMT",
+      "runtime": [
+        "cloud-build",
+        "cloud-run",
+        "cloud-run-jobs",
+        "cloud-scheduler",
+        "bigquery",
+        "gcs"
+      ]
+    },
+    {
+      "repo": "Geopolitical-Watch",
+      "runtime": [
+        "cloud-build",
+        "cloud-run-jobs",
+        "cloud-scheduler",
+        "gcs",
+        "postgres"
+      ]
+    },
+    {
+      "repo": "AI-Holding",
+      "runtime": [
+        "cloud-build",
+        "cloud-run",
+        "cloud-run-jobs",
+        "cloud-scheduler",
+        "cloud-sql"
+      ]
+    },
+    {
+      "repo": "Mercado-Financeiro",
+      "runtime": [
+        "cloud-build",
+        "cloud-run-jobs",
+        "cloud-scheduler",
+        "bigquery",
+        "gcs"
+      ]
+    },
+    {
+      "repo": "Sports-Intelligence",
+      "runtime": [
+        "cloud-build",
+        "cloud-run",
+        "cloud-run-jobs",
+        "cloud-scheduler",
+        "bigquery"
+      ]
+    },
+    {
+      "repo": "Game-Studio",
+      "runtime": [
+        "cloud-build"
+      ]
+    },
+    {
+      "repo": "Second-Brain",
+      "runtime": [
+        "cloud-build",
+        "cloud-run",
+        "cloud-run-jobs",
+        "cloud-sql",
+        "gcs",
+        "graph"
+      ]
+    },
+    {
+      "repo": "Hermes-AI-Platform",
+      "runtime": [
+        "cloud-build",
+        "cloud-run",
+        "cloud-run-jobs"
+      ]
+    },
+    {
+      "repo": "Personal-Performance-Health-OS",
+      "runtime": [
+        "cloud-build",
+        "cloud-run",
+        "cloud-run-jobs",
+        "cloud-sql"
+      ]
+    },
+    {
+      "repo": "Research-AI",
+      "runtime": [
+        "cloud-build",
+        "cloud-run-jobs",
+        "cloud-scheduler",
+        "gcs"
+      ]
+    },
+    {
+      "repo": "Content-Factory",
+      "runtime": [
+        "cloud-build",
+        "cloud-run-jobs",
+        "gcs",
+        "artifact-registry",
+        "gpu-on-demand"
+      ]
+    },
+    {
+      "repo": "WHATSAPP_AI",
+      "runtime": [
+        "cloud-build",
+        "cloud-run",
+        "cloud-run-jobs",
+        "pubsub",
+        "cloud-sql"
+      ],
+      "candidate_branch": "build/final-foundation"
+    }
   ]
 }
