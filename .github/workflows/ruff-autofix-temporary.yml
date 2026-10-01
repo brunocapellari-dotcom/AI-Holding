@@ -26,7 +26,7 @@ jobs:
       - name: Apply deterministic Ruff fixes
         run: |
           python -m pip install 'ruff==0.16.8'
-          ruff check --fix app tests alembic
+          ruff check --fix --exit-zero app tests alembic
           ruff format app tests alembic
 
       - name: Commit formatting only
