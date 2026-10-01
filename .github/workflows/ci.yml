@@ -53,7 +53,15 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install project and development gates
-        run: pip install -e '.[dev]'
+        shell: bash
+        run: |
+          python -m pip install -e '.[dev]'
+          python -m venv "${RUNNER_TEMP}/semgrep"
+          "${RUNNER_TEMP}/semgrep/bin/python" -m pip install --upgrade pip
+          "${RUNNER_TEMP}/semgrep/bin/python" -m pip install 'semgrep==1.178.0'
+          mkdir -p "${RUNNER_TEMP}/ci-bin"
+          ln -s "${RUNNER_TEMP}/semgrep/bin/semgrep" "${RUNNER_TEMP}/ci-bin/semgrep"
+          echo "${RUNNER_TEMP}/ci-bin" >> "${GITHUB_PATH}"
 
       - name: Full project gate
         run: bash scripts/full_project_gate.sh
