@@ -20,6 +20,9 @@ from app.models.knowledge import (
 )
 from app.schemas.knowledge import KnowledgeClaimIngest, KnowledgeOutcomeCreate
 
+# This lifecycle is now an operational staging lifecycle only. Historical rows
+# marked canonical remain readable for migration/audit, but the Holding cannot
+# create new canonical knowledge or decide canonical supersession.
 ALLOWED_TRANSITIONS: dict[str, set[str]] = {
     KnowledgeLifecycle.raw.value: {
         KnowledgeLifecycle.candidate.value,
@@ -29,10 +32,7 @@ ALLOWED_TRANSITIONS: dict[str, set[str]] = {
         KnowledgeLifecycle.validated.value,
         KnowledgeLifecycle.superseded.value,
     },
-    KnowledgeLifecycle.validated.value: {
-        KnowledgeLifecycle.canonical.value,
-        KnowledgeLifecycle.superseded.value,
-    },
+    KnowledgeLifecycle.validated.value: {KnowledgeLifecycle.superseded.value},
     KnowledgeLifecycle.canonical.value: {KnowledgeLifecycle.superseded.value},
     KnowledgeLifecycle.superseded.value: set(),
 }
@@ -138,27 +138,23 @@ def transition_claim(
 ) -> KnowledgeClaim:
     current = claim.lifecycle_status
     target_value = target.value
+
+    # Existing canonical rows are legacy migration records. An internal retry of
+    # their current state is harmless, but no caller may create a new canonical row.
     if current == target_value:
         return claim
+    if target == KnowledgeLifecycle.canonical:
+        raise ValueError(
+            "canonical knowledge is owned by the external Second Brain validation pipeline"
+        )
+    if supersedes_id is not None:
+        raise ValueError(
+            "knowledge supersession is owned by the external Second Brain validation pipeline"
+        )
     if target_value not in ALLOWED_TRANSITIONS.get(current, set()):
         raise ValueError(f"invalid knowledge transition {current} -> {target_value}")
-    if supersedes_id is not None and target != KnowledgeLifecycle.canonical:
-        raise ValueError("supersedes_id is only accepted when promoting to canonical")
-
-    if supersedes_id is not None:
-        previous = db.get(KnowledgeClaim, supersedes_id)
-        if previous is None:
-            raise LookupError("superseded knowledge claim not found")
-        if previous.id == claim.id:
-            raise ValueError("a knowledge claim cannot supersede itself")
-        if previous.namespace != claim.namespace:
-            raise ValueError("knowledge claims can only supersede claims in the same namespace")
-        previous.lifecycle_status = KnowledgeLifecycle.superseded.value
-        claim.supersedes_id = previous.id
 
     claim.lifecycle_status = target_value
-    if target == KnowledgeLifecycle.canonical:
-        claim.promoted_at = datetime.now(UTC)
     db.flush()
     return claim
 
@@ -209,6 +205,8 @@ def retrieve_context(
     now = datetime.now(UTC)
     statement = select(KnowledgeClaim).where(
         KnowledgeClaim.namespace == namespace,
+        # Canonical is included only for legacy read compatibility until those
+        # historical rows are migrated to the external Second Brain.
         KnowledgeClaim.lifecycle_status.in_(
             [KnowledgeLifecycle.validated.value, KnowledgeLifecycle.canonical.value]
         ),
@@ -268,7 +266,7 @@ def render_claim_markdown(claim: KnowledgeClaim) -> str:
     return "\n".join(
         [
             *frontmatter,
-            "# Knowledge Claim",
+            "# Knowledge Candidate",
             "",
             "## Claim",
             "",
@@ -281,6 +279,10 @@ def render_claim_markdown(claim: KnowledgeClaim) -> str:
             "## Outcome feedback",
             "",
             f"`{json.dumps(outcome_counts, ensure_ascii=False, sort_keys=True)}`",
+            "",
+            "## Canonical status",
+            "",
+            "Canonical acceptance is owned by the external Second Brain validation pipeline.",
             "",
             "## Provenance",
             "",
@@ -305,7 +307,9 @@ def export_claim_to_obsidian(claim: KnowledgeClaim) -> tuple[str, int]:
         KnowledgeLifecycle.validated.value,
         KnowledgeLifecycle.canonical.value,
     }:
-        raise ValueError("only validated or canonical knowledge can be exported to Obsidian")
+        raise ValueError(
+            "only validated candidates or legacy canonical records can enter the Second Brain inbox"
+        )
 
     vault = Path(settings.obsidian_vault_path).expanduser().resolve()
     root = (vault / settings.obsidian_knowledge_root).resolve()

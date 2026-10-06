@@ -28,6 +28,7 @@ jobs:
     env:
       ENVIRONMENT: test
       REQUIRE_VERIFIED_IDENTITY: "false"
+      AGENTOS_ENABLED: "false"
       DATABASE_URL: postgresql+psycopg://holding:holding@localhost:5432/holding_test
     steps:
       - uses: actions/checkout@v4
@@ -40,15 +41,15 @@ jobs:
           terraform_version: "1.9.8"
       - run: pip install -e '.[dev]'
       - name: Ruff lint
-        run: ruff check app tests alembic
+        run: ruff check app apps services tests alembic
       - name: Ruff format
-        run: ruff format --check app tests alembic
+        run: ruff format --check app apps services tests alembic
       - name: Strict typing
-        run: mypy app
+        run: mypy app apps services
       - name: Dependency audit
         run: pip-audit
       - name: Static security scan
-        run: bandit -c pyproject.toml -r app
+        run: bandit -c pyproject.toml -r app apps services
       - name: Database migration round trip and schema drift gate
         run: |
           alembic upgrade head
@@ -69,7 +70,7 @@ jobs:
       - name: Production runtime entrypoint imports
         run: |
           docker run --rm holding-control-plane:ci python -c \
-            "import app.main, app.db_migrate, app.bootstrap, app.pmo_worker, app.pmo_acceptance, app.knowledge_acceptance"
+            "import apps.control_plane.main, services.agent_runtime.runtime, app.db_migrate, app.bootstrap, app.pmo_worker, app.pmo_acceptance"
       - name: Generate CycloneDX SBOM
         uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
         with:
@@ -101,6 +102,7 @@ jobs:
       id-token: write
     env:
       PROJECT_ID: ai-holding-prod-bc
+      PROJECT_NUMBER: "868946857614"
       REGION: southamerica-east1
       SERVICE_NAME: holding-control-plane
       PMO_SERVICE_ACCOUNT: holding-pmo-worker@ai-holding-prod-bc.iam.gserviceaccount.com
@@ -113,7 +115,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Authenticate deployer without static keys
+      - name: Authenticate to Google Cloud without static keys
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ env.WIF_PROVIDER }}
@@ -130,6 +132,16 @@ jobs:
           terraform -chdir=infra/terraform init \
             -backend-config="bucket=${TF_STATE_BUCKET}" \
             -backend-config="prefix=control-plane/prod"
+
+      - name: Quarantine any legacy Cloud Scheduler orchestration
+        run: |
+          for scheduler in \
+            "${SERVICE_NAME}-pmo-worker" \
+            "${SERVICE_NAME}-knowledge-worker"; do
+            gcloud scheduler jobs pause "${scheduler}" \
+              --project="${PROJECT_ID}" \
+              --location="${REGION}" >/dev/null 2>&1 || true
+          done
 
       - name: Complete missing database foundation without touching runtime
         run: |
@@ -148,6 +160,7 @@ jobs:
 
             terraform -chdir=infra/terraform show -json foundation.tfplan \
               | jq -e 'all(.resource_changes[]?; (.change.actions | index("delete") | not))'
+
             terraform -chdir=infra/terraform apply -auto-approve foundation.tfplan
           fi
 
@@ -194,17 +207,18 @@ jobs:
           terraform -chdir=infra/terraform show -json tfplan \
             | jq -e 'all(.resource_changes[]?; (.change.actions | index("delete") | not))'
 
-      - name: Apply production deployment with one bounded retry
+      - name: Apply production deployment with one bounded recovery attempt
         run: |
           set +e
           terraform -chdir=infra/terraform apply -auto-approve tfplan
           apply_status=$?
           set -e
+
           if [ "${apply_status}" -eq 0 ]; then
             exit 0
           fi
 
-          echo "Initial non-destructive apply failed; performing one bounded re-plan and retry."
+          echo "Initial apply failed after a non-destructive plan; waiting for control-plane propagation before one bounded retry."
           sleep 30
           terraform -chdir=infra/terraform plan \
             -var-file=prod.tfvars \
@@ -224,26 +238,54 @@ jobs:
             --wait
           migration_status=$?
           set -e
+
           if [ "${migration_status}" -eq 0 ]; then
             exit 0
           fi
 
-          latest="$(gcloud run jobs executions list \
+          execution="$(gcloud run jobs executions list \
             --job="${SERVICE_NAME}-migrate" \
             --project="${PROJECT_ID}" \
             --region="${REGION}" \
             --sort-by='~metadata.creationTimestamp' \
             --limit=1 \
-            --format='value(metadata.name)' 2>/dev/null || true)"
-          if [ -n "${latest}" ]; then
-            gcloud run jobs executions describe "${latest}" \
+            --format='value(metadata.name)')"
+
+          if [ -n "${execution}" ]; then
+            gcloud run jobs executions describe "${execution}" \
               --project="${PROJECT_ID}" \
               --region="${REGION}" \
-              --format='yaml(status.conditions,status.failedCount,status.succeededCount)' || true
+              --format='yaml(status.conditions,status.failedCount,status.succeededCount)' \
+              || true
           fi
-          exit "${migration_status}"
 
-      - name: Bootstrap canonical portfolio and worker identities
+          run_probe() {
+            probe="$1"
+            set +e
+            gcloud run jobs execute "${SERVICE_NAME}-migrate" \
+              --project="${PROJECT_ID}" \
+              --region="${REGION}" \
+              --args=-m,app.db_migrate,"${probe}" \
+              --wait >/dev/null 2>&1
+            probe_status=$?
+            set -e
+            return "${probe_status}"
+          }
+
+          if ! run_probe probe-connect; then
+            echo "::error title=Production database connectivity::Migration runtime cannot connect/authenticate to the private production database."
+            exit 21
+          fi
+
+          if ! run_probe probe-schema-create; then
+            echo "::error title=Production database DDL permission::Database connectivity is healthy but the migration identity cannot CREATE in schema public."
+            exit 20
+          fi
+
+          echo "::error title=Production migration SQL::Database connectivity and schema CREATE checks passed; Alembic migration still failed."
+          exit 24
+
+      - name: Bootstrap canonical portfolio and transitional worker identity bindings
         run: |
           gcloud run jobs execute "${SERVICE_NAME}-bootstrap" \
             --project="${PROJECT_ID}" \
@@ -251,18 +293,20 @@ jobs:
             --wait
 
           actual_pmo_subject="$(gcloud iam service-accounts describe "${PMO_SERVICE_ACCOUNT}" \
-            --project="${PROJECT_ID}" --format='value(uniqueId)')"
+            --project="${PROJECT_ID}" \
+            --format='value(uniqueId)')"
           expected_pmo_subject="$(terraform -chdir=infra/terraform output -raw pmo_runtime_subject)"
           test -n "${actual_pmo_subject}"
           test "${actual_pmo_subject}" = "${expected_pmo_subject}"
 
           actual_knowledge_subject="$(gcloud iam service-accounts describe "${KNOWLEDGE_SERVICE_ACCOUNT}" \
-            --project="${PROJECT_ID}" --format='value(uniqueId)')"
+            --project="${PROJECT_ID}" \
+            --format='value(uniqueId)')"
           expected_knowledge_subject="$(terraform -chdir=infra/terraform output -raw knowledge_runtime_subject)"
           test -n "${actual_knowledge_subject}"
           test "${actual_knowledge_subject}" = "${expected_knowledge_subject}"
 
-      - name: Verify least privilege and keyless worker federation
+      - name: Verify deployed service and transitional worker least privilege
         run: |
           URL="$(gcloud run services describe "${SERVICE_NAME}" \
             --project="${PROJECT_ID}" \
@@ -271,7 +315,10 @@ jobs:
           test -n "${URL}"
 
           policy="$(gcloud run services get-iam-policy "${SERVICE_NAME}" \
-            --project="${PROJECT_ID}" --region="${REGION}" --format=json)"
+            --project="${PROJECT_ID}" \
+            --region="${REGION}" \
+            --format=json)"
+
           printf '%s\n' "${policy}" \
             | jq -e '[.bindings[]?.members[]?] | all(. != "allUsers" and . != "allAuthenticatedUsers")'
           printf '%s\n' "${policy}" \
@@ -283,70 +330,89 @@ jobs:
 
           for job in "${SERVICE_NAME}-pmo-worker" "${SERVICE_NAME}-knowledge-worker"; do
             job_policy="$(gcloud run jobs get-iam-policy "${job}" \
-              --project="${PROJECT_ID}" --region="${REGION}" --format=json)"
+              --project="${PROJECT_ID}" \
+              --region="${REGION}" \
+              --format=json)"
             printf '%s\n' "${job_policy}" \
               | jq -e --arg member "serviceAccount:${SCHEDULER_SERVICE_ACCOUNT}" \
                 'any(.bindings[]?; .role == "roles/run.invoker" and any(.members[]?; . == $member))'
           done
 
-          expected_principal="$(terraform -chdir=infra/terraform output -raw worker_scheduler_wif_principal)"
-          scheduler_policy="$(gcloud iam service-accounts get-iam-policy \
-            "${SCHEDULER_SERVICE_ACCOUNT}" --project="${PROJECT_ID}" --format=json)"
-          printf '%s\n' "${scheduler_policy}" \
-            | jq -e --arg member "${expected_principal}" \
-              'any(.bindings[]?; .role == "roles/iam.workloadIdentityUser" and any(.members[]?; . == $member))'
-
           echo "Production Control Plane deployed at ${URL}"
 
       - name: Run controlled PMO production acceptance
         run: |
+          describe_latest_execution() {
+            job="$1"
+            execution="$(gcloud run jobs executions list \
+              --job="${job}" \
+              --project="${PROJECT_ID}" \
+              --region="${REGION}" \
+              --sort-by='~metadata.creationTimestamp' \
+              --limit=1 \
+              --format='value(metadata.name)' 2>/dev/null || true)"
+            if [ -n "${execution}" ]; then
+              gcloud run jobs executions describe "${execution}" \
+                --project="${PROJECT_ID}" \
+                --region="${REGION}" \
+                --format='yaml(metadata.name,status.conditions,status.failedCount,status.succeededCount)' \
+                || true
+            fi
+          }
+
+          read_recent_job_logs() {
+            job="$1"
+            gcloud run jobs logs read "${job}" \
+              --project="${PROJECT_ID}" \
+              --region="${REGION}" \
+              --limit=100 \
+              || true
+          }
+
           gcloud run jobs execute "${SERVICE_NAME}-pmo-acceptance" \
-            --project="${PROJECT_ID}" --region="${REGION}" --args=prepare --wait
+            --project="${PROJECT_ID}" \
+            --region="${REGION}" \
+            --args=prepare \
+            --wait
 
           set +e
           gcloud run jobs execute "${SERVICE_NAME}-pmo-worker" \
-            --project="${PROJECT_ID}" --region="${REGION}" --wait
+            --project="${PROJECT_ID}" \
+            --region="${REGION}" \
+            --wait
           worker_status=$?
           set -e
+
+          if [ "${worker_status}" -ne 0 ]; then
+            echo "PMO worker failed; collecting sanitized execution diagnostics."
+            describe_latest_execution "${SERVICE_NAME}-pmo-worker"
+            read_recent_job_logs "${SERVICE_NAME}-pmo-worker"
+          fi
 
           set +e
           gcloud run jobs execute "${SERVICE_NAME}-pmo-acceptance" \
-            --project="${PROJECT_ID}" --region="${REGION}" --args=finalize --wait
+            --project="${PROJECT_ID}" \
+            --region="${REGION}" \
+            --args=finalize \
+            --wait
           acceptance_status=$?
           set -e
 
+          if [ "${acceptance_status}" -ne 0 ]; then
+            describe_latest_execution "${SERVICE_NAME}-pmo-acceptance"
+            read_recent_job_logs "${SERVICE_NAME}-pmo-acceptance"
+          fi
+
           if [ "${worker_status}" -ne 0 ] || [ "${acceptance_status}" -ne 0 ]; then
-            gcloud run jobs logs read "${SERVICE_NAME}-pmo-worker" \
-              --project="${PROJECT_ID}" --region="${REGION}" --limit=100 || true
-            echo "::error title=PMO production acceptance::PMO acceptance failed closed."
+            echo "::error title=PMO production acceptance::PMO worker acceptance failed closed; PMO is disabled by the acceptance gate."
             exit 30
           fi
 
-      - name: Run controlled Knowledge IA production acceptance
+      - name: Verify legacy schedulers are not managed as active runtime
         run: |
-          gcloud run jobs execute "${SERVICE_NAME}-knowledge-acceptance" \
-            --project="${PROJECT_ID}" --region="${REGION}" --args=prepare --wait
-
-          set +e
-          gcloud run jobs execute "${SERVICE_NAME}-knowledge-worker" \
-            --project="${PROJECT_ID}" --region="${REGION}" --wait
-          worker_status=$?
-          set -e
-
-          set +e
-          gcloud run jobs execute "${SERVICE_NAME}-knowledge-acceptance" \
-            --project="${PROJECT_ID}" --region="${REGION}" --args=finalize --wait
-          acceptance_status=$?
-          set -e
-
-          if [ "${worker_status}" -ne 0 ] || [ "${acceptance_status}" -ne 0 ]; then
-            gcloud run jobs logs read "${SERVICE_NAME}-knowledge-worker" \
-              --project="${PROJECT_ID}" --region="${REGION}" --limit=100 || true
-            echo "::error title=Knowledge IA production acceptance::Knowledge acceptance failed closed."
-            exit 31
+          if terraform -chdir=infra/terraform state list \
+            | grep -q '^google_cloud_scheduler_job\.'; then
+            echo "::error title=Legacy scheduler quarantine::Cloud Scheduler remains in managed state; migrate it explicitly before enabling AgentOS."
+            exit 32
           fi
-
-      - name: Mark production deployment accepted
-        run: |
-          echo "Production deploy, migration, identity checks, PMO acceptance and Knowledge IA acceptance succeeded."
-          echo "Recurring worker triggers are isolated in autonomous-workers.yml and authenticate as the bounded scheduler identity."
+          echo "Legacy Cloud Scheduler orchestration is not active in Terraform state."

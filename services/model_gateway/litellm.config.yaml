@@ -1,0 +1,13 @@
+# Production-safe baseline. Provider deployments are intentionally provisioned
+# outside Git; no API key or provider credential belongs in this file.
+model_list: []
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+  database_url: os.environ/LITELLM_DATABASE_URL
+
+litellm_settings:
+  success_callback:
+    - langfuse
+  failure_callback:
+    - langfuse

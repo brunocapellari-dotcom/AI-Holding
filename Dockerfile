@@ -16,10 +16,12 @@ RUN apt-get update \
 
 COPY pyproject.toml README.md ./
 COPY app ./app
+COPY apps ./apps
+COPY services ./services
 COPY alembic ./alembic
 COPY alembic.ini ./alembic.ini
 RUN pip install --no-cache-dir .
 
 USER appuser
 EXPOSE 8080
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT} --proxy-headers"]
+CMD ["sh", "-c", "uvicorn apps.control_plane.main:app --host 0.0.0.0 --port ${PORT} --proxy-headers"]

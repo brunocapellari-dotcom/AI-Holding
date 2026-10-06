@@ -79,19 +79,23 @@ def test_knowledge_ingest_deduplicates_and_merges_evidence(client: TestClient) -
     assert merged["claim"]["metadata_json"]["ingest_conflicts"]
 
 
-def test_knowledge_lifecycle_context_outcome_and_export(
+def test_knowledge_lifecycle_context_outcome_and_second_brain_inbox_export(
     client: TestClient,
     tmp_path: Path,
 ) -> None:
     claim = _create_claim(client)
     claim_id = str(claim["id"])
 
-    for lifecycle in ("candidate", "validated", "canonical"):
+    for lifecycle in ("candidate", "validated"):
         response = _transition(client, claim_id, lifecycle)
         assert response["lifecycle_status"] == lifecycle
 
-    same = _transition(client, claim_id, "canonical")
-    assert same["lifecycle_status"] == "canonical"
+    canonical = client.post(
+        f"/api/v1/knowledge/claims/{claim_id}/transition",
+        json={"lifecycle_status": "canonical"},
+    )
+    assert canonical.status_code == 422
+    assert "external Second Brain" in canonical.text
 
     context = client.get(
         "/api/v1/knowledge/context",
@@ -122,12 +126,12 @@ def test_knowledge_lifecycle_context_outcome_and_export(
 
     rendered = client.get(f"/api/v1/knowledge/claims/{claim_id}/markdown")
     assert rendered.status_code == 200
-    assert "# Knowledge Claim" in rendered.json()["markdown"]
+    assert "# Knowledge Candidate" in rendered.json()["markdown"]
 
     old_vault = settings.obsidian_vault_path
     old_root = settings.obsidian_knowledge_root
     settings.obsidian_vault_path = str(tmp_path)
-    settings.obsidian_knowledge_root = "Segundo Cerebro"
+    settings.obsidian_knowledge_root = "Segundo Cerebro/00 - Inbox/Holding"
     try:
         exported = client.post(f"/api/v1/knowledge/claims/{claim_id}/export")
     finally:
@@ -136,64 +140,39 @@ def test_knowledge_lifecycle_context_outcome_and_export(
 
     assert exported.status_code == 200
     relative_path = exported.json()["relative_path"]
+    assert relative_path.startswith("Segundo Cerebro/00 - Inbox/Holding/")
     target = tmp_path / relative_path
     assert target.exists()
     markdown = target.read_text(encoding="utf-8")
-    assert "# Knowledge Claim" in markdown
+    assert "# Knowledge Candidate" in markdown
     assert "partially_confirmed" in markdown
 
 
-def test_supersession_preserves_history(client: TestClient) -> None:
+def test_holding_rejects_knowledge_supersession(client: TestClient) -> None:
     old = _create_claim(
         client,
-        statement="The canonical freight methodology uses model version one.",
+        statement="The prior freight methodology uses model version one.",
     )
     old_id = str(old["id"])
-    for lifecycle in ("candidate", "validated", "canonical"):
-        _transition(client, old_id, lifecycle)
+    _transition(client, old_id, "candidate")
+    _transition(client, old_id, "validated")
 
     new = _create_claim(
         client,
-        statement="The canonical freight methodology uses model version two.",
+        statement="The candidate freight methodology uses model version two.",
     )
     new_id = str(new["id"])
     _transition(client, new_id, "candidate")
-    _transition(client, new_id, "validated")
-    promoted = client.post(
+    response = client.post(
         f"/api/v1/knowledge/claims/{new_id}/transition",
-        json={"lifecycle_status": "canonical", "supersedes_id": old_id},
+        json={"lifecycle_status": "validated", "supersedes_id": old_id},
     )
-    assert promoted.status_code == 200
-    assert promoted.json()["supersedes_id"] == old_id
+    assert response.status_code == 422
+    assert "supersession is owned" in response.text
 
     previous = client.get(f"/api/v1/knowledge/claims/{old_id}")
     assert previous.status_code == 200
-    assert previous.json()["lifecycle_status"] == "superseded"
-
-
-def test_cross_namespace_supersession_is_rejected(client: TestClient) -> None:
-    old = _create_claim(
-        client,
-        statement="Shared inflation definition for finance.",
-        namespace="mercado_financeiro",
-    )
-    old_id = str(old["id"])
-    for lifecycle in ("candidate", "validated", "canonical"):
-        _transition(client, old_id, lifecycle)
-
-    new = _create_claim(
-        client,
-        statement="Shared inflation definition for agriculture.",
-        namespace="agrolog_mt",
-    )
-    new_id = str(new["id"])
-    _transition(client, new_id, "candidate")
-    _transition(client, new_id, "validated")
-    response = client.post(
-        f"/api/v1/knowledge/claims/{new_id}/transition",
-        json={"lifecycle_status": "canonical", "supersedes_id": old_id},
-    )
-    assert response.status_code == 409
+    assert previous.json()["lifecycle_status"] == "validated"
 
 
 def test_invalid_knowledge_transition_and_missing_claim_are_rejected(
@@ -203,9 +182,15 @@ def test_invalid_knowledge_transition_and_missing_claim_are_rejected(
     claim_id = str(claim["id"])
     invalid = client.post(
         f"/api/v1/knowledge/claims/{claim_id}/transition",
-        json={"lifecycle_status": "canonical"},
+        json={"lifecycle_status": "validated"},
     )
     assert invalid.status_code == 409
+
+    canonical = client.post(
+        f"/api/v1/knowledge/claims/{claim_id}/transition",
+        json={"lifecycle_status": "canonical"},
+    )
+    assert canonical.status_code == 422
 
     missing = client.get(f"/api/v1/knowledge/claims/{uuid4()}")
     assert missing.status_code == 404
@@ -216,13 +201,13 @@ def test_context_excludes_expired_and_unvalidated_claims(client: TestClient) -> 
     raw_response = client.post("/api/v1/knowledge/claims", json=raw)
     assert raw_response.status_code == 201
 
-    expired = _claim_payload(statement="Expired canonical claim must not be retrieved.")
+    expired = _claim_payload(statement="Expired validated claim must not be retrieved.")
     expired["valid_from"] = (datetime.now(UTC) - timedelta(days=2)).isoformat()
     expired["valid_until"] = (datetime.now(UTC) - timedelta(days=1)).isoformat()
     expired_response = client.post("/api/v1/knowledge/claims", json=expired)
     assert expired_response.status_code == 201
     expired_id = expired_response.json()["claim"]["id"]
-    for lifecycle in ("candidate", "validated", "canonical"):
+    for lifecycle in ("candidate", "validated"):
         _transition(client, expired_id, lifecycle)
 
     context = client.get(
@@ -273,7 +258,7 @@ def test_invalid_references_and_validity_window_are_rejected(client: TestClient)
 def test_list_claims_filters_by_namespace_and_lifecycle(client: TestClient) -> None:
     claim = _create_claim(
         client,
-        statement="A finance-only canonical knowledge statement.",
+        statement="A finance-only validated knowledge candidate.",
         namespace="mercado_financeiro",
     )
     claim_id = str(claim["id"])

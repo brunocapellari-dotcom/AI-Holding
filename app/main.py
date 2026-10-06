@@ -8,6 +8,7 @@ from starlette.middleware.base import RequestResponseEndpoint
 
 from app.api.routes import (
     agents,
+    collectors,
     decisions,
     executive,
     incidents,
@@ -72,3 +73,4 @@ app.include_router(policy.router, prefix=settings.api_prefix)
 app.include_router(pmo.router, prefix=settings.api_prefix)
 app.include_router(executive.router, prefix=settings.api_prefix)
 app.include_router(knowledge.router, prefix=settings.api_prefix)
+app.include_router(collectors.router, prefix=settings.api_prefix)

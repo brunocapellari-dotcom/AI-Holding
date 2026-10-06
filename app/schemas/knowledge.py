@@ -77,6 +77,19 @@ class KnowledgeTransition(BaseModel):
     lifecycle_status: KnowledgeLifecycle
     supersedes_id: UUID | None = None
 
+    @model_validator(mode="after")
+    def enforce_second_brain_boundary(self) -> "KnowledgeTransition":
+        if self.lifecycle_status == KnowledgeLifecycle.canonical:
+            raise ValueError(
+                "the Holding cannot promote knowledge to canonical; submit validated evidence "
+                "to the external Second Brain validation pipeline"
+            )
+        if self.supersedes_id is not None:
+            raise ValueError(
+                "knowledge supersession is owned by the external Second Brain validation pipeline"
+            )
+        return self
+
 
 class KnowledgeOutcomeCreate(BaseModel):
     project_id: UUID | None = None
