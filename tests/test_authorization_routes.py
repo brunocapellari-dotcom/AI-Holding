@@ -294,7 +294,7 @@ def test_pmo_service_account_has_only_bounded_collector_mutations(
     monkeypatch,
 ):
     monkeypatch.setattr(settings, "environment", "production")
-    pmo, project, _, _ = _seed_runtime(db_session)
+    pmo, _, project, _ = _seed_runtime(db_session)
     pmo.status = AgentStatus.active
     db_session.commit()
 
