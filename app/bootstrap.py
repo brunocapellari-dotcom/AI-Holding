@@ -226,8 +226,9 @@ PROJECT_SEEDS: tuple[ProjectSeed, ...] = (
         key="PERSONAL_PERFORMANCE_HEALTH_OS",
         name="Personal Performance & Health OS",
         strategic_goal=(
-            "Operate a local-first personal performance system that turns goals, training, nutrition, "
-            "recovery and health context into audited adaptive plans without overriding medical authority."
+            "Operate a local-first personal performance system that turns goals, training, "
+            "nutrition, recovery and health context into audited adaptive plans without "
+            "overriding medical authority."
         ),
         priority=3,
         autonomy_level=2,
