@@ -8,9 +8,11 @@ from app.bootstrap import (
     RuntimeIdentitySeed,
     _runtime_identity_seeds_from_env,
     bootstrap_canonical_portfolio,
+    bootstrap_owner_identity,
 )
 from app.models.agent_identity import AgentIdentity
 from app.models.entities import Agent, AgentStatus, Project, ProjectStatus
+from app.models.human_identity import HumanIdentityRole, HumanRole
 from app.models.routine import Routine
 
 
@@ -194,3 +196,61 @@ def test_maintenance_field_intelligence_starts_as_incubating(db_session):
     )
     assert project is not None
     assert project.status == ProjectStatus.incubating
+
+
+def test_owner_identity_bootstrap_is_optional_and_idempotent(db_session, monkeypatch):
+    for name in ("OWNER_IDENTITY_ISSUER", "OWNER_IDENTITY_SUBJECT", "OWNER_IDENTITY_EMAIL"):
+        monkeypatch.delenv(name, raising=False)
+    assert bootstrap_owner_identity(db_session) is False
+
+    monkeypatch.setenv("OWNER_IDENTITY_ISSUER", "https://accounts.google.com")
+    monkeypatch.setenv("OWNER_IDENTITY_SUBJECT", "owner-subject")
+    monkeypatch.setenv("OWNER_IDENTITY_EMAIL", "owner@example.com")
+
+    assert bootstrap_owner_identity(db_session) is True
+    db_session.commit()
+    assert bootstrap_owner_identity(db_session) is False
+
+    binding = db_session.query(HumanIdentityRole).one()
+    assert binding.subject == "owner-subject"
+    assert binding.email == "owner@example.com"
+    assert binding.role == HumanRole.owner.value
+
+
+def test_owner_identity_bootstrap_fails_closed_on_partial_configuration(
+    db_session,
+    monkeypatch,
+):
+    monkeypatch.setenv("OWNER_IDENTITY_ISSUER", "https://accounts.google.com")
+    monkeypatch.setenv("OWNER_IDENTITY_SUBJECT", "owner-subject")
+    monkeypatch.delenv("OWNER_IDENTITY_EMAIL", raising=False)
+
+    with pytest.raises(RuntimeError, match="must be complete"):
+        bootstrap_owner_identity(db_session)
+
+
+def test_owner_identity_bootstrap_rejects_identity_drift(db_session, monkeypatch):
+    monkeypatch.setenv("OWNER_IDENTITY_ISSUER", "https://accounts.google.com")
+    monkeypatch.setenv("OWNER_IDENTITY_SUBJECT", "owner-subject")
+    monkeypatch.setenv("OWNER_IDENTITY_EMAIL", "owner@example.com")
+    assert bootstrap_owner_identity(db_session) is True
+    db_session.commit()
+
+    monkeypatch.setenv("OWNER_IDENTITY_EMAIL", "different@example.com")
+    with pytest.raises(RuntimeError, match="owner identity drift"):
+        bootstrap_owner_identity(db_session)
+
+
+def test_bootstrap_contains_shared_execution_projects(db_session):
+    bootstrap_canonical_portfolio(db_session)
+    projects = {item.key: item for item in db_session.scalars(select(Project))}
+
+    expected = {
+        "RESEARCH_AI": "brunocapellari-dotcom/Research-AI",
+        "CONTENT_FACTORY": "brunocapellari-dotcom/Content-Factory",
+        "WHATSAPP_AI": "brunocapellari-dotcom/WHATSAPP_AI",
+    }
+    for key, repository in expected.items():
+        assert key in projects
+        assert projects[key].repository == repository
+        assert projects[key].status in {ProjectStatus.active, ProjectStatus.incubating}

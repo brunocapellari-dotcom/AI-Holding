@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -7,6 +9,11 @@ class Settings(BaseSettings):
     app_name: str = "Holding Control Plane"
     environment: str = "production"
     database_url: str = "postgresql+psycopg://holding:holding@localhost:5432/holding"
+    database_auth_mode: Literal["password", "cloud_sql_iam"] = "password"
+    cloud_sql_instance_connection_name: str | None = None
+    cloud_sql_iam_user: str | None = None
+    cloud_sql_database: str = "holding"
+    cloud_sql_ip_type: Literal["private", "public", "psc"] = "private"
     api_prefix: str = "/api/v1"
     require_verified_identity: bool = True
     verified_identity_audience: str = "holding-control-plane"

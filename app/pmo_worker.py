@@ -273,6 +273,56 @@ class ControlPlaneClient:
             },
         )
 
+    def project_registry(self) -> list[dict[str, object]]:
+        return self._get_object_list("/api/v1/holding/projects/registry")
+
+    def collectors(self, project_id: str) -> list[dict[str, object]]:
+        return self._get_object_list(
+            f"/api/v1/holding/projects/{project_id}/collectors",
+        )
+
+    def upsert_collector(
+        self,
+        project_id: str,
+        collector_key: str,
+        payload: dict[str, object],
+    ) -> dict[str, object]:
+        response = self._request(
+            "PUT",
+            f"/api/v1/holding/projects/{project_id}/collectors/{collector_key}",
+            json_body=payload,
+        )
+        body: object = response.json()
+        if not isinstance(body, dict):
+            raise RuntimeError("collector upsert returned a non-object response")
+        return dict(body)
+
+    def record_collector_execution(
+        self,
+        project_id: str,
+        collector_key: str,
+        payload: dict[str, object],
+    ) -> dict[str, object]:
+        response = self._request(
+            "POST",
+            (f"/api/v1/holding/projects/{project_id}/collectors/{collector_key}/executions"),
+            json_body=payload,
+        )
+        body: object = response.json()
+        if not isinstance(body, dict):
+            raise RuntimeError("collector execution returned a non-object response")
+        return dict(body)
+
+    def recompute_project_health(self, project_id: str) -> dict[str, object]:
+        response = self._request(
+            "POST",
+            f"/api/v1/holding/projects/{project_id}/health/recompute",
+        )
+        body: object = response.json()
+        if not isinstance(body, dict):
+            raise RuntimeError("health recompute returned a non-object response")
+        return dict(body)
+
     def knowledge_gaps(self) -> list[dict[str, object]]:
         return self._get_object_list(
             "/api/v1/knowledge/gaps",

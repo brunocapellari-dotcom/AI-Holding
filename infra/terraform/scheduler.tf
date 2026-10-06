@@ -1,16 +1,6 @@
-variable "project_number" {
-  type        = string
-  default     = "868946857614"
-  description = "Google Cloud project number used in Workload Identity Federation principal identifiers."
-}
-
-locals {
-  github_main_scheduler_principal = "principal://iam.googleapis.com/projects/${var.project_number}/locations/global/workloadIdentityPools/github-actions/subject/repo:brunocapellari-dotcom/AI-Holding:ref:refs/heads/main"
-}
-
 resource "google_service_account" "worker_scheduler" {
   account_id   = "holding-worker-scheduler"
-  display_name = "Holding Worker Scheduler"
+  display_name = "Holding Cloud Scheduler Invoker"
 
   depends_on = [google_project_service.required]
 
@@ -23,12 +13,6 @@ resource "google_service_account_iam_member" "deployer_act_as_worker_scheduler" 
   service_account_id = google_service_account.worker_scheduler.name
   role               = "roles/iam.serviceAccountUser"
   member             = "serviceAccount:${local.deployer_service_account}"
-}
-
-resource "google_service_account_iam_member" "github_main_impersonates_worker_scheduler" {
-  service_account_id = google_service_account.worker_scheduler.name
-  role               = "roles/iam.workloadIdentityUser"
-  member             = local.github_main_scheduler_principal
 }
 
 resource "google_cloud_run_v2_job_iam_member" "scheduler_pmo_invoker" {
@@ -49,10 +33,90 @@ resource "google_cloud_run_v2_job_iam_member" "scheduler_knowledge_invoker" {
   member   = "serviceAccount:${google_service_account.worker_scheduler.email}"
 }
 
+resource "google_cloud_scheduler_job" "pmo_worker" {
+  count            = var.deploy_service ? 1 : 0
+  name             = "${var.service_name}-pmo-schedule"
+  description      = "Execute the bounded Holding PMO worker every ten minutes."
+  region           = var.region
+  schedule         = "*/10 * * * *"
+  time_zone        = "America/Cuiaba"
+  attempt_deadline = "60s"
+
+  retry_config {
+    retry_count        = 3
+    max_retry_duration = "300s"
+  }
+
+  http_target {
+    http_method = "POST"
+    uri = "https://run.googleapis.com/v2/projects/${var.project_id}/locations/${var.region}/jobs/${google_cloud_run_v2_job.pmo_worker[0].name}:run"
+    body = base64encode("{}")
+    headers = {
+      "Content-Type" = "application/json"
+    }
+
+    oauth_token {
+      service_account_email = google_service_account.worker_scheduler.email
+    }
+  }
+
+  depends_on = [
+    google_project_service.required,
+    google_cloud_run_v2_job_iam_member.scheduler_pmo_invoker,
+    google_service_account_iam_member.deployer_act_as_worker_scheduler,
+  ]
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "google_cloud_scheduler_job" "knowledge_worker" {
+  count            = var.deploy_service ? 1 : 0
+  name             = "${var.service_name}-knowledge-schedule"
+  description      = "Execute the bounded Holding Knowledge worker hourly."
+  region           = var.region
+  schedule         = "7 * * * *"
+  time_zone        = "America/Cuiaba"
+  attempt_deadline = "60s"
+
+  retry_config {
+    retry_count        = 3
+    max_retry_duration = "300s"
+  }
+
+  http_target {
+    http_method = "POST"
+    uri = "https://run.googleapis.com/v2/projects/${var.project_id}/locations/${var.region}/jobs/${google_cloud_run_v2_job.knowledge_worker[0].name}:run"
+    body = base64encode("{}")
+    headers = {
+      "Content-Type" = "application/json"
+    }
+
+    oauth_token {
+      service_account_email = google_service_account.worker_scheduler.email
+    }
+  }
+
+  depends_on = [
+    google_project_service.required,
+    google_cloud_run_v2_job_iam_member.scheduler_knowledge_invoker,
+    google_service_account_iam_member.deployer_act_as_worker_scheduler,
+  ]
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
 output "worker_scheduler_service_account" {
   value = google_service_account.worker_scheduler.email
 }
 
-output "worker_scheduler_wif_principal" {
-  value = local.github_main_scheduler_principal
+output "pmo_scheduler_job" {
+  value = var.deploy_service ? google_cloud_scheduler_job.pmo_worker[0].name : null
+}
+
+output "knowledge_scheduler_job" {
+  value = var.deploy_service ? google_cloud_scheduler_job.knowledge_worker[0].name : null
 }

@@ -61,7 +61,10 @@ def run_migrations() -> MigrationExitCode:
         return MigrationExitCode.unexpected_runtime_error
 
     try:
-        command.upgrade(Config("alembic.ini"), "head")
+        alembic_config = Config("alembic.ini")
+        with engine.connect() as connection:
+            alembic_config.attributes["connection"] = connection
+            command.upgrade(alembic_config, "head")
     except OperationalError:
         return MigrationExitCode.database_connectivity_or_auth
     except ProgrammingError:
