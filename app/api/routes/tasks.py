@@ -140,17 +140,24 @@ def transition_task(
                 detail="service agent may only move its running task to review or blocked",
             )
 
+    project = db.get(Project, task.project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="project not found")
+    if (
+        project.status in {ProjectStatus.paused, ProjectStatus.archived, ProjectStatus.discontinued}
+        and payload.status in {WorkStatus.ready, WorkStatus.running}
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="paused/archived/discontinued project cannot receive executable work",
+        )
+
     if payload.status not in ALLOWED_TRANSITIONS[task.status]:
         raise HTTPException(
             status_code=409,
             detail=f"invalid transition {task.status.value} -> {payload.status.value}",
         )
     if payload.status == WorkStatus.running:
-        project = db.get(Project, task.project_id)
-        if project is None:
-            raise HTTPException(status_code=404, detail="project not found")
-        if project.status in {ProjectStatus.paused, ProjectStatus.archived, ProjectStatus.discontinued}:
-            raise HTTPException(status_code=409, detail="paused/archived/discontinued project cannot execute")
         project_wip = wip_count(db, task.project_id, None)
         agent_wip = (
             wip_count(db, task.project_id, task.assigned_agent_id)

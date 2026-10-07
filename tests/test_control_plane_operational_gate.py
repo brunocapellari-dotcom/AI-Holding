@@ -124,10 +124,9 @@ def test_paused_project_cannot_execute(client, db_session):
     model.status = ProjectStatus.paused
     db_session.commit()
 
-    assert _transition(client, task["id"], "ready").status_code == 200
-    blocked = _transition(client, task["id"], "running")
+    blocked = _transition(client, task["id"], "ready")
     assert blocked.status_code == 409
-    assert "cannot execute" in blocked.json()["detail"]
+    assert "cannot receive executable work" in blocked.json()["detail"]
 
 
 def test_wip_limit_blocks_fourth_running_task(client):
@@ -242,3 +241,26 @@ def test_human_action_queue_and_owner_view_expose_real_blocker(client):
     assert row["verified_status"] == "BLOCKED"
     assert row["open_blockers"] == 1
     assert row["next_best_action"] == "Add production credential reference"
+
+
+def test_project_status_route_can_pause_but_not_accidentally_reactivate_discontinued(client):
+    project = _project(client, "LIFECYCLE_GATE")
+    paused = client.post(
+        f"/api/v1/projects/{project['id']}/status",
+        json={"status": "paused"},
+    )
+    assert paused.status_code == 200, paused.text
+    assert paused.json()["status"] == "paused"
+
+    discontinued = client.post(
+        f"/api/v1/projects/{project['id']}/status",
+        json={"status": "discontinued"},
+    )
+    assert discontinued.status_code == 200, discontinued.text
+    assert discontinued.json()["status"] == "discontinued"
+
+    rejected = client.post(
+        f"/api/v1/projects/{project['id']}/status",
+        json={"status": "active"},
+    )
+    assert rejected.status_code == 409

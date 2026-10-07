@@ -10,7 +10,14 @@ from sqlalchemy.orm import Session
 from app.core.actor import ActorContext, get_actor
 from app.core.authorization import authorize_mutation
 from app.db.session import get_db
-from app.models.entities import AcceptanceCriterion, Agent, CriterionStatus, Milestone, Project
+from app.models.entities import (
+    AcceptanceCriterion,
+    Agent,
+    CriterionStatus,
+    Milestone,
+    Project,
+    ProjectStatus,
+)
 from app.schemas.api import (
     CriterionCreate,
     CriterionOut,
@@ -20,6 +27,7 @@ from app.schemas.api import (
     ProjectCreate,
     ProjectOut,
     ProjectProgress,
+    ProjectStatusUpdate,
 )
 from app.services.audit import record_audit
 from app.services.progress import project_progress
@@ -66,6 +74,40 @@ def create_project(payload: ProjectCreate, db: DbSession, actor: Actor) -> Proje
             "repository": project.repository,
             "repository_path": project.repository_path,
         },
+    )
+    db.commit()
+    db.refresh(project)
+    return project
+
+
+@router.post("/{project_id}/status", response_model=ProjectOut)
+def update_project_status(
+    project_id: UUID,
+    payload: ProjectStatusUpdate,
+    db: DbSession,
+    actor: Actor,
+) -> Project:
+    # Service agents have no permission for global project lifecycle changes.
+    authorize_mutation(db, actor)
+    project = db.get(Project, project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="project not found")
+
+    target = ProjectStatus(payload.status)
+    old_status = project.status
+    if old_status == ProjectStatus.discontinued and target == ProjectStatus.active:
+        raise HTTPException(
+            status_code=409,
+            detail="discontinued project requires explicit governance restoration before activation",
+        )
+    project.status = target
+    record_audit(
+        db,
+        actor=actor,
+        action="project.status.updated",
+        entity_type="project",
+        entity_id=str(project.id),
+        payload={"from": old_status.value, "to": target.value},
     )
     db.commit()
     db.refresh(project)

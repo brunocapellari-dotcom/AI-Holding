@@ -1,5 +1,6 @@
 from datetime import date, datetime
 from enum import StrEnum
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -42,6 +43,12 @@ class ProjectOut(ProjectCreate):
     version: int
     created_at: datetime
     updated_at: datetime
+
+
+class ProjectStatusUpdate(BaseModel):
+    status: Literal[
+        "active", "paused", "blocked", "maintenance", "archived", "discontinued"
+    ]
 
 
 class MilestoneCreate(BaseModel):
