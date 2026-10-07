@@ -46,6 +46,10 @@ class ReleaseTask(StrictModel):
     test: str | None = None
     evidence: list[str] = Field(default_factory=list)
     commit_or_deploy: str | None = None
+    last_advance: str | None = None
+    last_test: str | None = None
+    failures: list[str] = Field(default_factory=list)
+    next_task: str | None = None
 
     @model_validator(mode="after")
     def done_requires_objective_evidence(self) -> ReleaseTask:
@@ -112,13 +116,22 @@ class ReleaseManifest(StrictModel):
                 "task": task.key,
                 "priority": task.priority.value,
                 "status": task.status.value,
+                "last_advance": task.last_advance,
+                "last_test": task.last_test,
+                "failures": task.failures,
                 "blocker": task.impact if task.status is ReleaseState.BLOCKED else None,
+                "next_task": task.next_task,
                 "evidence": task.evidence,
             }
             for task in self.tasks
         ]
 
 
-def load_release_manifest(path: str | Path) -> ReleaseManifest:
+DEFAULT_RELEASE_MANIFEST = (
+    Path(__file__).resolve().parents[1] / "config" / "agrolog_commercial_release_2026_10_09.json"
+)
+
+
+def load_release_manifest(path: str | Path = DEFAULT_RELEASE_MANIFEST) -> ReleaseManifest:
     payload = json.loads(Path(path).read_text(encoding="utf-8"))
     return ReleaseManifest.model_validate(payload)
