@@ -7,12 +7,12 @@
     {
       "project": "AGROLOG",
       "responsibility": "produto final",
-      "status": "DOING"
+      "status": "TESTING"
     },
     {
       "project": "WHATSAPP_AI",
       "responsibility": "freight ingestion",
-      "status": "DOING"
+      "status": "TESTING"
     },
     {
       "project": "RESEARCH_AI",
@@ -22,12 +22,12 @@
     {
       "project": "SECOND_BRAIN",
       "responsibility": "evidência/conhecimento",
-      "status": "DOING"
+      "status": "TESTING"
     },
     {
       "project": "HERMES_AI",
       "responsibility": "orquestração",
-      "status": "DOING"
+      "status": "TESTING"
     }
   ],
   "tasks": [
@@ -35,73 +35,148 @@
       "key": "P0_INGESTAO_REAL",
       "project": "AGROLOG",
       "priority": "P0",
-      "status": "DOING"
+      "status": "DOING",
+      "artifact": "https://github.com/brunocapellari-dotcom/AgroLogMT/pull/192",
+      "last_advance": "Sellable V1 branch contains integrated vertical and explicit execution-evidence gate.",
+      "last_test": "full-project-final-gate pending on current PR head",
+      "next_task": "Run real source ingestion against the release candidate and attach freshness/execution evidence."
     },
     {
       "key": "P0_HISTORICO",
       "project": "RESEARCH_AI",
       "priority": "P0",
-      "status": "DOING"
+      "status": "DOING",
+      "artifact": "https://github.com/brunocapellari-dotcom/Research-AI/pull/1",
+      "last_advance": "Existing Research AI runtime foundation is available but is not current release evidence.",
+      "last_test": "Latest visible PR CI failed; no current-release green historical backfill evidence yet.",
+      "failures": [
+        "Current release still lacks a green Research AI historical-backfill artifact."
+      ],
+      "next_task": "Produce current-release historical source/backfill evidence for USDA, CONAB, INMET and Argentina."
     },
     {
       "key": "P0_METEOROLOGIA",
       "project": "AGROLOG",
       "priority": "P0",
-      "status": "DOING"
+      "status": "TESTING",
+      "artifact": "https://github.com/brunocapellari-dotcom/AgroLogMT/pull/192",
+      "last_advance": "AgroLog Intelligence Sellable V1 integrated vertical is implemented on the release branch.",
+      "last_test": "full-project-final-gate pending on current PR head",
+      "next_task": "Attach real-data execution evidence and verify the sellability gate on the same commit."
     },
     {
       "key": "P0_SAFRA",
       "project": "AGROLOG",
       "priority": "P0",
-      "status": "DOING"
+      "status": "TESTING",
+      "artifact": "https://github.com/brunocapellari-dotcom/AgroLogMT/pull/192",
+      "last_advance": "AgroLog Intelligence Sellable V1 integrated vertical is implemented on the release branch.",
+      "last_test": "full-project-final-gate pending on current PR head",
+      "next_task": "Attach real-data execution evidence and verify the sellability gate on the same commit."
     },
     {
       "key": "P0_MERCADO",
       "project": "AGROLOG",
       "priority": "P0",
-      "status": "DOING"
+      "status": "TESTING",
+      "artifact": "https://github.com/brunocapellari-dotcom/AgroLogMT/pull/192",
+      "last_advance": "AgroLog Intelligence Sellable V1 integrated vertical is implemented on the release branch.",
+      "last_test": "full-project-final-gate pending on current PR head",
+      "next_task": "Attach real-data execution evidence and verify the sellability gate on the same commit."
     },
     {
       "key": "P0_FRETES",
       "project": "WHATSAPP_AI",
       "priority": "P0",
-      "status": "DOING"
+      "status": "TESTING",
+      "artifact": "https://github.com/brunocapellari-dotcom/WHATSAPP_AI/pull/2",
+      "test": "WHATSAPP_AI PR #2 CI success; AgroLogMT PR #193 full-project-final-gate success",
+      "evidence": [
+        "https://github.com/brunocapellari-dotcom/WHATSAPP_AI/pull/2",
+        "https://github.com/brunocapellari-dotcom/AgroLogMT/pull/193"
+      ],
+      "last_advance": "Provider-independent signed freight ingestion and AgroLog canonical receiver are implemented.",
+      "last_test": "Both contract-side PR gates are green.",
+      "failures": [
+        "Live provider/account validation, deployed receiver and signed E2E evidence are still missing."
+      ],
+      "next_task": "Deploy receiver, provision secret/table and execute signed E2E twice with different fixtures."
     },
     {
       "key": "P0_ANALISE_INTEGRADA",
       "project": "AGROLOG",
       "priority": "P0",
-      "status": "TODO"
+      "status": "TESTING",
+      "artifact": "https://github.com/brunocapellari-dotcom/AgroLogMT/pull/192",
+      "last_advance": "AgroLog Intelligence Sellable V1 integrated vertical is implemented on the release branch.",
+      "last_test": "full-project-final-gate pending on current PR head",
+      "next_task": "Attach real-data execution evidence and verify the sellability gate on the same commit."
     },
     {
       "key": "P0_RELATORIO",
       "project": "AGROLOG",
       "priority": "P0",
-      "status": "TODO"
+      "status": "TESTING",
+      "artifact": "https://github.com/brunocapellari-dotcom/AgroLogMT/pull/192",
+      "last_advance": "AgroLog Intelligence Sellable V1 integrated vertical is implemented on the release branch.",
+      "last_test": "full-project-final-gate pending on current PR head",
+      "next_task": "Attach real-data execution evidence and verify the sellability gate on the same commit."
     },
     {
       "key": "P0_DASHBOARD",
       "project": "AGROLOG",
       "priority": "P0",
-      "status": "TODO"
+      "status": "TESTING",
+      "artifact": "https://github.com/brunocapellari-dotcom/AgroLogMT/pull/192",
+      "last_advance": "AgroLog Intelligence Sellable V1 integrated vertical is implemented on the release branch.",
+      "last_test": "full-project-final-gate pending on current PR head",
+      "next_task": "Attach real-data execution evidence and verify the sellability gate on the same commit."
     },
     {
       "key": "P0_E2E",
       "project": "HERMES_AI",
       "priority": "P0",
-      "status": "TODO"
+      "status": "TESTING",
+      "artifact": "https://github.com/brunocapellari-dotcom/Hermes-AI-Platform/pull/7",
+      "test": "Hermes PR #7 ci + manifest-contract-ci success",
+      "evidence": [
+        "https://github.com/brunocapellari-dotcom/Hermes-AI-Platform/pull/7"
+      ],
+      "last_advance": "Release event contract, idempotency, retries and failure isolation are green in CI.",
+      "last_test": "Hermes release contract workflows passed.",
+      "failures": [
+        "Cross-service live SOURCE→AGROLOG→REPORT and FREIGHT→AGROLOG→REPORT evidence is not yet attached."
+      ],
+      "next_task": "Run the two release E2E flows against deployed services and attach logs."
     },
     {
       "key": "P1_SEGURANCA",
       "project": "AI_HOLDING",
       "priority": "P1",
-      "status": "DOING"
+      "status": "TESTING",
+      "artifact": "https://github.com/brunocapellari-dotcom/AI-Holding/pull/61",
+      "last_advance": "Release control plane and evidence gates are implemented.",
+      "last_test": "Current Holding CI rerun required after control-plane changes.",
+      "next_task": "Obtain a green exact-head Holding CI/security gate."
     },
     {
       "key": "P1_DEPLOY",
       "project": "AGROLOG",
       "priority": "P1",
-      "status": "TODO"
+      "status": "TODO",
+      "next_task": "Deploy only after P0 exact-head gates and required secrets/runtime dependencies are verified."
+    },
+    {
+      "key": "P1_KNOWLEDGE_HANDOFF",
+      "project": "SECOND_BRAIN",
+      "priority": "P1",
+      "status": "TESTING",
+      "artifact": "https://github.com/brunocapellari-dotcom/Second-Brain/pull/3",
+      "last_advance": "Canonical Markdown claim/evidence persistence and retrieval added for all five release record types.",
+      "last_test": "Exact-head CI rerun queued after canonical store addition.",
+      "failures": [],
+      "next_task": "Require green exact-head CI and preserve Knowledge Factory-only canonical promotion.",
+      "evidence": []
     }
   ],
   "required_gate": [
