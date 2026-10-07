@@ -5,7 +5,6 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.release_control import load_release_manifest
 from app.models.entities import (
     Decision,
     DecisionStatus,
@@ -16,6 +15,7 @@ from app.models.entities import (
     Task,
     WorkStatus,
 )
+from app.release_control import load_release_manifest
 from app.schemas.api import ExecutiveSummary
 from app.services.progress import project_progress
 
