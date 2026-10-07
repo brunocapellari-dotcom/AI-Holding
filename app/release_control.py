@@ -48,10 +48,11 @@ class ReleaseTask(StrictModel):
     commit_or_deploy: str | None = None
 
     @model_validator(mode="after")
-    def done_requires_objective_evidence(self) -> "ReleaseTask":
-        if self.status is ReleaseState.DONE:
-            if self.artifact is None or self.test is None or not self.evidence:
-                raise ValueError("DONE requires artifact, test and evidence")
+    def done_requires_objective_evidence(self) -> ReleaseTask:
+        if self.status is ReleaseState.DONE and (
+            self.artifact is None or self.test is None or not self.evidence
+        ):
+            raise ValueError("DONE requires artifact, test and evidence")
         if self.status is ReleaseState.BLOCKED:
             required = (self.owner, self.impact, self.action_required, self.dependency)
             if any(value is None or not value.strip() for value in required):
