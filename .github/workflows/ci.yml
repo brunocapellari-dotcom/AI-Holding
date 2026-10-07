@@ -52,6 +52,7 @@ jobs:
         uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
 
       - name: Install project and development gates
         shell: bash
@@ -190,9 +191,11 @@ jobs:
           gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
           IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/holding/${SERVICE_NAME}:${IMAGE_TAG}"
           docker build --pull --tag "${IMAGE}" .
-          docker push "${IMAGE}"
-          DIGEST="$(gcloud artifacts docker images describe \
-            "${IMAGE}" --format='value(image_summary.digest)')"
+          PUSH_OUTPUT="$(docker push "${IMAGE}")"
+          printf '%s\n' "${PUSH_OUTPUT}"
+          DIGEST="$(printf '%s\n' "${PUSH_OUTPUT}" \
+            | sed -n 's/.*digest: \(sha256:[0-9a-f]\{64\}\).*/\1/p' \
+            | tail -n 1)"
           test -n "${DIGEST}"
           echo "IMAGE_REF=${REGION}-docker.pkg.dev/${PROJECT_ID}/holding/${SERVICE_NAME}@${DIGEST}" \
             >> "${GITHUB_ENV}"
