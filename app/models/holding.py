@@ -247,6 +247,10 @@ class DependencyEdge(Base, TimestampMixin):
             "status IN ('healthy','degraded','blocked','offline')",
             name="dependency_status_valid",
         ),
+        CheckConstraint(
+            "requirement_class IN ('REQUIRED','OPTIONAL','DEFERRED')",
+            name="dependency_requirement_class_valid",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -257,6 +261,8 @@ class DependencyEdge(Base, TimestampMixin):
     criticality: Mapped[int] = mapped_column(Integer, default=3)
     blocking: Mapped[bool] = mapped_column(Boolean, default=True)
     status: Mapped[str] = mapped_column(String(24), default="healthy", index=True)
+    requirement_class: Mapped[str] = mapped_column(String(12), default="REQUIRED", index=True)
+    artificial: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     metadata_json: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
 
 

@@ -26,6 +26,8 @@ class AgentPermission(StrEnum):
     manage_collectors = "manage_collectors"
     record_collector_execution = "record_collector_execution"
     recompute_project_health = "recompute_project_health"
+    record_operational_state = "record_operational_state"
+    verify_operational_evidence = "verify_operational_evidence"
     submit_knowledge = "submit_knowledge"
     promote_knowledge = "promote_knowledge"
     submit_knowledge_outcome = "submit_knowledge_outcome"
@@ -43,6 +45,7 @@ AGENT_PERMISSIONS: dict[str, frozenset[AgentPermission]] = {
             AgentPermission.manage_collectors,
             AgentPermission.record_collector_execution,
             AgentPermission.recompute_project_health,
+            AgentPermission.record_operational_state,
         }
     ),
     "KNOWLEDGE_IA": frozenset(
@@ -59,6 +62,7 @@ AGENT_PERMISSIONS: dict[str, frozenset[AgentPermission]] = {
     "AUDITOR_IA": frozenset(
         {
             AgentPermission.promote_knowledge,
+            AgentPermission.verify_operational_evidence,
             AgentPermission.submit_knowledge_outcome,
             AgentPermission.export_knowledge,
         }

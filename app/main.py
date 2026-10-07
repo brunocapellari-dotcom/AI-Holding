@@ -10,6 +10,7 @@ from app.api.routes import (
     agents,
     audit,
     corporate_registry,
+    control_plane,
     decisions,
     executive,
     holding,
@@ -69,6 +70,7 @@ def metrics() -> Response:
 
 app.include_router(audit.router, prefix=settings.api_prefix)
 app.include_router(corporate_registry.router, prefix=settings.api_prefix)
+app.include_router(control_plane.router, prefix=settings.api_prefix)
 app.include_router(projects.router, prefix=settings.api_prefix)
 app.include_router(tasks.router, prefix=settings.api_prefix)
 app.include_router(decisions.router, prefix=settings.api_prefix)

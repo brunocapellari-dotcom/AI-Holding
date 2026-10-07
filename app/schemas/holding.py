@@ -159,6 +159,8 @@ class DependencyCreate(BaseModel):
     criticality: int = Field(default=3, ge=1, le=5)
     blocking: bool = True
     status: Literal["healthy", "degraded", "blocked", "offline"] = "healthy"
+    requirement_class: Literal["REQUIRED", "OPTIONAL", "DEFERRED"] = "REQUIRED"
+    artificial: bool = False
     metadata_json: dict[str, object] = Field(default_factory=dict)
 
 
