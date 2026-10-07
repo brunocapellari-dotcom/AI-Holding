@@ -11,7 +11,6 @@ from app.release_control import (
     load_release_manifest,
 )
 
-
 MANIFEST = Path("config/agrolog_commercial_release_2026_10_09.json")
 
 
