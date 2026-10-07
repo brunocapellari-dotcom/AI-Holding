@@ -157,6 +157,11 @@ def update_release_status(
     if payload.commercial_status is not None:
         release.commercial_status = payload.commercial_status
     reasons = release_can_advance(db, release, payload.status)
+    if (
+        payload.commercial_status in {"SELLABLE", "CUSTOMERS", "SCALING"}
+        and payload.status not in {"READY", "RELEASED"}
+    ):
+        reasons = release_can_advance(db, release, "READY")
     if reasons:
         raise HTTPException(status_code=409, detail={"message": "release gate rejected", "reasons": reasons})
     release.status = payload.status

@@ -17,7 +17,7 @@ from app.models.control_plane import (
     TestRecord,
 )
 from app.models.entities import Decision, DecisionStatus, Project, ProjectStatus, Task, WorkStatus
-from app.models.holding import SecurityFinding
+from app.models.holding_evidence import SecurityFinding
 
 
 HUMAN_BLOCKER_TYPES = {"CREDENTIAL", "ACCESS", "PAYMENT", "LEGAL", "HUMAN_DECISION"}
@@ -126,9 +126,21 @@ def release_can_advance(db: Session, release: ReleaseRecord, target: str) -> lis
     return release_gate_reasons(db, release)
 
 
+GATE_EVIDENCE_KINDS: dict[str, tuple[str, ...]] = {
+    "CODE": ("COMMIT", "PR", "CI_RUN"),
+    "TEST": ("TEST_RESULT", "CI_RUN"),
+    "SECURITY": ("TEST_RESULT", "REPORT", "CI_RUN"),
+    "E2E": ("E2E_EXECUTION", "TEST_RESULT"),
+    "DEPLOY": ("DEPLOYMENT", "ENDPOINT_HEALTH"),
+    "OPERATIONS": ("ENDPOINT_HEALTH", "REPORT"),
+    "COMMERCIAL": ("REPORT", "ARTIFACT"),
+}
+
+
 def verify_gate_has_evidence(db: Session, gate: ReleaseGateRecord) -> bool:
     if not gate.evidence_required:
         return True
+    accepted_kinds = GATE_EVIDENCE_KINDS.get(gate.gate_type, ())
     return bool(
         db.scalar(
             select(func.count())
@@ -136,6 +148,7 @@ def verify_gate_has_evidence(db: Session, gate: ReleaseGateRecord) -> bool:
             .where(
                 EvidenceRecord.release_id == gate.release_id,
                 EvidenceRecord.verification_status == "VERIFIED",
+                EvidenceRecord.kind.in_(accepted_kinds),
             )
         )
     )
@@ -186,9 +199,12 @@ def recompute_project_governance(
 ) -> ProjectGovernanceState:
     state = db.get(ProjectGovernanceState, project.id)
     if state is None:
+        declared_status = (
+            "PAUSED" if project.status == ProjectStatus.incubating else project.status.value.upper()
+        )
         state = ProjectGovernanceState(
             project_id=project.id,
-            declared_status=project.status.value.upper(),
+            declared_status=declared_status,
             verified_status="UNKNOWN",
             priority_tier=f"P{min(project.priority, 3)}",
             health_status="UNKNOWN",

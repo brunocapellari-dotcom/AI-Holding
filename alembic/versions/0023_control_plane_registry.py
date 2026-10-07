@@ -101,6 +101,9 @@ def upgrade() -> None:
     op.create_index("ix_project_governance_verified_status", "project_governance_state", ["verified_status"])
     op.create_index("ix_project_governance_priority_tier", "project_governance_state", ["priority_tier"])
     op.create_index("ix_project_governance_current_release_id", "project_governance_state", ["current_release_id"])
+    op.create_index("ix_project_governance_health_status", "project_governance_state", ["health_status"])
+    op.create_index("ix_project_governance_cost_status", "project_governance_state", ["cost_status"])
+    op.create_index("ix_project_governance_commercial_status", "project_governance_state", ["commercial_status"])
 
     op.create_table(
         "release_gate_registry",
@@ -291,9 +294,11 @@ def upgrade() -> None:
         "dependency_edges",
         "requirement_class IN ('REQUIRED','OPTIONAL','DEFERRED')",
     )
+    op.create_index("ix_dependency_edges_requirement_class", "dependency_edges", ["requirement_class"])
 
 
 def downgrade() -> None:
+    op.drop_index("ix_dependency_edges_requirement_class", table_name="dependency_edges")
     op.drop_constraint("dependency_requirement_class_valid", "dependency_edges", type_="check")
     op.drop_column("dependency_edges", "artificial")
     op.drop_column("dependency_edges", "requirement_class")

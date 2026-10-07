@@ -151,7 +151,13 @@ def transition_task(
             raise HTTPException(status_code=404, detail="project not found")
         if project.status in {ProjectStatus.paused, ProjectStatus.archived, ProjectStatus.discontinued}:
             raise HTTPException(status_code=409, detail="paused/archived/discontinued project cannot execute")
-        if wip_count(db, task.project_id, task.assigned_agent_id) >= 3:
+        project_wip = wip_count(db, task.project_id, None)
+        agent_wip = (
+            wip_count(db, task.project_id, task.assigned_agent_id)
+            if task.assigned_agent_id is not None
+            else project_wip
+        )
+        if project_wip >= 3 or agent_wip >= 3:
             raise HTTPException(status_code=409, detail="WIP limit reached")
         dependencies = list(
             db.scalars(
