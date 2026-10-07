@@ -1,8 +1,8 @@
 import json
 from pathlib import Path
 
-from pydantic import ValidationError
 import pytest
+from pydantic import ValidationError
 
 from app.release_control import (
     ReleaseManifest,
