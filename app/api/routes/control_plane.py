@@ -10,7 +10,12 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.actor import ActorContext, get_actor
-from app.core.authorization import AgentPermission, authorize_mutation
+from app.core.authorization import (
+    AgentPermission,
+    ReadScope,
+    authorize_mutation,
+    authorize_read,
+)
 from app.db.session import get_db
 from app.models.control_plane import (
     BlockerRecord,
@@ -70,14 +75,16 @@ def _record_permission(db: Session, actor: ActorContext) -> None:
 
 
 @router.get("/owner-view", response_model=OwnerView)
-def get_owner_view(db: DbSession) -> OwnerView:
+def get_owner_view(db: DbSession, actor: Actor) -> OwnerView:
+    authorize_read(db, actor, scope=ReadScope.governance)
     result = OwnerView.model_validate(owner_view(db))
     db.commit()
     return result
 
 
 @router.get("/human-actions")
-def get_human_actions(db: DbSession) -> list[dict[str, object]]:
+def get_human_actions(db: DbSession, actor: Actor) -> list[dict[str, object]]:
+    authorize_read(db, actor, scope=ReadScope.governance)
     return human_actions(db)
 
 
@@ -142,7 +149,12 @@ def create_release(payload: ReleaseCreate, db: DbSession, actor: Actor) -> Relea
 
 
 @router.get("/releases", response_model=list[ReleaseOut])
-def list_releases(db: DbSession, project_id: UUID | None = None) -> list[ReleaseRecord]:
+def list_releases(
+    db: DbSession,
+    actor: Actor,
+    project_id: UUID | None = None,
+) -> list[ReleaseRecord]:
+    authorize_read(db, actor, scope=ReadScope.governance)
     statement = select(ReleaseRecord).order_by(ReleaseRecord.created_at.desc())
     if project_id:
         statement = statement.where(ReleaseRecord.project_id == project_id)
@@ -188,7 +200,12 @@ def update_release_status(
 
 
 @router.get("/releases/{release_id}/gates", response_model=list[GateOut])
-def list_release_gates(release_id: UUID, db: DbSession) -> list[ReleaseGateRecord]:
+def list_release_gates(
+    release_id: UUID,
+    db: DbSession,
+    actor: Actor,
+) -> list[ReleaseGateRecord]:
+    authorize_read(db, actor, scope=ReadScope.governance)
     if db.get(ReleaseRecord, release_id) is None:
         raise HTTPException(status_code=404, detail="release not found")
     return list(
@@ -228,10 +245,21 @@ def upsert_release_gate(
     gate.notes = payload.notes
     if payload.status == "PASS":
         if not verify_gate_has_evidence(db, gate):
-            raise HTTPException(status_code=409, detail="verified release evidence is required")
+            raise HTTPException(
+                status_code=409,
+                detail="verified release evidence is required",
+            )
         gate.verified_at = datetime.now(UTC)
     else:
         gate.verified_at = None
+    record_audit(
+        db,
+        actor=actor,
+        action="release.gate.updated",
+        entity_type="release_gate",
+        entity_id=str(gate.id),
+        payload={"release_id": str(release_id), "status": gate.status},
+    )
     db.commit()
     db.refresh(gate)
     return gate
@@ -263,6 +291,14 @@ def verify_evidence(
         raise HTTPException(status_code=404, detail="evidence not found")
     evidence.verification_status = payload.verification_status
     evidence.verified_at = datetime.now(UTC)
+    record_audit(
+        db,
+        actor=actor,
+        action="evidence.verified",
+        entity_type="evidence",
+        entity_id=str(evidence.id),
+        payload={"verification_status": evidence.verification_status},
+    )
     db.commit()
     db.refresh(evidence)
     return evidence
@@ -297,6 +333,19 @@ def create_deployment(payload: DeploymentCreate, db: DbSession, actor: Actor) ->
     deployment = DeploymentRecord(**payload.model_dump())
     db.add(deployment)
     try:
+        db.flush()
+        record_audit(
+            db,
+            actor=actor,
+            action="deployment.recorded",
+            entity_type="deployment",
+            entity_id=str(deployment.id),
+            payload={
+                "project_id": str(deployment.project_id),
+                "commit_sha": deployment.commit_sha,
+                "status": deployment.status,
+            },
+        )
         db.commit()
     except IntegrityError as exc:
         db.rollback()
@@ -322,6 +371,19 @@ def create_blocker(payload: BlockerCreate, db: DbSession, actor: Actor) -> Block
     _project(db, payload.project_id)
     blocker = BlockerRecord(**payload.model_dump())
     db.add(blocker)
+    db.flush()
+    record_audit(
+        db,
+        actor=actor,
+        action="blocker.created",
+        entity_type="blocker",
+        entity_id=str(blocker.id),
+        payload={
+            "project_id": str(blocker.project_id),
+            "type": blocker.blocker_type,
+            "priority": blocker.priority,
+        },
+    )
     db.commit()
     db.refresh(blocker)
     return blocker
@@ -335,6 +397,14 @@ def resolve_blocker(blocker_id: UUID, db: DbSession, actor: Actor) -> BlockerRec
         raise HTTPException(status_code=404, detail="blocker not found")
     blocker.status = "RESOLVED"
     blocker.resolved_at = datetime.now(UTC)
+    record_audit(
+        db,
+        actor=actor,
+        action="blocker.resolved",
+        entity_type="blocker",
+        entity_id=str(blocker.id),
+        payload={"project_id": str(blocker.project_id)},
+    )
     db.commit()
     db.refresh(blocker)
     return blocker
