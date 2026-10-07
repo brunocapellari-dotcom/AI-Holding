@@ -26,7 +26,6 @@ from app.models.entities import (
 )
 from app.models.holding_evidence import SecurityFinding
 
-
 HUMAN_BLOCKER_TYPES = {"CREDENTIAL", "ACCESS", "PAYMENT", "LEGAL", "HUMAN_DECISION"}
 TERMINAL_PROJECT_STATUSES = {
     ProjectStatus.paused,

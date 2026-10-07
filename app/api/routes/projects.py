@@ -98,7 +98,10 @@ def update_project_status(
     if old_status == ProjectStatus.discontinued and target == ProjectStatus.active:
         raise HTTPException(
             status_code=409,
-            detail="discontinued project requires explicit governance restoration before activation",
+            detail=(
+                "discontinued project requires explicit governance restoration "
+                "before activation"
+            ),
         )
     project.status = target
     record_audit(
