@@ -9,8 +9,8 @@ from app.db.alembic_config import escape_config_parser_value
 from app.db.base import Base
 from app.models import (  # noqa: F401
     agent_identity,
-    corporate_registry,
     control_plane,
+    corporate_registry,
     entities,
     holding,
     holding_evidence,

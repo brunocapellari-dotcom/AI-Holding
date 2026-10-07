@@ -1,4 +1,4 @@
-from app.models.entities import Project, ProjectStatus, WorkStatus
+from app.models.entities import Project, ProjectStatus
 
 
 def _project(client, key: str) -> dict[str, object]:

@@ -9,8 +9,15 @@ from sqlalchemy.orm import Session
 from app.core.actor import ActorContext, get_actor
 from app.core.authorization import AgentPermission, authorize_mutation
 from app.db.session import get_db
-from app.models.entities import Milestone, Project, ProjectStatus, Task, TaskDependency, WorkStatus
 from app.models.control_plane import ReleaseRecord
+from app.models.entities import (
+    Milestone,
+    Project,
+    ProjectStatus,
+    Task,
+    TaskDependency,
+    WorkStatus,
+)
 from app.schemas.api import TaskCreate, TaskOut, TaskTransition
 from app.services.audit import record_audit
 from app.services.control_plane import task_done_reasons, wip_count
@@ -24,7 +31,12 @@ ALLOWED_TRANSITIONS: dict[WorkStatus, set[WorkStatus]] = {
     WorkStatus.ready: {WorkStatus.running, WorkStatus.blocked, WorkStatus.cancelled},
     WorkStatus.running: {WorkStatus.review, WorkStatus.blocked, WorkStatus.cancelled},
     WorkStatus.blocked: {WorkStatus.ready, WorkStatus.cancelled},
-    WorkStatus.review: {WorkStatus.running, WorkStatus.testing, WorkStatus.done, WorkStatus.blocked},
+    WorkStatus.review: {
+        WorkStatus.running,
+        WorkStatus.testing,
+        WorkStatus.done,
+        WorkStatus.blocked,
+    },
     WorkStatus.testing: {WorkStatus.running, WorkStatus.done, WorkStatus.blocked},
     WorkStatus.done: set(),
     WorkStatus.cancelled: set(),
@@ -55,8 +67,15 @@ def create_task(
     project = db.get(Project, payload.project_id)
     if not project:
         raise HTTPException(status_code=404, detail="project not found")
-    if project.status in {ProjectStatus.paused, ProjectStatus.archived, ProjectStatus.discontinued}:
-        raise HTTPException(status_code=409, detail="project is not accepting new executable work")
+    if project.status in {
+        ProjectStatus.paused,
+        ProjectStatus.archived,
+        ProjectStatus.discontinued,
+    }:
+        raise HTTPException(
+            status_code=409,
+            detail="project is not accepting new executable work",
+        )
     if payload.milestone_id:
         milestone = db.get(Milestone, payload.milestone_id)
         if not milestone or milestone.project_id != project.id:

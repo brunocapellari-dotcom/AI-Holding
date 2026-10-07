@@ -9,8 +9,8 @@ from starlette.middleware.base import RequestResponseEndpoint
 from app.api.routes import (
     agents,
     audit,
-    corporate_registry,
     control_plane,
+    corporate_registry,
     decisions,
     executive,
     holding,

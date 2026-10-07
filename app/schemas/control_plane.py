@@ -6,26 +6,47 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-
 PriorityTier = Literal["P0", "P1", "P2", "P3"]
 ReleaseStatus = Literal[
-    "PLANNED", "IN_PROGRESS", "BLOCKED", "TESTING", "REVIEW",
-    "READY", "RELEASED", "FAILED", "ROLLED_BACK"
+    "PLANNED",
+    "IN_PROGRESS",
+    "BLOCKED",
+    "TESTING",
+    "REVIEW",
+    "READY",
+    "RELEASED",
+    "FAILED",
+    "ROLLED_BACK",
 ]
 CommercialStatus = Literal["NOT_READY", "DEMO", "PILOT", "SELLABLE", "CUSTOMERS", "SCALING"]
 GateType = Literal["CODE", "TEST", "SECURITY", "E2E", "DEPLOY", "OPERATIONS", "COMMERCIAL"]
 GateStatus = Literal["NOT_STARTED", "IN_PROGRESS", "PASS", "FAIL", "WAIVED"]
 EvidenceKind = Literal[
-    "COMMIT", "PR", "CI_RUN", "TEST_RESULT", "SCREENSHOT", "LOG",
-    "ENDPOINT_HEALTH", "DEPLOYMENT", "ARTIFACT", "REPORT", "E2E_EXECUTION"
+    "COMMIT",
+    "PR",
+    "CI_RUN",
+    "TEST_RESULT",
+    "SCREENSHOT",
+    "LOG",
+    "ENDPOINT_HEALTH",
+    "DEPLOYMENT",
+    "ARTIFACT",
+    "REPORT",
+    "E2E_EXECUTION",
 ]
 VerificationStatus = Literal["PENDING", "VERIFIED", "REJECTED"]
 
 
 class GovernanceUpsert(BaseModel):
     declared_status: Literal[
-        "ACTIVE", "PAUSED", "BLOCKED", "MAINTENANCE", "ARCHIVED",
-        "DISCONTINUED", "DONE", "UNKNOWN"
+        "ACTIVE",
+        "PAUSED",
+        "BLOCKED",
+        "MAINTENANCE",
+        "ARCHIVED",
+        "DISCONTINUED",
+        "DONE",
+        "UNKNOWN",
     ] = "UNKNOWN"
     priority_tier: PriorityTier = "P2"
     current_release_id: UUID | None = None

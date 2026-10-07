@@ -5,12 +5,12 @@ from datetime import date, datetime
 
 from sqlalchemy import (
     JSON,
+    BigInteger,
     Boolean,
     CheckConstraint,
     Date,
     DateTime,
     ForeignKey,
-    Integer,
     String,
     Text,
     UniqueConstraint,
@@ -28,7 +28,8 @@ class ReleaseRecord(Base, TimestampMixin):
     __table_args__ = (
         UniqueConstraint("project_id", "name", name="uq_release_project_name"),
         CheckConstraint(
-            "status IN ('PLANNED','IN_PROGRESS','BLOCKED','TESTING','REVIEW','READY','RELEASED','FAILED','ROLLED_BACK')",
+            "status IN ('PLANNED','IN_PROGRESS','BLOCKED','TESTING','REVIEW',"
+            "'READY','RELEASED','FAILED','ROLLED_BACK')",
             name="release_status_valid",
         ),
         CheckConstraint(
@@ -55,11 +56,13 @@ class ProjectGovernanceState(Base, TimestampMixin):
     __tablename__ = "project_governance_state"
     __table_args__ = (
         CheckConstraint(
-            "declared_status IN ('ACTIVE','PAUSED','BLOCKED','MAINTENANCE','ARCHIVED','DISCONTINUED','DONE','UNKNOWN')",
+            "declared_status IN ('ACTIVE','PAUSED','BLOCKED','MAINTENANCE',"
+            "'ARCHIVED','DISCONTINUED','DONE','UNKNOWN')",
             name="declared_status_valid",
         ),
         CheckConstraint(
-            "verified_status IN ('UNKNOWN','NOT_DONE','BLOCKED','READY','RELEASED','FAILED','STALE')",
+            "verified_status IN ('UNKNOWN','NOT_DONE','BLOCKED','READY',"
+            "'RELEASED','FAILED','STALE')",
             name="verified_status_valid",
         ),
         CheckConstraint("priority_tier IN ('P0','P1','P2','P3')", name="priority_tier_valid"),
@@ -90,7 +93,7 @@ class ProjectGovernanceState(Base, TimestampMixin):
     health_status: Mapped[str] = mapped_column(String(20), default="UNKNOWN", index=True)
     cost_status: Mapped[str] = mapped_column(String(20), default="NORMAL", index=True)
     commercial_status: Mapped[str] = mapped_column(String(24), default="NOT_READY", index=True)
-    monthly_budget_micros: Mapped[int] = mapped_column(Integer, default=0)
+    monthly_budget_micros: Mapped[int] = mapped_column(BigInteger, default=0)
     next_best_action: Mapped[str | None] = mapped_column(Text, nullable=True)
     last_activity: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_verified_activity: Mapped[datetime | None] = mapped_column(
@@ -131,7 +134,8 @@ class EvidenceRecord(Base):
     __tablename__ = "evidence_registry"
     __table_args__ = (
         CheckConstraint(
-            "kind IN ('COMMIT','PR','CI_RUN','TEST_RESULT','SCREENSHOT','LOG','ENDPOINT_HEALTH','DEPLOYMENT','ARTIFACT','REPORT','E2E_EXECUTION')",
+            "kind IN ('COMMIT','PR','CI_RUN','TEST_RESULT','SCREENSHOT','LOG',"
+            "'ENDPOINT_HEALTH','DEPLOYMENT','ARTIFACT','REPORT','E2E_EXECUTION')",
             name="evidence_kind_valid",
         ),
         CheckConstraint(
@@ -184,7 +188,9 @@ class ServiceRecord(Base, TimestampMixin):
     version: Mapped[str | None] = mapped_column(String(120), nullable=True)
     endpoint: Mapped[str | None] = mapped_column(String(500), nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="UNKNOWN", index=True)
-    last_health_check: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_health_check: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     last_deploy: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     dependencies: Mapped[list[object]] = mapped_column(JSON, default=list)
     owner: Mapped[str] = mapped_column(String(160), default="project")
@@ -257,7 +263,8 @@ class BlockerRecord(Base, TimestampMixin):
     __tablename__ = "blocker_registry"
     __table_args__ = (
         CheckConstraint(
-            "blocker_type IN ('CREDENTIAL','ACCESS','PAYMENT','LEGAL','TECHNICAL','EXTERNAL_DEPENDENCY','HUMAN_DECISION')",
+            "blocker_type IN ('CREDENTIAL','ACCESS','PAYMENT','LEGAL','TECHNICAL',"
+            "'EXTERNAL_DEPENDENCY','HUMAN_DECISION')",
             name="blocker_type_valid",
         ),
         CheckConstraint("status IN ('OPEN','RESOLVED')", name="blocker_status_valid"),

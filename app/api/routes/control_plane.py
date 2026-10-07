@@ -90,7 +90,10 @@ def upsert_governance(
     if payload.current_release_id:
         release = db.get(ReleaseRecord, payload.current_release_id)
         if release is None or release.project_id != project.id:
-            raise HTTPException(status_code=400, detail="current release does not belong to project")
+            raise HTTPException(
+                status_code=400,
+                detail="current release does not belong to project",
+            )
     state = db.get(ProjectGovernanceState, project.id)
     if state is None:
         state = ProjectGovernanceState(project_id=project.id)
@@ -163,7 +166,10 @@ def update_release_status(
     ):
         reasons = release_can_advance(db, release, "READY")
     if reasons:
-        raise HTTPException(status_code=409, detail={"message": "release gate rejected", "reasons": reasons})
+        raise HTTPException(
+            status_code=409,
+            detail={"message": "release gate rejected", "reasons": reasons},
+        )
     release.status = payload.status
     state = db.get(ProjectGovernanceState, release.project_id)
     if state is not None and state.current_release_id == release.id:

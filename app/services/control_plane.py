@@ -16,7 +16,14 @@ from app.models.control_plane import (
     ServiceRecord,
     TestRecord,
 )
-from app.models.entities import Decision, DecisionStatus, Project, ProjectStatus, Task, WorkStatus
+from app.models.entities import (
+    Decision,
+    DecisionStatus,
+    Project,
+    ProjectStatus,
+    Task,
+    WorkStatus,
+)
 from app.models.holding_evidence import SecurityFinding
 
 
@@ -88,7 +95,11 @@ def release_gate_reasons(db: Session, release: ReleaseRecord) -> list[str]:
     if release.commercial_status in {"SELLABLE", "CUSTOMERS", "SCALING"}:
         required.add("COMMERCIAL")
 
-    gates = list(db.scalars(select(ReleaseGateRecord).where(ReleaseGateRecord.release_id == release.id)))
+    gates = list(
+        db.scalars(
+            select(ReleaseGateRecord).where(ReleaseGateRecord.release_id == release.id)
+        )
+    )
     by_type = {gate.gate_type: gate for gate in gates}
     for gate_type in sorted(required):
         gate = by_type.get(gate_type)
@@ -379,7 +390,11 @@ def owner_view(db: Session) -> dict[str, object]:
 
     for project in projects:
         state = recompute_project_governance(db, project)
-        release = db.get(ReleaseRecord, state.current_release_id) if state.current_release_id else None
+        release = (
+            db.get(ReleaseRecord, state.current_release_id)
+            if state.current_release_id
+            else None
+        )
         blockers = int(
             db.scalar(
                 select(func.count())
