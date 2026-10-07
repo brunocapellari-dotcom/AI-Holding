@@ -1,0 +1,48 @@
+{
+  "version": "1.0",
+  "mode": "continuous_evolution",
+  "stop_condition": "all_projects_meet_objective_acceptance_gates",
+  "work_selection": [
+    "operational_blockers",
+    "shared_platform_dependencies",
+    "security_backup_restore_observability",
+    "priority_project_e2e",
+    "remaining_product_functionality",
+    "optimization_and_research"
+  ],
+  "autonomous_actions": {
+    "read_and_analyze": true,
+    "create_branch": true,
+    "commit_reversible_code": true,
+    "create_pull_request": true,
+    "fix_ci": true,
+    "add_tests": true,
+    "fix_security_findings": true,
+    "merge_after_required_gates": true,
+    "continue_after_completion": true
+  },
+  "human_approval_required": [
+    "destructive_production_change",
+    "irreversible_data_migration",
+    "secret_or_privilege_expansion",
+    "material_spend",
+    "contract_or_legal_commitment",
+    "real_money_execution",
+    "high_risk_publication",
+    "other_irreversible_high_or_critical_risk_action"
+  ],
+  "portfolio": [
+    {"repository":"brunocapellari-dotcom/AI-Holding","priority":1,"role":"governance_control_plane"},
+    {"repository":"brunocapellari-dotcom/Hermes-AI-Platform","priority":1,"role":"shared_ai_orchestration"},
+    {"repository":"brunocapellari-dotcom/Research-AI","priority":1,"role":"research_infrastructure"},
+    {"repository":"brunocapellari-dotcom/Second-Brain","priority":1,"role":"canonical_knowledge"},
+    {"repository":"brunocapellari-dotcom/AgroLogMT","priority":2,"role":"first_full_production_consumer"},
+    {"repository":"brunocapellari-dotcom/WHATSAPP_AI","priority":3,"role":"operational_data_channel"},
+    {"repository":"brunocapellari-dotcom/Geopolitical-Watch","priority":3,"role":"operational_intelligence"},
+    {"repository":"brunocapellari-dotcom/Sports-Intelligence","priority":4,"role":"sports_product"},
+    {"repository":"brunocapellari-dotcom/Mercado-Financeiro","priority":4,"role":"financial_research_product"},
+    {"repository":"brunocapellari-dotcom/Content-Factory","priority":4,"role":"content_product"},
+    {"repository":"brunocapellari-dotcom/Personal-Performance-Health-OS","priority":4,"role":"performance_product"},
+    {"repository":"brunocapellari-dotcom/Game-Studio","priority":99,"role":"paused"}
+  ]
+}
