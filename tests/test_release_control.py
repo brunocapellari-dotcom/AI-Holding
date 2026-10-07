@@ -66,3 +66,17 @@ def test_release_completes_only_with_all_gate_evidence_and_commercial_test() -> 
     release = ReleaseManifest.model_validate(payload)
     assert release.completed is True
     assert release.p2_frozen is False
+
+
+def test_release_dashboard_is_exposed_by_control_plane(client) -> None:
+    response = client.get("/api/v1/executive/releases/agrolog-commercial-2026-10-09")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["initiative"] == "AGROLOG_COMMERCIAL_RELEASE_2026_10_09"
+    assert payload["completed"] is False
+    assert payload["p2_frozen"] is True
+    assert "e2e" in payload["missing_gate_evidence"]
+    freight = next(item for item in payload["dashboard"] if item["task"] == "P0_FRETES")
+    assert freight["status"] == "TESTING"
+    assert freight["last_test"] == "Both contract-side PR gates are green."
+    assert freight["next_task"]
