@@ -5,6 +5,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.release_control import load_release_manifest
 from app.models.entities import (
     Decision,
     DecisionStatus,
@@ -62,3 +63,19 @@ def executive_summary(db: DbSession) -> ExecutiveSummary:
         open_incidents=open_incidents,
         portfolio_progress_pct=portfolio_progress,
     )
+
+
+@router.get("/releases/agrolog-commercial-2026-10-09")
+def agrolog_commercial_release() -> dict[str, object]:
+    release = load_release_manifest()
+    return {
+        "initiative": release.initiative,
+        "product": release.product,
+        "target_date": release.target_date,
+        "release_status": release.release_status.value,
+        "completed": release.completed,
+        "p2_frozen": release.p2_frozen,
+        "missing_gate_evidence": sorted(release.missing_gate_evidence),
+        "commercial_test": release.commercial_test.model_dump(mode="json"),
+        "dashboard": release.dashboard(),
+    }
