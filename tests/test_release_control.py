@@ -58,9 +58,7 @@ def test_release_completes_only_with_all_gate_evidence_and_commercial_test() -> 
         task["artifact"] = f"artifact://{task['key']}"
         task["test"] = f"test://{task['key']}"
         task["evidence"] = [f"evidence://{task['key']}"]
-    payload["evidence"] = {
-        key: [f"evidence://gate/{key}"] for key in payload["required_gate"]
-    }
+    payload["evidence"] = {key: [f"evidence://gate/{key}"] for key in payload["required_gate"]}
     payload["commercial_test"]["passed"] = True
     payload["commercial_test"]["evidence"] = ["evidence://commercial-test"]
     release = ReleaseManifest.model_validate(payload)
