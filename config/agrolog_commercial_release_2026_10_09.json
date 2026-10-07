@@ -1,0 +1,137 @@
+{
+  "initiative": "AGROLOG_COMMERCIAL_RELEASE_2026_10_09",
+  "target_date": "2026-10-09",
+  "product": "AGROLOG INTELLIGENCE",
+  "release_status": "DOING",
+  "workstreams": [
+    {
+      "project": "AGROLOG",
+      "responsibility": "produto final",
+      "status": "DOING"
+    },
+    {
+      "project": "WHATSAPP_AI",
+      "responsibility": "freight ingestion",
+      "status": "DOING"
+    },
+    {
+      "project": "RESEARCH_AI",
+      "responsibility": "fontes + históricos",
+      "status": "DOING"
+    },
+    {
+      "project": "SECOND_BRAIN",
+      "responsibility": "evidência/conhecimento",
+      "status": "DOING"
+    },
+    {
+      "project": "HERMES_AI",
+      "responsibility": "orquestração",
+      "status": "DOING"
+    }
+  ],
+  "tasks": [
+    {
+      "key": "P0_INGESTAO_REAL",
+      "project": "AGROLOG",
+      "priority": "P0",
+      "status": "DOING"
+    },
+    {
+      "key": "P0_HISTORICO",
+      "project": "RESEARCH_AI",
+      "priority": "P0",
+      "status": "DOING"
+    },
+    {
+      "key": "P0_METEOROLOGIA",
+      "project": "AGROLOG",
+      "priority": "P0",
+      "status": "DOING"
+    },
+    {
+      "key": "P0_SAFRA",
+      "project": "AGROLOG",
+      "priority": "P0",
+      "status": "DOING"
+    },
+    {
+      "key": "P0_MERCADO",
+      "project": "AGROLOG",
+      "priority": "P0",
+      "status": "DOING"
+    },
+    {
+      "key": "P0_FRETES",
+      "project": "WHATSAPP_AI",
+      "priority": "P0",
+      "status": "DOING"
+    },
+    {
+      "key": "P0_ANALISE_INTEGRADA",
+      "project": "AGROLOG",
+      "priority": "P0",
+      "status": "TODO"
+    },
+    {
+      "key": "P0_RELATORIO",
+      "project": "AGROLOG",
+      "priority": "P0",
+      "status": "TODO"
+    },
+    {
+      "key": "P0_DASHBOARD",
+      "project": "AGROLOG",
+      "priority": "P0",
+      "status": "TODO"
+    },
+    {
+      "key": "P0_E2E",
+      "project": "HERMES_AI",
+      "priority": "P0",
+      "status": "TODO"
+    },
+    {
+      "key": "P1_SEGURANCA",
+      "project": "AI_HOLDING",
+      "priority": "P1",
+      "status": "DOING"
+    },
+    {
+      "key": "P1_DEPLOY",
+      "project": "AGROLOG",
+      "priority": "P1",
+      "status": "TODO"
+    }
+  ],
+  "required_gate": [
+    "ingestao_real",
+    "historico",
+    "meteorologia",
+    "safra",
+    "mercado",
+    "fretes",
+    "analise_integrada",
+    "relatorio",
+    "dashboard",
+    "testes",
+    "deploy",
+    "seguranca",
+    "e2e"
+  ],
+  "evidence": {},
+  "commercial_test": {
+    "question": "Um cliente consegue receber e usar o relatório sem que um desenvolvedor precise editar código?",
+    "passed": false,
+    "evidence": []
+  },
+  "rules": {
+    "freeze_p2_until_sellable": true,
+    "done_requires": [
+      "artifact",
+      "test",
+      "evidence",
+      "commit_or_deploy_when_applicable"
+    ]
+  }
+}
