@@ -133,7 +133,6 @@ PROJECT_SEEDS: tuple[ProjectSeed, ...] = (
         ),
         priority=0,
         autonomy_level=4,
-        status=ProjectStatus.incubating,
         repository="brunocapellari-dotcom/Second-Brain",
         business_unit="Shared Core",
         previous_repositories=("brunocapellari-dotcom/AI-Holding",),
@@ -158,7 +157,6 @@ PROJECT_SEEDS: tuple[ProjectSeed, ...] = (
         ),
         priority=0,
         autonomy_level=3,
-        status=ProjectStatus.incubating,
         repository="brunocapellari-dotcom/Hermes-AI-Platform",
         business_unit="Shared Core",
     ),
@@ -250,8 +248,9 @@ PROJECT_SEEDS: tuple[ProjectSeed, ...] = (
             "training, nutrition, recovery and health context into audited adaptive "
             "plans without overriding medical authority."
         ),
-        priority=3,
+        priority=4,
         autonomy_level=2,
+        status=ProjectStatus.paused,
         repository="brunocapellari-dotcom/Personal-Performance-Health-OS",
         business_unit="Personal Performance",
     ),
@@ -264,7 +263,6 @@ PROJECT_SEEDS: tuple[ProjectSeed, ...] = (
         ),
         priority=0,
         autonomy_level=4,
-        status=ProjectStatus.incubating,
         repository="brunocapellari-dotcom/Research-AI",
         business_unit="Shared Core",
     ),
@@ -277,7 +275,6 @@ PROJECT_SEEDS: tuple[ProjectSeed, ...] = (
         ),
         priority=3,
         autonomy_level=3,
-        status=ProjectStatus.incubating,
         repository="brunocapellari-dotcom/Content-Factory",
         business_unit="Content Operations",
     ),
@@ -290,9 +287,19 @@ PROJECT_SEEDS: tuple[ProjectSeed, ...] = (
         ),
         priority=2,
         autonomy_level=3,
-        status=ProjectStatus.incubating,
         repository="brunocapellari-dotcom/WHATSAPP_AI",
         business_unit="Business Automation",
+    ),
+    ProjectSeed(
+        key="CATEQUESE_INFANTIL",
+        name="Catequese Infantil",
+        strategic_goal=(
+            "Operate the independent Catholic children's catechesis series with Jesus at the "
+            "center, production continuity and separate theological approval gates."
+        ),
+        priority=2,
+        autonomy_level=3,
+        business_unit="Content Operations",
     ),
     ProjectSeed(
         key="MAINTENANCE_FIELD_INTELLIGENCE",
@@ -302,7 +309,7 @@ PROJECT_SEEDS: tuple[ProjectSeed, ...] = (
         ),
         priority=4,
         autonomy_level=1,
-        status=ProjectStatus.incubating,
+        status=ProjectStatus.paused,
         business_unit="Venture Factory",
     ),
 )
@@ -378,6 +385,14 @@ def _ensure_project(db: Session, seed: ProjectSeed, by_key: dict[str, Project]) 
             raise RuntimeError(f"repository drift detected for {seed.key}")
         if seed.repository and existing.repository != seed.repository:
             existing.repository = seed.repository
+        # Canonical terminal states are owner/governance constraints. Enforce them without
+        # automatically reactivating a project that the owner previously paused or stopped.
+        if seed.status in {
+            ProjectStatus.paused,
+            ProjectStatus.archived,
+            ProjectStatus.discontinued,
+        } and existing.status != seed.status:
+            existing.status = seed.status
         if seed.repository_path and existing.repository_path is None:
             existing.repository_path = seed.repository_path
         if seed.repository_path and existing.repository_path not in {None, seed.repository_path}:
