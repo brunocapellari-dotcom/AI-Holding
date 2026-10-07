@@ -29,8 +29,12 @@ from app.db.base import Base
 class ProjectStatus(StrEnum):
     active = "active"
     paused = "paused"
-    incubating = "incubating"
+    blocked = "blocked"
+    maintenance = "maintenance"
     archived = "archived"
+    discontinued = "discontinued"
+    # Legacy value kept readable for existing rows; new governance must not create it.
+    incubating = "incubating"
 
 
 class WorkStatus(StrEnum):
@@ -39,6 +43,7 @@ class WorkStatus(StrEnum):
     running = "running"
     blocked = "blocked"
     review = "review"
+    testing = "testing"
     done = "done"
     cancelled = "cancelled"
 
@@ -241,6 +246,14 @@ class Task(Base, TimestampMixin):
     blocked_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     idempotency_key: Mapped[str] = mapped_column(String(160))
+    release_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("release_registry.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    acceptance_criteria: Mapped[list[object]] = mapped_column(JSON, default=list)
+    test_required: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    evidence_required: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    commit_sha: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    deployment_ref: Mapped[str | None] = mapped_column(String(240), nullable=True)
     metadata_json: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
 
 
