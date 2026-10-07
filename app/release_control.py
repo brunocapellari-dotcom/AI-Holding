@@ -60,9 +60,7 @@ class ReleaseTask(StrictModel):
         if self.status is ReleaseState.BLOCKED:
             required = (self.owner, self.impact, self.action_required, self.dependency)
             if any(value is None or not value.strip() for value in required):
-                raise ValueError(
-                    "BLOCKED requires owner, impact, action_required and dependency"
-                )
+                raise ValueError("BLOCKED requires owner, impact, action_required and dependency")
         return self
 
 
@@ -94,11 +92,7 @@ class ReleaseManifest(StrictModel):
 
     @property
     def missing_gate_evidence(self) -> set[str]:
-        return {
-            item
-            for item in self.required_gate
-            if not self.evidence.get(item)
-        }
+        return {item for item in self.required_gate if not self.evidence.get(item)}
 
     @property
     def completed(self) -> bool:
