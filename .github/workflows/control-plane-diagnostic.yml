@@ -1,0 +1,45 @@
+name: control-plane-diagnostic-tests
+
+on:
+  push:
+    branches:
+      - holding-control-plane-diagnostic-20261008
+
+permissions:
+  contents: read
+
+jobs:
+  test-all:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: holding_test
+          POSTGRES_USER: holding
+          POSTGRES_PASSWORD: holding
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U holding -d holding_test"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      ENVIRONMENT: test
+      REQUIRE_VERIFIED_IDENTITY: "false"
+      DATABASE_URL: postgresql+psycopg://holding:holding@localhost:5432/holding_test
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install
+        run: python -m pip install -e '.[dev]'
+      - name: Migrate
+        run: alembic upgrade head
+      - name: Run all tests without fail-fast
+        run: pytest -o addopts="-q --disable-warnings --cov=app --cov-report=term-missing --cov-fail-under=90"
