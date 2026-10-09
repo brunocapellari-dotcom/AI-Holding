@@ -123,24 +123,24 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("project_id"),
     )
     op.create_index(
-        "ix_project_governance_verified_status", "project_governance_state", ["verified_status"]
+        "ix_project_governance_state_verified_status", "project_governance_state", ["verified_status"]
     )
     op.create_index(
-        "ix_project_governance_priority_tier", "project_governance_state", ["priority_tier"]
+        "ix_project_governance_state_priority_tier", "project_governance_state", ["priority_tier"]
     )
     op.create_index(
-        "ix_project_governance_current_release_id",
+        "ix_project_governance_state_current_release_id",
         "project_governance_state",
         ["current_release_id"],
     )
     op.create_index(
-        "ix_project_governance_health_status", "project_governance_state", ["health_status"]
+        "ix_project_governance_state_health_status", "project_governance_state", ["health_status"]
     )
     op.create_index(
-        "ix_project_governance_cost_status", "project_governance_state", ["cost_status"]
+        "ix_project_governance_state_cost_status", "project_governance_state", ["cost_status"]
     )
     op.create_index(
-        "ix_project_governance_commercial_status", "project_governance_state", ["commercial_status"]
+        "ix_project_governance_state_commercial_status", "project_governance_state", ["commercial_status"]
     )
 
     op.create_table(
@@ -176,8 +176,8 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("release_id", "gate_type", name="uq_release_gate_type"),
     )
-    op.create_index("ix_release_gate_release_id", "release_gate_registry", ["release_id"])
-    op.create_index("ix_release_gate_status", "release_gate_registry", ["status"])
+    op.create_index("ix_release_gate_registry_release_id", "release_gate_registry", ["release_id"])
+    op.create_index("ix_release_gate_registry_status", "release_gate_registry", ["status"])
 
     op.create_table(
         "evidence_registry",
@@ -287,7 +287,7 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("deployment_ref"),
     )
-    for column in ("project_id", "service_id", "release_id", "commit_sha", "environment", "status"):
+    for column in ("project_id", "service_id", "release_id", "commit_sha", "environment", "status", "started_at"):
         op.create_index(f"ix_deployment_registry_{column}", "deployment_registry", [column])
 
     op.create_table(
