@@ -387,7 +387,7 @@ def test_bound_owner_can_read_compound_executive_contract(
     monkeypatch,
 ):
     monkeypatch.setattr(settings, "environment", "production")
-    _, project, _, _ = _seed_runtime(db_session)
+    _, _, project, _ = _seed_runtime(db_session)
     db_session.add(
         HumanIdentityRole(
             issuer="https://accounts.google.com",
