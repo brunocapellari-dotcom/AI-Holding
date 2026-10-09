@@ -189,13 +189,13 @@ def test_bootstrap_hydrates_missing_canonical_repository(db_session):
     assert project.repository == "brunocapellari-dotcom/Mercado-Financeiro"
 
 
-def test_maintenance_field_intelligence_starts_as_incubating(db_session):
+def test_maintenance_field_intelligence_starts_paused(db_session):
     bootstrap_canonical_portfolio(db_session)
     project = db_session.scalar(
         select(Project).where(Project.key == "MAINTENANCE_FIELD_INTELLIGENCE")
     )
     assert project is not None
-    assert project.status == ProjectStatus.incubating
+    assert project.status == ProjectStatus.paused
 
 
 def test_owner_identity_bootstrap_is_optional_and_idempotent(db_session, monkeypatch):
