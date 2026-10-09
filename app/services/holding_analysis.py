@@ -24,7 +24,6 @@ from app.schemas.holding_analysis import (
 from app.services.progress import project_progress
 
 
-
 def _as_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=UTC)
