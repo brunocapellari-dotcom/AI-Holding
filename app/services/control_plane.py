@@ -34,6 +34,12 @@ TERMINAL_PROJECT_STATUSES = {
 }
 
 
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
+
+
 def task_done_reasons(db: Session, task: Task) -> list[str]:
     reasons: list[str] = []
     if task.evidence_required:
@@ -291,7 +297,7 @@ def recompute_project_governance(
     state.stalled = bool(
         project.status == ProjectStatus.active
         and state.last_activity is not None
-        and state.last_activity < cutoff
+        and _as_utc(state.last_activity) < cutoff
     )
 
     state.execution_risk = bool(

@@ -52,6 +52,7 @@ def create_task(
             "assigned_agent_id": assigned_agent_id,
             "execution_kind": execution_kind,
             "depends_on": depends_on or [],
+            "evidence_required": False,
             "idempotency_key": f"pmo-{key.lower()}-0001",
         },
     )

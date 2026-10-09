@@ -20,7 +20,7 @@ def test_verified_repository_locations_are_canonical(db_session) -> None:
     assert projects["PERSONAL_PERFORMANCE_HEALTH_OS"].repository == (
         "brunocapellari-dotcom/Personal-Performance-Health-OS"
     )
-    assert projects["HERMES_AI_PLATFORM"].status == ProjectStatus.incubating
+    assert projects["HERMES_AI_PLATFORM"].status == ProjectStatus.active
 
 
 def test_second_brain_known_transition_repository_is_reconciled(db_session) -> None:

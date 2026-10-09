@@ -24,6 +24,13 @@ from app.schemas.holding_analysis import (
 from app.services.progress import project_progress
 
 
+
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
+
+
 def completion_gate(db: Session, project_id: UUID) -> CompletionGateOut:
     progress = project_progress(db, project_id)
     unfinished_tasks = list(
@@ -98,7 +105,7 @@ def analyze_finops(
     *,
     now: datetime | None = None,
 ) -> FinOpsAnalysisOut:
-    reference = now or datetime.now(UTC)
+    reference = _as_utc(now or datetime.now(UTC))
     current_start = reference - timedelta(hours=24)
     baseline_start = reference - timedelta(days=8)
     baseline_end = current_start
@@ -121,12 +128,15 @@ def analyze_finops(
         current = sum(
             entry.amount_micros
             for entry in costs
-            if entry.currency == currency and entry.observed_at >= current_start
+            if entry.currency == currency and _as_utc(entry.observed_at) >= current_start
         )
         baseline_total = sum(
             entry.amount_micros
             for entry in costs
-            if entry.currency == currency and baseline_start <= entry.observed_at < baseline_end
+            if (
+                entry.currency == currency
+                and baseline_start <= _as_utc(entry.observed_at) < baseline_end
+            )
         )
         baseline_daily = baseline_total / 7
         ratio = current / baseline_daily if baseline_daily > 0 else None
