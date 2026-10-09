@@ -387,11 +387,15 @@ def _ensure_project(db: Session, seed: ProjectSeed, by_key: dict[str, Project]) 
             existing.repository = seed.repository
         # Canonical terminal states are owner/governance constraints. Enforce them without
         # automatically reactivating a project that the owner previously paused or stopped.
-        if seed.status in {
-            ProjectStatus.paused,
-            ProjectStatus.archived,
-            ProjectStatus.discontinued,
-        } and existing.status != seed.status:
+        if (
+            seed.status
+            in {
+                ProjectStatus.paused,
+                ProjectStatus.archived,
+                ProjectStatus.discontinued,
+            }
+            and existing.status != seed.status
+        ):
             existing.status = seed.status
         if seed.repository_path and existing.repository_path is None:
             existing.repository_path = seed.repository_path

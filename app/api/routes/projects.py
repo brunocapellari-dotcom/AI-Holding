@@ -99,8 +99,7 @@ def update_project_status(
         raise HTTPException(
             status_code=409,
             detail=(
-                "discontinued project requires explicit governance restoration "
-                "before activation"
+                "discontinued project requires explicit governance restoration before activation"
             ),
         )
     project.status = target

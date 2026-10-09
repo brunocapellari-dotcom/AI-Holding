@@ -46,9 +46,7 @@ class ProjectOut(ProjectCreate):
 
 
 class ProjectStatusUpdate(BaseModel):
-    status: Literal[
-        "active", "paused", "blocked", "maintenance", "archived", "discontinued"
-    ]
+    status: Literal["active", "paused", "blocked", "maintenance", "archived", "discontinued"]
 
 
 class MilestoneCreate(BaseModel):

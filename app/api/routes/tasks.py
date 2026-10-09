@@ -162,10 +162,11 @@ def transition_task(
     project = db.get(Project, task.project_id)
     if project is None:
         raise HTTPException(status_code=404, detail="project not found")
-    if (
-        project.status in {ProjectStatus.paused, ProjectStatus.archived, ProjectStatus.discontinued}
-        and payload.status in {WorkStatus.ready, WorkStatus.running}
-    ):
+    if project.status in {
+        ProjectStatus.paused,
+        ProjectStatus.archived,
+        ProjectStatus.discontinued,
+    } and payload.status in {WorkStatus.ready, WorkStatus.running}:
         raise HTTPException(
             status_code=409,
             detail="paused/archived/discontinued project cannot receive executable work",

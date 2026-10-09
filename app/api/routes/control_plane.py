@@ -172,10 +172,10 @@ def update_release_status(
     if payload.commercial_status is not None:
         release.commercial_status = payload.commercial_status
     reasons = release_can_advance(db, release, payload.status)
-    if (
-        payload.commercial_status in {"SELLABLE", "CUSTOMERS", "SCALING"}
-        and payload.status not in {"READY", "RELEASED"}
-    ):
+    if payload.commercial_status in {"SELLABLE", "CUSTOMERS", "SCALING"} and payload.status not in {
+        "READY",
+        "RELEASED",
+    }:
         reasons = release_can_advance(db, release, "READY")
     if reasons:
         raise HTTPException(
@@ -411,9 +411,7 @@ def resolve_blocker(blocker_id: UUID, db: DbSession, actor: Actor) -> BlockerRec
 
 
 @router.post("/projects/{project_id}/recompute", response_model=GovernanceOut)
-def recompute_project(
-    project_id: UUID, db: DbSession, actor: Actor
-) -> ProjectGovernanceState:
+def recompute_project(project_id: UUID, db: DbSession, actor: Actor) -> ProjectGovernanceState:
     _record_permission(db, actor)
     project = _project(db, project_id)
     state = recompute_project_governance(db, project)

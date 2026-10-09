@@ -34,8 +34,18 @@ def upgrade() -> None:
         sa.Column("commercial_status", sa.String(length=24), nullable=False),
         sa.Column("evidence_summary", sa.JSON(), nullable=False),
         sa.Column("metadata_json", sa.JSON(), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.CheckConstraint(
             "status IN ('PLANNED','IN_PROGRESS','BLOCKED','TESTING','REVIEW','READY','RELEASED','FAILED','ROLLED_BACK')",
             name="release_status_valid",
@@ -50,7 +60,9 @@ def upgrade() -> None:
     )
     op.create_index("ix_release_registry_project_id", "release_registry", ["project_id"])
     op.create_index("ix_release_registry_status", "release_registry", ["status"])
-    op.create_index("ix_release_registry_commercial_status", "release_registry", ["commercial_status"])
+    op.create_index(
+        "ix_release_registry_commercial_status", "release_registry", ["commercial_status"]
+    )
 
     op.create_table(
         "project_governance_state",
@@ -70,8 +82,18 @@ def upgrade() -> None:
         sa.Column("execution_risk", sa.Boolean(), nullable=False),
         sa.Column("scope_creep", sa.Boolean(), nullable=False),
         sa.Column("metadata_json", sa.JSON(), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.CheckConstraint(
             "declared_status IN ('ACTIVE','PAUSED','BLOCKED','MAINTENANCE','ARCHIVED','DISCONTINUED','DONE','UNKNOWN')",
             name="declared_status_valid",
@@ -94,16 +116,32 @@ def upgrade() -> None:
             name="governance_commercial_status_valid",
         ),
         sa.CheckConstraint("monthly_budget_micros >= 0", name="monthly_budget_nonnegative"),
-        sa.ForeignKeyConstraint(["current_release_id"], ["release_registry.id"], ondelete="SET NULL"),
+        sa.ForeignKeyConstraint(
+            ["current_release_id"], ["release_registry.id"], ondelete="SET NULL"
+        ),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("project_id"),
     )
-    op.create_index("ix_project_governance_verified_status", "project_governance_state", ["verified_status"])
-    op.create_index("ix_project_governance_priority_tier", "project_governance_state", ["priority_tier"])
-    op.create_index("ix_project_governance_current_release_id", "project_governance_state", ["current_release_id"])
-    op.create_index("ix_project_governance_health_status", "project_governance_state", ["health_status"])
-    op.create_index("ix_project_governance_cost_status", "project_governance_state", ["cost_status"])
-    op.create_index("ix_project_governance_commercial_status", "project_governance_state", ["commercial_status"])
+    op.create_index(
+        "ix_project_governance_verified_status", "project_governance_state", ["verified_status"]
+    )
+    op.create_index(
+        "ix_project_governance_priority_tier", "project_governance_state", ["priority_tier"]
+    )
+    op.create_index(
+        "ix_project_governance_current_release_id",
+        "project_governance_state",
+        ["current_release_id"],
+    )
+    op.create_index(
+        "ix_project_governance_health_status", "project_governance_state", ["health_status"]
+    )
+    op.create_index(
+        "ix_project_governance_cost_status", "project_governance_state", ["cost_status"]
+    )
+    op.create_index(
+        "ix_project_governance_commercial_status", "project_governance_state", ["commercial_status"]
+    )
 
     op.create_table(
         "release_gate_registry",
@@ -114,8 +152,18 @@ def upgrade() -> None:
         sa.Column("evidence_required", sa.Boolean(), nullable=False),
         sa.Column("verified_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("notes", sa.Text(), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.CheckConstraint(
             "gate_type IN ('CODE','TEST','SECURITY','E2E','DEPLOY','OPERATIONS','COMMERCIAL')",
             name="release_gate_type_valid",
@@ -141,7 +189,12 @@ def upgrade() -> None:
         sa.Column("source", sa.String(length=160), nullable=False),
         sa.Column("artifact_reference", sa.Text(), nullable=False),
         sa.Column("verification_status", sa.String(length=16), nullable=False),
-        sa.Column("observed_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "observed_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.Column("verified_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("metadata_json", sa.JSON(), nullable=False),
         sa.CheckConstraint(
@@ -161,7 +214,14 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["release_id"], ["release_registry.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
     )
-    for column in ("project_id", "task_id", "release_id", "kind", "verification_status", "observed_at"):
+    for column in (
+        "project_id",
+        "task_id",
+        "release_id",
+        "kind",
+        "verification_status",
+        "observed_at",
+    ):
         op.create_index(f"ix_evidence_registry_{column}", "evidence_registry", [column])
 
     op.create_table(
@@ -178,8 +238,18 @@ def upgrade() -> None:
         sa.Column("dependencies", sa.JSON(), nullable=False),
         sa.Column("owner", sa.String(length=160), nullable=False),
         sa.Column("metadata_json", sa.JSON(), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.CheckConstraint(
             "status IN ('HEALTHY','DEGRADED','UNHEALTHY','UNKNOWN')",
             name="service_status_valid",
@@ -232,7 +302,12 @@ def upgrade() -> None:
         sa.Column("environment", sa.String(length=80), nullable=False),
         sa.Column("result", sa.String(length=12), nullable=False),
         sa.Column("failures", sa.JSON(), nullable=False),
-        sa.Column("observed_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "observed_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.Column("metadata_json", sa.JSON(), nullable=False),
         sa.CheckConstraint(
             "test_type IN ('UNIT','INTEGRATION','E2E','SECURITY','REGRESSION','SMOKE')",
@@ -244,7 +319,15 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["task_id"], ["tasks.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
     )
-    for column in ("project_id", "release_id", "task_id", "test_type", "commit_sha", "result", "observed_at"):
+    for column in (
+        "project_id",
+        "release_id",
+        "task_id",
+        "test_type",
+        "commit_sha",
+        "result",
+        "observed_at",
+    ):
         op.create_index(f"ix_test_registry_{column}", "test_registry", [column])
 
     op.create_table(
@@ -262,8 +345,18 @@ def upgrade() -> None:
         sa.Column("status", sa.String(length=12), nullable=False),
         sa.Column("resolved_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("metadata_json", sa.JSON(), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.CheckConstraint(
             "blocker_type IN ('CREDENTIAL','ACCESS','PAYMENT','LEGAL','TECHNICAL','EXTERNAL_DEPENDENCY','HUMAN_DECISION')",
             name="blocker_type_valid",
@@ -279,22 +372,52 @@ def upgrade() -> None:
         op.create_index(f"ix_blocker_registry_{column}", "blocker_registry", [column])
 
     op.add_column("tasks", sa.Column("release_id", sa.Uuid(), nullable=True))
-    op.add_column("tasks", sa.Column("acceptance_criteria", sa.JSON(), server_default=sa.text("'[]'::json"), nullable=False))
-    op.add_column("tasks", sa.Column("test_required", sa.Boolean(), server_default=sa.text("false"), nullable=False))
-    op.add_column("tasks", sa.Column("evidence_required", sa.Boolean(), server_default=sa.text("false"), nullable=False))
+    op.add_column(
+        "tasks",
+        sa.Column(
+            "acceptance_criteria", sa.JSON(), server_default=sa.text("'[]'::json"), nullable=False
+        ),
+    )
+    op.add_column(
+        "tasks",
+        sa.Column("test_required", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+    )
+    op.add_column(
+        "tasks",
+        sa.Column(
+            "evidence_required", sa.Boolean(), server_default=sa.text("false"), nullable=False
+        ),
+    )
     op.add_column("tasks", sa.Column("commit_sha", sa.String(length=64), nullable=True))
     op.add_column("tasks", sa.Column("deployment_ref", sa.String(length=240), nullable=True))
-    op.create_foreign_key("fk_tasks_release_id", "tasks", "release_registry", ["release_id"], ["id"], ondelete="SET NULL")
+    op.create_foreign_key(
+        "fk_tasks_release_id",
+        "tasks",
+        "release_registry",
+        ["release_id"],
+        ["id"],
+        ondelete="SET NULL",
+    )
     op.create_index("ix_tasks_release_id", "tasks", ["release_id"])
 
-    op.add_column("dependency_edges", sa.Column("requirement_class", sa.String(length=12), server_default="REQUIRED", nullable=False))
-    op.add_column("dependency_edges", sa.Column("artificial", sa.Boolean(), server_default=sa.text("false"), nullable=False))
+    op.add_column(
+        "dependency_edges",
+        sa.Column(
+            "requirement_class", sa.String(length=12), server_default="REQUIRED", nullable=False
+        ),
+    )
+    op.add_column(
+        "dependency_edges",
+        sa.Column("artificial", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+    )
     op.create_check_constraint(
         "dependency_requirement_class_valid",
         "dependency_edges",
         "requirement_class IN ('REQUIRED','OPTIONAL','DEFERRED')",
     )
-    op.create_index("ix_dependency_edges_requirement_class", "dependency_edges", ["requirement_class"])
+    op.create_index(
+        "ix_dependency_edges_requirement_class", "dependency_edges", ["requirement_class"]
+    )
 
 
 def downgrade() -> None:
@@ -305,7 +428,14 @@ def downgrade() -> None:
 
     op.drop_index("ix_tasks_release_id", table_name="tasks")
     op.drop_constraint("fk_tasks_release_id", "tasks", type_="foreignkey")
-    for column in ("deployment_ref", "commit_sha", "evidence_required", "test_required", "acceptance_criteria", "release_id"):
+    for column in (
+        "deployment_ref",
+        "commit_sha",
+        "evidence_required",
+        "test_required",
+        "acceptance_criteria",
+        "release_id",
+    ):
         op.drop_column("tasks", column)
 
     for table in (

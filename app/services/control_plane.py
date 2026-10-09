@@ -49,9 +49,13 @@ def task_done_reasons(db: Session, task: Task) -> list[str]:
             reasons.append("verified evidence is required")
 
     if task.test_required:
-        statement = select(func.count()).select_from(TestRecord).where(
-            TestRecord.task_id == task.id,
-            TestRecord.result == "PASS",
+        statement = (
+            select(func.count())
+            .select_from(TestRecord)
+            .where(
+                TestRecord.task_id == task.id,
+                TestRecord.result == "PASS",
+            )
         )
         if task.commit_sha:
             statement = statement.where(TestRecord.commit_sha == task.commit_sha)
@@ -59,9 +63,13 @@ def task_done_reasons(db: Session, task: Task) -> list[str]:
             reasons.append("passing test evidence is required")
 
     if task.metadata_json.get("deploy_required"):
-        statement = select(func.count()).select_from(DeploymentRecord).where(
-            DeploymentRecord.project_id == task.project_id,
-            DeploymentRecord.status == "HEALTHY",
+        statement = (
+            select(func.count())
+            .select_from(DeploymentRecord)
+            .where(
+                DeploymentRecord.project_id == task.project_id,
+                DeploymentRecord.status == "HEALTHY",
+            )
         )
         if task.deployment_ref:
             statement = statement.where(DeploymentRecord.deployment_ref == task.deployment_ref)
@@ -79,9 +87,13 @@ def task_done_reasons(db: Session, task: Task) -> list[str]:
 
 
 def wip_count(db: Session, project_id: UUID, assigned_agent_id: UUID | None) -> int:
-    statement = select(func.count()).select_from(Task).where(
-        Task.project_id == project_id,
-        Task.status == WorkStatus.running,
+    statement = (
+        select(func.count())
+        .select_from(Task)
+        .where(
+            Task.project_id == project_id,
+            Task.status == WorkStatus.running,
+        )
     )
     if assigned_agent_id is not None:
         statement = statement.where(Task.assigned_agent_id == assigned_agent_id)
@@ -95,9 +107,7 @@ def release_gate_reasons(db: Session, release: ReleaseRecord) -> list[str]:
         required.add("COMMERCIAL")
 
     gates = list(
-        db.scalars(
-            select(ReleaseGateRecord).where(ReleaseGateRecord.release_id == release.id)
-        )
+        db.scalars(select(ReleaseGateRecord).where(ReleaseGateRecord.release_id == release.id))
     )
     by_type = {gate.gate_type: gate for gate in gates}
     for gate_type in sorted(required):
@@ -261,11 +271,15 @@ def recompute_project_governance(
         state.verified_status = "NOT_DONE"
 
     if unhealthy_services:
-        state.health_status = "UNHEALTHY" if db.scalar(
-            select(func.count())
-            .select_from(ServiceRecord)
-            .where(ServiceRecord.project_id == project.id, ServiceRecord.status == "UNHEALTHY")
-        ) else "DEGRADED"
+        state.health_status = (
+            "UNHEALTHY"
+            if db.scalar(
+                select(func.count())
+                .select_from(ServiceRecord)
+                .where(ServiceRecord.project_id == project.id, ServiceRecord.status == "UNHEALTHY")
+            )
+            else "DEGRADED"
+        )
     else:
         state.health_status = "HEALTHY"
 
@@ -390,9 +404,7 @@ def owner_view(db: Session) -> dict[str, object]:
     for project in projects:
         state = recompute_project_governance(db, project)
         release = (
-            db.get(ReleaseRecord, state.current_release_id)
-            if state.current_release_id
-            else None
+            db.get(ReleaseRecord, state.current_release_id) if state.current_release_id else None
         )
         blockers = int(
             db.scalar(

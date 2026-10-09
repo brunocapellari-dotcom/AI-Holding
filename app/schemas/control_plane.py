@@ -198,8 +198,13 @@ class BlockerCreate(BaseModel):
     release_id: UUID | None = None
     task_id: UUID | None = None
     blocker_type: Literal[
-        "CREDENTIAL", "ACCESS", "PAYMENT", "LEGAL", "TECHNICAL",
-        "EXTERNAL_DEPENDENCY", "HUMAN_DECISION"
+        "CREDENTIAL",
+        "ACCESS",
+        "PAYMENT",
+        "LEGAL",
+        "TECHNICAL",
+        "EXTERNAL_DEPENDENCY",
+        "HUMAN_DECISION",
     ]
     description: str = Field(min_length=3)
     impact: str = Field(min_length=3)
