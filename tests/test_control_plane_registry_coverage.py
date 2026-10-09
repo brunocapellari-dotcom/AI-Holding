@@ -25,9 +25,7 @@ def test_operational_registries_cover_errors_updates_and_audit_paths(client: Tes
 
     assert client.get(f"{base}/releases").status_code == 200
     assert (
-        client.get(
-            f"{base}/releases/00000000-0000-0000-0000-000000000099/gates"
-        ).status_code
+        client.get(f"{base}/releases/00000000-0000-0000-0000-000000000099/gates").status_code
         == 404
     )
 
@@ -207,9 +205,7 @@ def test_operational_registries_cover_errors_updates_and_audit_paths(client: Tes
     assert blocker.status_code == 201, blocker.text
     blocker_id = blocker.json()["id"]
     assert (
-        client.post(
-            f"{base}/blockers/00000000-0000-0000-0000-000000000099/resolve"
-        ).status_code
+        client.post(f"{base}/blockers/00000000-0000-0000-0000-000000000099/resolve").status_code
         == 404
     )
     assert client.post(f"{base}/blockers/{blocker_id}/resolve").status_code == 200
