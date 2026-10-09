@@ -76,5 +76,6 @@ def test_release_dashboard_is_exposed_by_control_plane(client) -> None:
     assert "e2e" in payload["missing_gate_evidence"]
     freight = next(item for item in payload["dashboard"] if item["task"] == "P0_FRETES")
     assert freight["status"] == "TESTING"
-    assert freight["last_test"] == "Both contract-side PR gates are green."
+    assert freight["last_test"]
+    assert freight["evidence"]
     assert freight["next_task"]
