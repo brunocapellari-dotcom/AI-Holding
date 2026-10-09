@@ -123,7 +123,9 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("project_id"),
     )
     op.create_index(
-        "ix_project_governance_state_verified_status", "project_governance_state", ["verified_status"]
+        "ix_project_governance_state_verified_status",
+        "project_governance_state",
+        ["verified_status"],
     )
     op.create_index(
         "ix_project_governance_state_priority_tier", "project_governance_state", ["priority_tier"]
@@ -140,7 +142,9 @@ def upgrade() -> None:
         "ix_project_governance_state_cost_status", "project_governance_state", ["cost_status"]
     )
     op.create_index(
-        "ix_project_governance_state_commercial_status", "project_governance_state", ["commercial_status"]
+        "ix_project_governance_state_commercial_status",
+        "project_governance_state",
+        ["commercial_status"],
     )
 
     op.create_table(
