@@ -31,7 +31,7 @@ else
 fi
 
 if ! gcloud builds triggers describe "${RELEASE_TRIGGER}"     --region="${REGION}" --project="${PROJECT_ID}" >/dev/null 2>&1; then
-  gcloud builds triggers create manual     --name="${RELEASE_TRIGGER}"     --repository="${REPOSITORY}"     --branch=main     --build-config=cloudbuild.release.yaml     --region="${REGION}"     --service-account="${RELEASE_SA}"     --project="${PROJECT_ID}"
+  gcloud builds triggers create manual     --name="${RELEASE_TRIGGER}"     --repository="${REPOSITORY}"     --branch=main     --build-config=cloudbuild.release.yaml     --region="${REGION}"     --service-account="${RELEASE_SA}"     --require-approval     --project="${PROJECT_ID}"
 else
   echo "trigger exists: ${RELEASE_TRIGGER}"
 fi
