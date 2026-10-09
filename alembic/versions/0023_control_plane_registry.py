@@ -287,7 +287,15 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("deployment_ref"),
     )
-    for column in ("project_id", "service_id", "release_id", "commit_sha", "environment", "status", "started_at"):
+    for column in (
+        "project_id",
+        "service_id",
+        "release_id",
+        "commit_sha",
+        "environment",
+        "status",
+        "started_at",
+    ):
         op.create_index(f"ix_deployment_registry_{column}", "deployment_registry", [column])
 
     op.create_table(
@@ -325,6 +333,7 @@ def upgrade() -> None:
         "task_id",
         "test_type",
         "commit_sha",
+        "environment",
         "result",
         "observed_at",
     ):
