@@ -17,17 +17,17 @@
     {
       "project": "RESEARCH_AI",
       "responsibility": "fontes + históricos",
-      "status": "DOING"
+      "status": "TESTING"
     },
     {
       "project": "SECOND_BRAIN",
       "responsibility": "evidência/conhecimento",
-      "status": "TESTING"
+      "status": "DONE"
     },
     {
       "project": "HERMES_AI",
       "responsibility": "orquestração",
-      "status": "TESTING"
+      "status": "DONE"
     }
   ],
   "tasks": [
@@ -45,14 +45,18 @@
       "key": "P0_HISTORICO",
       "project": "RESEARCH_AI",
       "priority": "P0",
-      "status": "DOING",
-      "artifact": "https://github.com/brunocapellari-dotcom/Research-AI/pull/1",
-      "last_advance": "Existing Research AI runtime foundation is available but is not current release evidence.",
-      "last_test": "Latest visible PR CI failed; no current-release green historical backfill evidence yet.",
-      "failures": [
-        "Current release still lacks a green Research AI historical-backfill artifact."
+      "status": "TESTING",
+      "artifact": "https://github.com/brunocapellari-dotcom/Research-AI/pull/4",
+      "last_advance": "Public P0 historical source endpoints are live and evidence-backed on exact head.",
+      "last_test": "CI and live acquisition workflow green.",
+      "failures": [],
+      "next_task": "Execute and evidence historical backfill/materialization; keep USDA PSD and IMEA gated by credential/license.",
+      "test": "Research AI PR #4 CI + agrolog-live-evidence success",
+      "evidence": [
+        "Research AI main commit 424108fe3033d6da8e65a9e7c847ed926651bc8b",
+        "Live probes passed: USDA WASDE, CONAB, INMET, Argentina, BCB, IBGE"
       ],
-      "next_task": "Produce current-release historical source/backfill evidence for USDA, CONAB, INMET and Argentina."
+      "commit_or_deploy": "424108fe3033d6da8e65a9e7c847ed926651bc8b"
     },
     {
       "key": "P0_METEOROLOGIA",
@@ -89,18 +93,19 @@
       "project": "WHATSAPP_AI",
       "priority": "P0",
       "status": "TESTING",
-      "artifact": "https://github.com/brunocapellari-dotcom/WHATSAPP_AI/pull/2",
-      "test": "WHATSAPP_AI PR #2 CI success; AgroLogMT PR #193 full-project-final-gate success",
+      "artifact": "https://github.com/brunocapellari-dotcom/AgroLogMT/pull/193",
+      "test": "WhatsApp AI CI green; AgroLog freight receiver deterministic gate green",
       "evidence": [
-        "https://github.com/brunocapellari-dotcom/WHATSAPP_AI/pull/2",
-        "https://github.com/brunocapellari-dotcom/AgroLogMT/pull/193"
+        "WhatsApp AI merge 0721c5820b2c94d648037341bef8b4fb31a6fcef",
+        "AgroLog freight receiver merge 53f6caa91cffd20deaaee68823770b894aa7cdf3"
       ],
-      "last_advance": "Provider-independent signed freight ingestion and AgroLog canonical receiver are implemented.",
-      "last_test": "Both contract-side PR gates are green.",
+      "last_advance": "Canonical signed freight producer and receiver are merged.",
+      "last_test": "Contract/deterministic gates green.",
       "failures": [
-        "Live provider/account validation, deployed receiver and signed E2E evidence are still missing."
+        "Production signed E2E is still required."
       ],
-      "next_task": "Deploy receiver, provision secret/table and execute signed E2E twice with different fixtures."
+      "next_task": "Deploy/provision integration and execute signed E2E twice.",
+      "commit_or_deploy": "53f6caa91cffd20deaaee68823770b894aa7cdf3"
     },
     {
       "key": "P0_ANALISE_INTEGRADA",
@@ -142,12 +147,12 @@
       "evidence": [
         "https://github.com/brunocapellari-dotcom/Hermes-AI-Platform/pull/7"
       ],
-      "last_advance": "Release event contract, idempotency, retries and failure isolation are green in CI.",
-      "last_test": "Hermes release contract workflows passed.",
+      "last_advance": "Hermes release orchestration merged to main with contract E2E green.",
+      "last_test": "Hermes PR #7 ci + manifest-contract-ci success.",
       "failures": [
         "Cross-service live SOURCE→AGROLOG→REPORT and FREIGHT→AGROLOG→REPORT evidence is not yet attached."
       ],
-      "next_task": "Run the two release E2E flows against deployed services and attach logs."
+      "next_task": "Run deployed SOURCE→AGROLOG→REPORT and FREIGHT→AGROLOG→REPORT flows."
     },
     {
       "key": "P1_SEGURANCA",
@@ -170,13 +175,17 @@
       "key": "P1_KNOWLEDGE_HANDOFF",
       "project": "SECOND_BRAIN",
       "priority": "P1",
-      "status": "TESTING",
+      "status": "DONE",
       "artifact": "https://github.com/brunocapellari-dotcom/Second-Brain/pull/3",
-      "last_advance": "Canonical Markdown claim/evidence persistence and retrieval added for all five release record types.",
-      "last_test": "Exact-head CI rerun queued after canonical store addition.",
+      "last_advance": "Canonical Markdown/evidence handoff merged to main.",
+      "last_test": "Exact-head CI and quality gates green.",
       "failures": [],
-      "next_task": "Require green exact-head CI and preserve Knowledge Factory-only canonical promotion.",
-      "evidence": []
+      "next_task": "No release-scope work; Graphiti remains derived and non-blocking.",
+      "evidence": [
+        "Second Brain main commit 6e208b5f6df1e631607fc5311fe6799f9f0cf819"
+      ],
+      "test": "Second Brain PR #3 ci + quality success",
+      "commit_or_deploy": "6e208b5f6df1e631607fc5311fe6799f9f0cf819"
     }
   ],
   "required_gate": [
