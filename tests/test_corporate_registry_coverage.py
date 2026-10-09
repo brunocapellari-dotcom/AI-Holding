@@ -82,16 +82,18 @@ def test_corporate_registries_create_update_filter_and_validate(client: TestClie
         ).status_code
         == 422
     )
-    assert (
-        client.put("/api/v1/holding/registries/licenses/Apache-2.0", json=license_payload).status_code
-        == 200
+    license_created = client.put(
+        "/api/v1/holding/registries/licenses/Apache-2.0",
+        json=license_payload,
     )
+    assert license_created.status_code == 200
     license_payload["reviewed_by"] = "OWNER"
     license_payload["reviewed_at"] = datetime.now(UTC).isoformat()
-    assert (
-        client.put("/api/v1/holding/registries/licenses/Apache-2.0", json=license_payload).status_code
-        == 200
+    license_updated = client.put(
+        "/api/v1/holding/registries/licenses/Apache-2.0",
+        json=license_payload,
     )
+    assert license_updated.status_code == 200
     assert (
         client.get(
             "/api/v1/holding/registries/licenses", params={"usage_policy": " approved "}
@@ -107,9 +109,17 @@ def test_corporate_registries_create_update_filter_and_validate(client: TestClie
         "intended_uses": ["governance-summary"],
     }
     assert client.put("/api/v1/holding/registries/models/wrong", json=model).status_code == 400
-    assert client.put("/api/v1/holding/registries/models/gpt-control", json=model).status_code == 200
+    model_created = client.put(
+        "/api/v1/holding/registries/models/gpt-control",
+        json=model,
+    )
+    assert model_created.status_code == 200
     model["status"] = "approved"
-    assert client.put("/api/v1/holding/registries/models/gpt-control", json=model).status_code == 200
+    model_updated = client.put(
+        "/api/v1/holding/registries/models/gpt-control",
+        json=model,
+    )
+    assert model_updated.status_code == 200
     models = client.get(
         "/api/v1/holding/registries/models",
         params={"provider": " openai ", "status": " approved "},
@@ -136,15 +146,17 @@ def test_corporate_registries_create_update_filter_and_validate(client: TestClie
         ).status_code
         == 404
     )
-    assert (
-        client.put("/api/v1/holding/registries/evaluations/release-e2e", json=evaluation).status_code
-        == 200
+    evaluation_created = client.put(
+        "/api/v1/holding/registries/evaluations/release-e2e",
+        json=evaluation,
     )
+    assert evaluation_created.status_code == 200
     evaluation["latest_result"] = {"passed": True}
-    assert (
-        client.put("/api/v1/holding/registries/evaluations/release-e2e", json=evaluation).status_code
-        == 200
+    evaluation_updated = client.put(
+        "/api/v1/holding/registries/evaluations/release-e2e",
+        json=evaluation,
     )
+    assert evaluation_updated.status_code == 200
     evaluations = client.get(
         "/api/v1/holding/registries/evaluations",
         params={"project_id": project_id, "evaluation_type": " regression "},
