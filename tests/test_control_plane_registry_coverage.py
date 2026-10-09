@@ -25,8 +25,7 @@ def test_operational_registries_cover_errors_updates_and_audit_paths(client: Tes
 
     assert client.get(f"{base}/releases").status_code == 200
     assert (
-        client.get(f"{base}/releases/00000000-0000-0000-0000-000000000099/gates").status_code
-        == 404
+        client.get(f"{base}/releases/00000000-0000-0000-0000-000000000099/gates").status_code == 404
     )
 
     release_payload = {
