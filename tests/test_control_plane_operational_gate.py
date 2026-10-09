@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from app.models.entities import Project, ProjectStatus
 
 
@@ -119,7 +121,7 @@ def test_test_required_task_needs_testing_and_passing_test(client):
 def test_paused_project_cannot_execute(client, db_session):
     project = _project(client, "PAUSED_GATE")
     task = _task(client, str(project["id"]), "PAUSED_TASK", evidence_required=False)
-    model = db_session.get(Project, project["id"])
+    model = db_session.get(Project, UUID(str(project["id"])))
     assert model is not None
     model.status = ProjectStatus.paused
     db_session.commit()

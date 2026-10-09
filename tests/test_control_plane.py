@@ -96,6 +96,7 @@ def test_task_idempotency_and_state_machine(client):
         "title": "Validar pipeline",
         "priority": 1,
         "depends_on": [],
+        "evidence_required": False,
         "idempotency_key": "agrolog-task-001",
     }
     first = client.post("/api/v1/tasks", json=payload)

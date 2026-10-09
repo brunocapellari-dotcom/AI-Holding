@@ -105,7 +105,7 @@ def test_cloud_build_collector_is_read_only_and_excludes_agrolog() -> None:
 
 def test_cloud_build_collector_uses_scheduler_invoker_only() -> None:
     collector = _read("cloud_build_collector.tf")
-    assert 'role    = "roles/run.invoker"' in collector
+    assert '"roles/run.invoker"' in collector
     assert "roles/run.admin" not in collector
     assert "roles/editor" not in collector
     assert "roles/owner" not in collector

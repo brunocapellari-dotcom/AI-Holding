@@ -48,6 +48,7 @@ def create_task(
             "execution_kind": execution_kind,
             "auto_start": auto_start,
             "depends_on": depends_on or [],
+            "evidence_required": False,
             "idempotency_key": f"auto-{key.lower()}-0001",
         },
     )
