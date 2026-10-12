@@ -26,6 +26,7 @@ class AgentPermission(StrEnum):
     promote_knowledge = "promote_knowledge"
     submit_knowledge_outcome = "submit_knowledge_outcome"
     export_knowledge = "export_knowledge"
+    ingest_hermes_event = "ingest_hermes_event"
 
 
 AGENT_PERMISSIONS: dict[str, frozenset[AgentPermission]] = {
@@ -49,6 +50,7 @@ AGENT_PERMISSIONS: dict[str, frozenset[AgentPermission]] = {
             AgentPermission.export_knowledge,
         }
     ),
+    "HERMES": frozenset({AgentPermission.ingest_hermes_event}),
     "AUDITOR_IA": frozenset(
         {
             AgentPermission.promote_knowledge,
