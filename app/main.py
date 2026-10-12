@@ -10,6 +10,7 @@ from app.api.routes import (
     agents,
     decisions,
     executive,
+    hermes_events,
     incidents,
     knowledge,
     pmo,
@@ -72,3 +73,4 @@ app.include_router(policy.router, prefix=settings.api_prefix)
 app.include_router(pmo.router, prefix=settings.api_prefix)
 app.include_router(executive.router, prefix=settings.api_prefix)
 app.include_router(knowledge.router, prefix=settings.api_prefix)
+app.include_router(hermes_events.router, prefix=settings.api_prefix)
