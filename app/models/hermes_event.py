@@ -11,9 +11,7 @@ from app.db.base import Base
 
 class HermesEventReceipt(Base):
     __tablename__ = "hermes_event_receipts"
-    __table_args__ = (
-        UniqueConstraint("event_id", name="uq_hermes_event_receipts_event_id"),
-    )
+    __table_args__ = (UniqueConstraint("event_id", name="uq_hermes_event_receipts_event_id"),)
 
     id: Mapped[uuid.UUID] = mapped_column(
         primary_key=True,
