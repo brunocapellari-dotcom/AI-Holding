@@ -452,6 +452,7 @@ def _runtime_identity_seeds_from_env() -> tuple[RuntimeIdentitySeed, ...]:
         _optional_identity_seed("PMO", "PMO_IA"),
         _optional_identity_seed("KNOWLEDGE", "KNOWLEDGE_IA"),
         _optional_identity_seed("AUDITOR", "AUDITOR_IA"),
+        _optional_identity_seed("HERMES", "HERMES"),
     )
     return tuple(seed for seed in seeds if seed is not None)
 
