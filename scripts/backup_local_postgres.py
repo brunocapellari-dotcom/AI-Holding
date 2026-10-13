@@ -34,6 +34,17 @@ def _key() -> bytes:
     return value
 
 
+def _assert_local_postgres() -> None:
+    """Fail closed if libpq may connect to remote or paid infrastructure."""
+    if os.getenv("PGSERVICE") or os.getenv("PGSERVICEFILE") or os.getenv("PGHOSTADDR"):
+        raise ValueError("service or hostaddr libpq overrides are not permitted")
+    host = os.getenv("PGHOST", "localhost")
+    if host not in {"localhost", "127.0.0.1", "::1"} and not host.startswith("/"):
+        raise ValueError("PostgreSQL host must be loopback or a local Unix socket")
+    if not os.getenv("PGDATABASE"):
+        raise ValueError("PGDATABASE must explicitly identify the source database")
+
+
 def _run(args: list[str], timeout: int = 600) -> subprocess.CompletedProcess[str]:
     # Shell is always disabled. Passwords are read by libpq from authorized local
     # environment or pgpass; no credentials are passed in command arguments.
@@ -56,6 +67,7 @@ def backup(destination: str | Path, *, encrypted_destination_confirmed: bool) ->
     if not encrypted_destination_confirmed:
         raise ValueError("an encrypted destination must be confirmed")
     key = _key()
+    _assert_local_postgres()
     dest = Path(destination).resolve()
     if dest.exists() or dest.is_symlink():
         raise FileExistsError("backup directory already exists")
@@ -120,6 +132,7 @@ def verify(snapshot: str | Path) -> dict[str, object]:
 def isolated_restore_drill(snapshot: str | Path, target_db: str) -> dict[str, object]:
     if not _RESTORE_NAME.fullmatch(target_db):
         raise ValueError("restore database name must match holding_restore_*")
+    _assert_local_postgres()
     if target_db == os.getenv("PGDATABASE", ""):
         raise ValueError("restore cannot target production database")
     verified = verify(snapshot)
