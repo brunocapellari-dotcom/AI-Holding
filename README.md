@@ -42,6 +42,8 @@ O caminho padrão de GO-LIVE é **local e sem infraestrutura cloud obrigatória*
 
 Para iniciar o runtime local, use `bash scripts/local_go_live.sh` em shell compatível ou `./scripts/local_go_live.ps1` no PowerShell. Os scripts sobem o Compose, aguardam readiness e mostram o estado dos serviços. O estado persiste no volume `postgres_data`.
 
+Google Cloud Build é o runner canônico de qualidade. GitHub Actions não é requisito do projeto. O gate de qualidade é disparado pelo trigger manual `ai-holding-quality-manual` contra um commit exato e não faz deploy de produção nem persiste imagem no Artifact Registry no caminho zero-custo.
+
 O deploy Google Cloud permanece disponível como opção futura, mas é **opt-in**. O job de produção só pode executar quando a variável de repositório `ENABLE_PAID_GCP_DEPLOY` estiver explicitamente definida como `true`. A configuração padrão não cria nem atualiza infraestrutura paga.
 
 ## Arquitetura opcional gerenciada
