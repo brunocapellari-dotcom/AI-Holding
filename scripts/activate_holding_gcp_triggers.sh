@@ -21,9 +21,10 @@ fi
 
 gcloud builds repositories describe "${REPOSITORY_RESOURCE}"   --connection="${CONNECTION}"   --region="${REGION}"   --project="${PROJECT_ID}" >/dev/null
 
-for sa in "${QUALITY_SA_EMAIL}" "${RELEASE_SA_EMAIL}"; do
-  gcloud iam service-accounts describe "${sa}" --project="${PROJECT_ID}" >/dev/null
-done
+gcloud iam service-accounts describe "${QUALITY_SA_EMAIL}" --project="${PROJECT_ID}" >/dev/null
+if [[ "${ENABLE_PAID_GCP_DEPLOY}" == "true" ]]; then
+  gcloud iam service-accounts describe "${RELEASE_SA_EMAIL}" --project="${PROJECT_ID}" >/dev/null
+fi
 
 if ! gcloud builds triggers describe "${QUALITY_TRIGGER}"     --region="${REGION}" --project="${PROJECT_ID}" >/dev/null 2>&1; then
   gcloud builds triggers create manual     --name="${QUALITY_TRIGGER}"     --repository="${REPOSITORY}"     --branch=main     --build-config=cloudbuild.yaml     --region="${REGION}"     --service-account="${QUALITY_SA}"     --project="${PROJECT_ID}"
@@ -49,10 +50,6 @@ HOLDING MANUAL GATES: READY
 Quality trigger:
   ${QUALITY_TRIGGER}
   service account: ${QUALITY_SA_EMAIL}
-
-Release trigger:
-  ${RELEASE_TRIGGER}
-  service account: ${RELEASE_SA_EMAIL}
 
 Quality can run against an exact commit:
   gcloud builds triggers run ${QUALITY_TRIGGER} --region=${REGION} --sha=<COMMIT_SHA> --project=${PROJECT_ID}
