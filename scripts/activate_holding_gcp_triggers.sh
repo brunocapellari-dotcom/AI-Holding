@@ -7,6 +7,7 @@ CONNECTION="${GCP_GITHUB_CONNECTION:-ai-github}"
 REPOSITORY_RESOURCE="${REPOSITORY_RESOURCE:-ai-holding}"
 QUALITY_TRIGGER="${QUALITY_TRIGGER:-ai-holding-quality-manual}"
 RELEASE_TRIGGER="${RELEASE_TRIGGER:-ai-holding-release-manual}"
+ENABLE_PAID_GCP_DEPLOY="${ENABLE_PAID_GCP_DEPLOY:-false}"
 QUALITY_SA_EMAIL="${QUALITY_SA_EMAIL:-ai-build-executor@${PROJECT_ID}.iam.gserviceaccount.com}"
 RELEASE_SA_EMAIL="${RELEASE_SA_EMAIL:-github-deployer@${PROJECT_ID}.iam.gserviceaccount.com}"
 QUALITY_SA="projects/${PROJECT_ID}/serviceAccounts/${QUALITY_SA_EMAIL}"
@@ -30,10 +31,15 @@ else
   echo "trigger exists: ${QUALITY_TRIGGER}"
 fi
 
-if ! gcloud builds triggers describe "${RELEASE_TRIGGER}"     --region="${REGION}" --project="${PROJECT_ID}" >/dev/null 2>&1; then
-  gcloud builds triggers create manual     --name="${RELEASE_TRIGGER}"     --repository="${REPOSITORY}"     --branch=main     --build-config=cloudbuild.release.yaml     --region="${REGION}"     --service-account="${RELEASE_SA}"     --require-approval     --project="${PROJECT_ID}"
+if [[ "${ENABLE_PAID_GCP_DEPLOY}" == "true" ]]; then
+  if ! gcloud builds triggers describe "${RELEASE_TRIGGER}"     --region="${REGION}" --project="${PROJECT_ID}" >/dev/null 2>&1; then
+    gcloud builds triggers create manual     --name="${RELEASE_TRIGGER}"     --repository="${REPOSITORY}"     --branch=main     --build-config=cloudbuild.release.yaml     --region="${REGION}"     --service-account="${RELEASE_SA}"     --require-approval     --project="${PROJECT_ID}"
+  else
+    echo "trigger exists: ${RELEASE_TRIGGER}"
+  fi
+  
 else
-  echo "trigger exists: ${RELEASE_TRIGGER}"
+  echo "paid release trigger remains disabled (zero-cost path)"
 fi
 
 cat <<EOF
@@ -51,7 +57,5 @@ Release trigger:
 Quality can run against an exact commit:
   gcloud builds triggers run ${QUALITY_TRIGGER} --region=${REGION} --sha=<COMMIT_SHA> --project=${PROJECT_ID}
 
-Production promotion must use the exact SHA and candidate Build ID:
-  gcloud builds triggers run ${RELEASE_TRIGGER} --region=${REGION} --sha=<COMMIT_SHA> --project=${PROJECT_ID} \
-    --substitutions=_CANDIDATE_BUILD_ID=<QUALITY_BUILD_ID>,_SOURCE_COMMIT_SHA=<COMMIT_SHA>
+Paid production promotion is disabled by default. Set ENABLE_PAID_GCP_DEPLOY=true only after explicit owner approval.
 EOF
