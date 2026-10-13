@@ -19,6 +19,7 @@ from app.api.routes import (
     holding_governance,
     incidents,
     knowledge,
+    operational_feed,
     pmo,
     policy,
     projects,
@@ -84,6 +85,7 @@ app.include_router(pmo.router, prefix=settings.api_prefix)
 app.include_router(executive.router, prefix=settings.api_prefix)
 app.include_router(knowledge.router, prefix=settings.api_prefix)
 app.include_router(hermes_events.router, prefix=settings.api_prefix)
+app.include_router(operational_feed.router, prefix=settings.api_prefix)
 app.include_router(holding.router, prefix=settings.api_prefix)
 app.include_router(holding_governance.router, prefix=settings.api_prefix)
 
