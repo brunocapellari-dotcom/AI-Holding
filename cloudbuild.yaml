@@ -2,10 +2,6 @@ substitutions:
   _GITLEAKS_IMAGE: "ghcr.io/gitleaks/gitleaks:v8.30.1"
   _TRIVY_IMAGE: "aquasec/trivy:0.74.0"
   _SYFT_IMAGE: "anchore/syft:v1.52.0"
-  _REGION: "southamerica-east1"
-  _AR_REPO: "ai-execution"
-  _IMAGE_NAME: "ai-holding"
-  _IMAGE: "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_IMAGE_NAME}:${BUILD_ID}"
 
 steps:
   - id: build-ci-toolchain
@@ -122,39 +118,8 @@ steps:
         docker image inspect holding-control-plane:ci \
           --format '{{.Id}}' > /workspace/image-id.txt
 
-  - id: prepare-provenance-candidate
-    name: gcr.io/cloud-builders/docker
-    entrypoint: bash
-    args:
-      - -ceu
-      - |
-        docker tag holding-control-plane:ci "${_IMAGE}"
-        printf '%s\n' "${_IMAGE}" > /workspace/candidate-image.txt
-
-  - id: persist-build-evidence
-    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
-    entrypoint: bash
-    args:
-      - -ceu
-      - |
-        evidence_dir="gs://${PROJECT_ID}-ai-execution-evidence/AI-Holding/${BUILD_ID}"
-        printf '%s\n' "${BUILD_ID}" > build-id.txt
-        printf '%s\n' "${COMMIT_SHA}" > source-commit.txt
-        gcloud storage cp \
-          build-id.txt \
-          source-commit.txt \
-          gitleaks.json \
-          trivy-iac.json \
-          trivy-image.json \
-          sbom.cdx.json \
-          image-id.txt \
-          candidate-image.txt \
-          "$${evidence_dir}/"
-
 timeout: 3600s
 serviceAccount: "projects/${PROJECT_ID}/serviceAccounts/ai-build-executor@${PROJECT_ID}.iam.gserviceaccount.com"
-images:
-  - "${_IMAGE}"
 options:
   dynamic_substitutions: true
   requestedVerifyOption: VERIFIED
