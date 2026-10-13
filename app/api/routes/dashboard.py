@@ -34,6 +34,10 @@ _OWNER_CONSOLE = """<!doctype html>
     .actions { display:grid; gap:8px; }
     .action { border:1px solid #333b46; border-radius:8px; padding:10px; }
     .error { color:#fca5a5; white-space:pre-wrap; }
+    .project-panels { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:12px; }
+    .project-panel { padding:12px; border:1px solid #333b46; border-radius:8px; }
+    .project-panel h3 { margin:0 0 9px; font-size:15px; }
+    .project-panel .line { margin:8px 0; }
     .columns { display:grid; grid-template-columns:minmax(0,2fr) minmax(280px,1fr); gap:18px; align-items:start; }
     .event-list { display:grid; gap:9px; max-height:440px; overflow:auto; }
     .event { padding:10px 0; border-bottom:1px solid #252b34; }
@@ -53,6 +57,10 @@ _OWNER_CONSOLE = """<!doctype html>
   </header>
 
   <section id="cards" class="cards"></section>
+  <section class="panel" aria-label="Quadros operacionais">
+    <h2>Quadros simultâneos por projeto</h2>
+    <div id="project-panels" class="project-panels"></div>
+  </section>
 
   <div class="columns">
   <section class="panel">
@@ -106,6 +114,15 @@ async function refresh() {
     document.getElementById("cards").innerHTML = metrics.map(([label,value]) =>
       '<div class="card"><span class="muted">'+esc(label)+'</span><strong>'+esc(value)+'</strong></div>'
     ).join("");
+    document.getElementById("project-panels").innerHTML = owner.projects.length ? owner.projects.map(p => {
+      const activity = eventFeed.items.find(e => e.project_key === p.key);
+      return '<article class="project-panel"><h3>'+esc(p.name)+'</h3>'+
+        '<div class="line">Governança: '+badge(p.verified_status)+'</div>'+
+        '<div class="line">Saúde registrada: '+badge(p.health_status)+'</div>'+
+        '<div class="muted">Release: '+esc(p.current_release || "Não informada")+'</div>'+
+        '<div class="muted">Último evento consultado: '+esc(activity ? new Date(activity.received_at).toLocaleString("pt-BR") : "Sem evento recente")+'</div>'+
+        '<div class="line muted">Próxima ação: '+esc(p.next_best_action || "Não informada")+'</div></article>';
+    }).join("") : '<span class="muted">Nenhum projeto registrado na Holding.</span>';
     document.getElementById("projects").innerHTML = owner.projects.map(p =>
       '<tr><td><strong>'+esc(p.name)+'</strong><br><span class="muted">'+esc(p.key)+'</span></td>'+
       '<td>'+badge(p.project_status)+'</td><td>'+badge(p.verified_status)+'</td><td>'+badge(p.health_status)+'</td>'+
