@@ -29,16 +29,24 @@ Este repositório não é protótipo. Ele contém o núcleo definitivo para regi
 10. Audit Log
 11. Executive Summary e progresso objetivo
 
-## Arquitetura-alvo
+## Runtime oficial
 
-- Cloud Run: API privada do Control Plane
-- Cloud SQL PostgreSQL: estado operacional
-- Secret Manager: credenciais
-- Artifact Registry: imagens de produção
-- Cloud Logging/Monitoring: telemetria
-- GitHub Actions: qualidade e entrega
-- BigQuery: dados analíticos das unidades; não substitui o PostgreSQL operacional
-- Hermes + Llama: Assistente Executivo, acima do Control Plane
+O caminho padrão de GO-LIVE é **local e sem infraestrutura cloud obrigatória**:
+
+- Docker Compose executa PostgreSQL, API, PMO worker e Knowledge worker.
+- A interface do proprietário fica em `http://localhost:8080/`.
+- A porta da API é vinculada apenas a `127.0.0.1`; o PostgreSQL não é exposto ao host.
+- O bootstrap canônico e as migrações são aplicados antes da API iniciar.
+- PMO e Knowledge executam as rotinas existentes pelo mesmo ledger do Control Plane.
+- Hermes integra por eventos; não existe um segundo scheduler concorrente dentro da Holding.
+
+Para iniciar o runtime local, use `docker compose up --build -d`. O estado persiste no volume `postgres_data`.
+
+O deploy Google Cloud permanece disponível como opção futura, mas é **opt-in**. O job de produção só pode executar quando a variável de repositório `ENABLE_PAID_GCP_DEPLOY` estiver explicitamente definida como `true`. A configuração padrão não cria nem atualiza infraestrutura paga.
+
+## Arquitetura opcional gerenciada
+
+Quando houver decisão humana explícita para usar infraestrutura paga, a configuração existente suporta Cloud Run, Cloud SQL PostgreSQL, Secret Manager, Artifact Registry e Cloud Logging/Monitoring. BigQuery continua reservado a dados analíticos das unidades e não substitui o PostgreSQL operacional.
 
 ## Organização dos projetos
 
