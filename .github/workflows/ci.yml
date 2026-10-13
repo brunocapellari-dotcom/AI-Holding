@@ -99,7 +99,7 @@ jobs:
           skip-setup-trivy: true
 
   deploy-production:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.ENABLE_PAID_GCP_DEPLOY == 'true'
     needs: quality
     runs-on: ubuntu-latest
     timeout-minutes: 45
