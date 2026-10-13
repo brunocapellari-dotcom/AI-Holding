@@ -11,8 +11,13 @@ def test_zero_cost_runtime_is_local_only_and_has_workers() -> None:
     assert "python -m app.bootstrap" in compose
 
 
-def test_paid_gcp_deploy_is_explicit_opt_in() -> None:
-    workflow = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
+def test_cloud_build_is_the_canonical_quality_runner() -> None:
+    cloudbuild = Path("cloudbuild.yaml").read_text(encoding="utf-8")
+    triggers = Path("scripts/activate_holding_gcp_triggers.sh").read_text(encoding="utf-8")
 
-    assert "vars.ENABLE_PAID_GCP_DEPLOY == 'true'" in workflow
+    assert "full-project-gate" in cloudbuild
+    assert "persist-build-evidence" not in cloudbuild
+    assert "\nimages:\n" not in cloudbuild
+    assert 'ENABLE_PAID_GCP_DEPLOY="${ENABLE_PAID_GCP_DEPLOY:-false}"' in triggers
+    assert not Path(".github/workflows/ci.yml").exists()
     assert not Path(".github/workflows/autonomous-workers.yml").exists()
