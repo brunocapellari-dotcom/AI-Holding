@@ -11,6 +11,7 @@ from app.api.routes import (
     audit,
     control_plane,
     corporate_registry,
+    dashboard,
     decisions,
     executive,
     hermes_events,
@@ -85,5 +86,7 @@ app.include_router(knowledge.router, prefix=settings.api_prefix)
 app.include_router(hermes_events.router, prefix=settings.api_prefix)
 app.include_router(holding.router, prefix=settings.api_prefix)
 app.include_router(holding_governance.router, prefix=settings.api_prefix)
+
+app.include_router(dashboard.router)
 
 configure_observability(app)
