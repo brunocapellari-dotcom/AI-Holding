@@ -99,11 +99,19 @@ class WorkerConfig:
     agent_key: str = DEFAULT_AGENT_KEY
     max_tasks: int = 1
     execution_kinds: tuple[ExecutionKind, ...] = DEFAULT_EXECUTION_KINDS
+    local_mode: bool = False
 
     @classmethod
     def from_env(cls) -> WorkerConfig:
         url = os.getenv("CONTROL_PLANE_URL", "").rstrip("/")
-        if not url.startswith("https://"):
+        environment = os.getenv("ENVIRONMENT", "production").strip().lower()
+        local_mode = environment in {"development", "test"}
+        if local_mode:
+            if not url.startswith(("http://", "https://")):
+                raise RuntimeError(
+                    "CONTROL_PLANE_URL must be an https URL in production or http(s) URL in local mode"
+                )
+        elif not url.startswith("https://"):
             raise RuntimeError("CONTROL_PLANE_URL must be an https URL")
 
         try:
@@ -119,6 +127,7 @@ class WorkerConfig:
             agent_key=os.getenv("PMO_AGENT_KEY", DEFAULT_AGENT_KEY),
             max_tasks=max_tasks,
             execution_kinds=_execution_kinds_from_env(),
+            local_mode=local_mode,
         )
 
 
@@ -140,21 +149,33 @@ class ControlPlaneClient:
         transport: httpx.BaseTransport | None = None,
     ) -> None:
         self.config = config
-        token = _at_stage(
-            WorkerStage.identity_fetch,
-            lambda: token_provider(config.audience),
-        )
-        bearer = f"Bearer {token}"
+        self._local_agent_id: str | None = None
+        headers = {"User-Agent": "ai-holding-pmo-worker/1.0"}
+        if config.local_mode:
+            headers.update(
+                {
+                    "X-Actor": f"local-worker:{config.agent_key}",
+                    "X-Actor-Type": "service-account",
+                }
+            )
+        else:
+            token = _at_stage(
+                WorkerStage.identity_fetch,
+                lambda: token_provider(config.audience),
+            )
+            bearer = f"Bearer {token}"
+            headers.update(
+                {
+                    # Cloud Run validates X-Serverless-Authorization at the IAM boundary.
+                    # Authorization remains available to the Control Plane for independent
+                    # Google-token verification and canonical agent identity binding.
+                    "Authorization": bearer,
+                    "X-Serverless-Authorization": bearer,
+                }
+            )
         self._client = httpx.Client(
             base_url=config.control_plane_url,
-            headers={
-                # Cloud Run validates X-Serverless-Authorization at the IAM boundary.
-                # Authorization remains available to the Control Plane for independent
-                # Google-token verification and canonical agent identity binding.
-                "Authorization": bearer,
-                "X-Serverless-Authorization": bearer,
-                "User-Agent": "ai-holding-pmo-worker/1.0",
-            },
+            headers=headers,
             timeout=REQUEST_TIMEOUT_SECONDS,
             transport=transport,
         )
@@ -206,12 +227,37 @@ class ControlPlaneClient:
             items.append(dict(item))
         return items
 
+    def _local_agent(self) -> str:
+        if self._local_agent_id is not None:
+            return self._local_agent_id
+
+        agents = self._get_object_list("/api/v1/agents")
+        candidate = next(
+            (item for item in agents if item.get("key") == self.config.agent_key),
+            None,
+        )
+        if candidate is None or candidate.get("id") is None:
+            raise RuntimeError(f"local canonical agent not found: {self.config.agent_key}")
+
+        agent_id = str(candidate["id"])
+        if candidate.get("status") != "active":
+            self._request(
+                "POST",
+                f"/api/v1/agents/{agent_id}/transition",
+                json_body={"status": "active"},
+            )
+        self._local_agent_id = agent_id
+        return agent_id
+
     def claim(self) -> dict[str, Any] | None:
+        payload: dict[str, object] = {
+            "execution_kinds": [item.value for item in self.config.execution_kinds],
+        }
+        if self.config.local_mode:
+            payload["agent_id"] = self._local_agent()
         response = self._client.post(
             "/api/v1/pmo/claim",
-            json={
-                "execution_kinds": [item.value for item in self.config.execution_kinds],
-            },
+            json=payload,
         )
         if response.status_code == 204:
             return None
