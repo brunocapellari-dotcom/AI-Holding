@@ -1,11 +1,11 @@
 services:
   postgres:
     image: postgres:16
+    restart: unless-stopped
     environment:
       POSTGRES_DB: holding
       POSTGRES_USER: holding
       POSTGRES_PASSWORD: holding
-    ports: ["5432:5432"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U holding -d holding"]
       interval: 5s
@@ -15,14 +15,79 @@ services:
 
   api:
     build: .
+    image: ai-holding-control-plane:local
+    restart: unless-stopped
     environment:
       DATABASE_URL: postgresql+psycopg://holding:holding@postgres:5432/holding
       ENVIRONMENT: development
       REQUIRE_ACTOR_HEADER: "false"
-    command: ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8080"]
-    ports: ["8080:8080"]
+      REQUIRE_VERIFIED_IDENTITY: "false"
+    command:
+      - sh
+      - -c
+      - >-
+        alembic upgrade head &&
+        python -m app.bootstrap &&
+        uvicorn app.main:app --host 0.0.0.0 --port 8080
+    ports: ["127.0.0.1:8080:8080"]
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen("http://localhost:8080/ready", timeout=3)
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
     depends_on:
       postgres:
+        condition: service_healthy
+
+  pmo-worker:
+    image: ai-holding-control-plane:local
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: development
+      CONTROL_PLANE_URL: http://api:8080
+      PMO_AGENT_KEY: PMO_IA
+      PMO_MAX_TASKS: "3"
+      WORKER_EXECUTION_KINDS: control_plane_health
+    command:
+      - sh
+      - -c
+      - >-
+        while true; do
+          python -m app.pmo_worker;
+          status=$$?;
+          if [ $$status -ne 0 ]; then echo "PMO worker failed with $$status; retrying in 60s"; sleep 60;
+          else sleep 600; fi;
+        done
+    depends_on:
+      api:
+        condition: service_healthy
+
+  knowledge-worker:
+    image: ai-holding-control-plane:local
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: development
+      CONTROL_PLANE_URL: http://api:8080
+      PMO_AGENT_KEY: KNOWLEDGE_IA
+      PMO_MAX_TASKS: "3"
+      WORKER_EXECUTION_KINDS: knowledge_gap_scan,knowledge_outcome_review
+    command:
+      - sh
+      - -c
+      - >-
+        while true; do
+          python -m app.pmo_worker;
+          status=$$?;
+          if [ $$status -ne 0 ]; then echo "Knowledge worker failed with $$status; retrying in 60s"; sleep 60;
+          else sleep 3600; fi;
+        done
+    depends_on:
+      api:
         condition: service_healthy
 
 volumes:
