@@ -210,6 +210,7 @@ PROJECT_SEEDS: tuple[ProjectSeed, ...] = (
         ),
         priority=3,
         autonomy_level=1,
+        repository="brunocapellari-dotcom/Sports-Intelligence",
         business_unit="Quantitative Intelligence",
     ),
     ProjectSeed(
