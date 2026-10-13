@@ -40,7 +40,7 @@ O caminho padrão de GO-LIVE é **local e sem infraestrutura cloud obrigatória*
 - PMO e Knowledge executam as rotinas existentes pelo mesmo ledger do Control Plane.
 - Hermes integra por eventos; não existe um segundo scheduler concorrente dentro da Holding.
 
-Para iniciar o runtime local, use `docker compose up --build -d`. O estado persiste no volume `postgres_data`.
+Para iniciar o runtime local, use `bash scripts/local_go_live.sh` em shell compatível ou `./scripts/local_go_live.ps1` no PowerShell. Os scripts sobem o Compose, aguardam readiness e mostram o estado dos serviços. O estado persiste no volume `postgres_data`.
 
 O deploy Google Cloud permanece disponível como opção futura, mas é **opt-in**. O job de produção só pode executar quando a variável de repositório `ENABLE_PAID_GCP_DEPLOY` estiver explicitamente definida como `true`. A configuração padrão não cria nem atualiza infraestrutura paga.
 
