@@ -34,6 +34,12 @@ _OWNER_CONSOLE = """<!doctype html>
     .actions { display:grid; gap:8px; }
     .action { border:1px solid #333b46; border-radius:8px; padding:10px; }
     .error { color:#fca5a5; white-space:pre-wrap; }
+    .columns { display:grid; grid-template-columns:minmax(0,2fr) minmax(280px,1fr); gap:18px; align-items:start; }
+    .event-list { display:grid; gap:9px; max-height:440px; overflow:auto; }
+    .event { padding:10px 0; border-bottom:1px solid #252b34; }
+    .event .muted { display:block; margin-top:5px; }
+    @media (max-width:900px) { .columns { grid-template-columns:1fr; } }
+
   </style>
 </head>
 <body>
@@ -48,6 +54,7 @@ _OWNER_CONSOLE = """<!doctype html>
 
   <section id="cards" class="cards"></section>
 
+  <div class="columns">
   <section class="panel">
     <h2>Projetos</h2>
     <table>
@@ -60,6 +67,12 @@ _OWNER_CONSOLE = """<!doctype html>
   </section>
 
   <section class="panel">
+    <h2>Atividade recebida do Hermes</h2>
+    <p class="muted">Eventos persistidos, não comprovam disponibilidade nem conclusão do projeto.</p>
+    <div id="events" class="event-list" aria-live="polite"></div>
+  </section>
+  </div>
+  <section class="panel">
     <h2>Precisa de você</h2>
     <div id="actions" class="actions"></div>
   </section>
@@ -68,6 +81,7 @@ _OWNER_CONSOLE = """<!doctype html>
 <script>
 const ownerUrl = "/api/v1/holding/control-plane/owner-view";
 const actionsUrl = "/api/v1/holding/control-plane/human-actions";
+const eventsUrl = "/api/v1/holding/control-plane/event-feed?limit=30";
 const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
 const cls = value => {
   const v = String(value ?? "").toUpperCase();
@@ -78,10 +92,11 @@ const cls = value => {
 function badge(value) { return '<span class="badge '+cls(value)+'">'+esc(value || "—")+'</span>'; }
 async function refresh() {
   try {
-    const [ownerResponse, actionsResponse] = await Promise.all([fetch(ownerUrl), fetch(actionsUrl)]);
-    if (!ownerResponse.ok || !actionsResponse.ok) throw new Error("Control Plane indisponível ou acesso não autorizado");
+    const [ownerResponse, actionsResponse, eventsResponse] = await Promise.all([fetch(ownerUrl, {cache:"no-store"}), fetch(actionsUrl, {cache:"no-store"}), fetch(eventsUrl, {cache:"no-store"})]);
+    if (!ownerResponse.ok || !actionsResponse.ok || !eventsResponse.ok) throw new Error("Control Plane indisponível ou acesso não autorizado");
     const owner = await ownerResponse.json();
     const actions = await actionsResponse.json();
+    const eventFeed = await eventsResponse.json();
     const metrics = [
       ["Ativos", owner.active_projects], ["Pausados", owner.paused_projects],
       ["Bloqueados", owner.blocked_projects], ["Vendáveis", owner.sellable_products],
@@ -101,7 +116,12 @@ async function refresh() {
       '<div class="action"><strong>'+esc(a.priority)+' · '+esc(a.title)+'</strong><br>'+
       '<span>'+esc(a.action_required)+'</span><br><span class="muted">Responsável: '+esc(a.owner)+'</span></div>'
     ).join("") : '<span class="muted">Nenhuma ação humana pendente.</span>';
-    document.getElementById("freshness").textContent = "Atualizado: "+new Date().toLocaleString("pt-BR");
+    document.getElementById("events").innerHTML = eventFeed.items.length ? eventFeed.items.map(e =>
+      '<div class="event"><strong>'+esc(e.project_key)+'</strong> · '+badge(e.event_type)+
+      '<span class="muted">Recebido: '+esc(new Date(e.received_at).toLocaleString("pt-BR"))+
+      ' · Origem: '+esc(e.producer)+'</span></div>'
+    ).join("") : '<span class="muted">Nenhum evento Hermes persistido até o momento.</span>';
+    document.getElementById("freshness").textContent = "Dados consultados: "+esc(new Date(eventFeed.generated_at).toLocaleString("pt-BR"));
     document.getElementById("error").textContent = "";
   } catch (error) {
     document.getElementById("error").textContent = String(error);
