@@ -109,7 +109,8 @@ class WorkerConfig:
         if local_mode:
             if not url.startswith(("http://", "https://")):
                 raise RuntimeError(
-                    "CONTROL_PLANE_URL must be an https URL in production or http(s) URL in local mode"
+                    "CONTROL_PLANE_URL must be an https URL in production "
+                    "or http(s) URL in local mode"
                 )
         elif not url.startswith("https://"):
             raise RuntimeError("CONTROL_PLANE_URL must be an https URL")
