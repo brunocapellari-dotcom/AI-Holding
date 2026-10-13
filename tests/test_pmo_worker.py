@@ -362,3 +362,73 @@ def test_worker_execution_kinds_are_configurable_and_deduplicated(monkeypatch):
     monkeypatch.setenv("WORKER_EXECUTION_KINDS", " , ")
     with pytest.raises(RuntimeError, match="at least one"):
         WorkerConfig.from_env()
+
+
+def test_worker_allows_http_only_in_explicit_local_mode(monkeypatch) -> None:
+    monkeypatch.setenv("ENVIRONMENT", "development")
+    monkeypatch.setenv("CONTROL_PLANE_URL", "http://api:8080")
+    monkeypatch.setenv("PMO_MAX_TASKS", "1")
+
+    config = WorkerConfig.from_env()
+
+    assert config.local_mode is True
+    assert config.control_plane_url == "http://api:8080"
+
+
+def test_local_worker_resolves_and_activates_canonical_agent_without_google_token(
+) -> None:
+    requests: list[tuple[str, str, dict[str, object] | None]] = []
+
+    def token_provider(audience: str) -> str:
+        raise AssertionError("local worker must not request a Google identity token")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content) if request.content else None
+        requests.append((request.method, request.url.path, body))
+        assert "Authorization" not in request.headers
+        assert request.headers["X-Actor"] == "local-worker:PMO_IA"
+
+        if request.method == "GET" and request.url.path == "/api/v1/agents":
+            return httpx.Response(
+                200,
+                json=[
+                    {
+                        "id": AGENT_ID,
+                        "key": "PMO_IA",
+                        "name": "PMO IA",
+                        "role": "Portfolio execution and dependency manager",
+                        "max_autonomy": 4,
+                        "model_policy": {},
+                        "capabilities": [],
+                        "status": "disabled",
+                        "created_at": "2026-10-13T12:00:00Z",
+                        "updated_at": "2026-10-13T12:00:00Z",
+                    }
+                ],
+            )
+        if request.method == "POST" and request.url.path == f"/api/v1/agents/{AGENT_ID}/transition":
+            assert body == {"status": "active"}
+            return httpx.Response(200, json={"ok": True})
+        if request.method == "POST" and request.url.path == "/api/v1/pmo/claim":
+            assert body == {
+                "agent_id": AGENT_ID,
+                "execution_kinds": ["control_plane_health"],
+            }
+            return httpx.Response(204)
+        return httpx.Response(404)
+
+    result = run_once(
+        WorkerConfig(
+            control_plane_url="http://api:8080",
+            local_mode=True,
+        ),
+        token_provider=token_provider,
+        transport=httpx.MockTransport(handler),
+    )
+
+    assert result == {"processed": 0}
+    assert [path for _, path, _ in requests] == [
+        "/api/v1/agents",
+        f"/api/v1/agents/{AGENT_ID}/transition",
+        "/api/v1/pmo/claim",
+    ]

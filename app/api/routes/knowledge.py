@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.access_dependencies import require_knowledge_read
 from app.core.actor import ActorContext, get_actor
 from app.core.authorization import AgentPermission, authorize_mutation
 from app.db.session import get_db
@@ -33,7 +34,11 @@ from app.services.knowledge import (
 from app.services.knowledge_gap import find_knowledge_gaps
 from app.services.knowledge_outcome_review import find_outcome_review_candidates
 
-router = APIRouter(prefix="/knowledge", tags=["knowledge"])
+router = APIRouter(
+    prefix="/knowledge",
+    tags=["knowledge"],
+    dependencies=[Depends(require_knowledge_read)],
+)
 DbSession = Annotated[Session, Depends(get_db)]
 Actor = Annotated[ActorContext, Depends(get_actor)]
 

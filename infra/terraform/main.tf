@@ -48,6 +48,7 @@ provider "google" {
 locals {
   required_services = toset([
     "artifactregistry.googleapis.com",
+    "cloudbuild.googleapis.com",
     "cloudscheduler.googleapis.com",
     "compute.googleapis.com",
     "run.googleapis.com",
@@ -150,6 +151,11 @@ resource "google_sql_database_instance" "postgres" {
       query_insights_enabled  = true
       record_application_tags = true
       record_client_address   = false
+    }
+
+    database_flags {
+      name  = "cloudsql.iam_authentication"
+      value = "on"
     }
 
     ip_configuration {
@@ -311,8 +317,9 @@ resource "google_cloud_run_v2_job" "migrate" {
 
   depends_on = [
     google_project_service.required,
-    google_secret_manager_secret_iam_member.control_plane_database_url,
-    google_service_account_iam_member.deployer_act_as_control_plane,
+    google_secret_manager_secret_iam_member.migration_database_url_rollback,
+    google_service_account_iam_member.deployer_act_as_migration,
+    google_sql_user.migration_iam,
   ]
 
   lifecycle {
@@ -326,7 +333,7 @@ resource "google_cloud_run_v2_job" "migrate" {
 
   template {
     template {
-      service_account = google_service_account.control_plane.email
+      service_account = google_service_account.migration.email
       timeout         = "600s"
       max_retries     = 1
 

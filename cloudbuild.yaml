@@ -1,0 +1,126 @@
+substitutions:
+  _GITLEAKS_IMAGE: "ghcr.io/gitleaks/gitleaks:v8.30.1"
+  _TRIVY_IMAGE: "aquasec/trivy:0.74.0"
+  _SYFT_IMAGE: "anchore/syft:v1.52.0"
+
+steps:
+  - id: build-ci-toolchain
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --pull
+      - --file
+      - Dockerfile.ci
+      - --tag
+      - holding-ci:$BUILD_ID
+      - .
+
+  - id: secret-scan
+    name: gcr.io/cloud-builders/docker
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        docker run --rm \
+          -v /workspace:/repo \
+          "${_GITLEAKS_IMAGE}" \
+          dir /repo \
+          --exit-code 1 \
+          --report-format json \
+          --report-path /repo/gitleaks.json
+
+  - id: start-postgres
+    name: gcr.io/cloud-builders/docker
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        docker rm -f holding-postgres >/dev/null 2>&1 || true
+        docker run -d \
+          --name holding-postgres \
+          --network cloudbuild \
+          -e POSTGRES_DB=holding_test \
+          -e POSTGRES_USER=holding \
+          -e POSTGRES_PASSWORD=holding \
+          postgres:16
+
+  - id: full-project-gate
+    name: gcr.io/cloud-builders/docker
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        docker run --rm \
+          --network cloudbuild \
+          -v /var/run/docker.sock:/var/run/docker.sock \
+          -e ENVIRONMENT=test \
+          -e REQUIRE_VERIFIED_IDENTITY=false \
+          -e DATABASE_URL=postgresql+psycopg://holding:holding@holding-postgres:5432/holding_test \
+          holding-ci:$BUILD_ID \
+          bash -ceu '
+            for attempt in $(seq 1 30); do
+              if pg_isready -h holding-postgres -U holding -d holding_test; then
+                exec bash scripts/full_project_gate.sh
+              fi
+              sleep 2
+            done
+            echo "PostgreSQL did not become ready within 60 seconds." >&2
+            exit 41
+          '
+
+  - id: terraform-misconfiguration-gate
+    name: gcr.io/cloud-builders/docker
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        docker run --rm \
+          -v /workspace:/workspace \
+          "${_TRIVY_IMAGE}" \
+          config \
+          --exit-code 1 \
+          --severity HIGH,CRITICAL \
+          --format json \
+          --output /workspace/trivy-iac.json \
+          /workspace/infra/terraform
+
+  - id: generate-sbom
+    name: gcr.io/cloud-builders/docker
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        docker run --rm \
+          -v /var/run/docker.sock:/var/run/docker.sock \
+          -v /workspace:/workspace \
+          "${_SYFT_IMAGE}" \
+          holding-control-plane:ci \
+          -o cyclonedx-json=/workspace/sbom.cdx.json
+
+  - id: container-vulnerability-gate
+    name: gcr.io/cloud-builders/docker
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        docker run --rm \
+          -v /var/run/docker.sock:/var/run/docker.sock \
+          -v /workspace:/workspace \
+          "${_TRIVY_IMAGE}" \
+          image \
+          --scanners vuln \
+          --exit-code 1 \
+          --ignore-unfixed \
+          --severity HIGH,CRITICAL \
+          --format json \
+          --output /workspace/trivy-image.json \
+          holding-control-plane:ci
+        docker image inspect holding-control-plane:ci \
+          --format '{{.Id}}' > /workspace/image-id.txt
+
+timeout: 3600s
+serviceAccount: "projects/${PROJECT_ID}/serviceAccounts/ai-build-executor@${PROJECT_ID}.iam.gserviceaccount.com"
+options:
+  dynamic_substitutions: true
+  requestedVerifyOption: VERIFIED
+  logging: CLOUD_LOGGING_ONLY

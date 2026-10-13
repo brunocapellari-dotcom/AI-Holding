@@ -1,0 +1,40 @@
+[settings]
+lockfile = true
+
+[tools]
+python = "3.12"
+uv = "0.12.17"
+node = "24"
+terraform = "1.9.8"
+
+[tasks.bootstrap]
+description = "Create/update the canonical Python environment and uv.lock."
+run = "uv sync --extra dev"
+
+[tasks.lock]
+description = "Refresh the canonical Python lockfile."
+run = "uv lock"
+
+[tasks.lint]
+description = "Run canonical Python lint checks."
+run = "uv run --extra dev ruff check app tests alembic"
+
+[tasks.format-check]
+description = "Verify canonical formatting without modifying files."
+run = "uv run --extra dev ruff format --check app tests alembic"
+
+[tasks.typecheck]
+description = "Run strict type checking."
+run = "uv run --extra dev mypy app"
+
+[tasks.test]
+description = "Run the complete Python test suite."
+run = "uv run --extra dev pytest"
+
+[tasks.precommit]
+description = "Run all local pre-commit hooks."
+run = "uv run --extra dev pre-commit run --all-files"
+
+[tasks.gate]
+description = "Run the complete project acceptance gate."
+run = "bash scripts/full_project_gate.sh"

@@ -12,6 +12,7 @@ from app.core.actor import ActorContext
 from app.core.config import settings
 from app.models.agent_identity import AgentIdentity
 from app.models.entities import Agent, AgentStatus
+from app.models.human_identity import HumanIdentityRole, HumanRole
 
 logger = logging.getLogger("holding-control-plane.authorization")
 
@@ -22,6 +23,11 @@ class AgentPermission(StrEnum):
     transition_own_run = "transition_own_run"
     evaluate_own_policy = "evaluate_own_policy"
     create_incident = "create_incident"
+    manage_collectors = "manage_collectors"
+    record_collector_execution = "record_collector_execution"
+    recompute_project_health = "recompute_project_health"
+    record_operational_state = "record_operational_state"
+    verify_operational_evidence = "verify_operational_evidence"
     submit_knowledge = "submit_knowledge"
     promote_knowledge = "promote_knowledge"
     submit_knowledge_outcome = "submit_knowledge_outcome"
@@ -37,6 +43,10 @@ AGENT_PERMISSIONS: dict[str, frozenset[AgentPermission]] = {
             AgentPermission.transition_own_run,
             AgentPermission.evaluate_own_policy,
             AgentPermission.create_incident,
+            AgentPermission.manage_collectors,
+            AgentPermission.record_collector_execution,
+            AgentPermission.recompute_project_health,
+            AgentPermission.record_operational_state,
         }
     ),
     "KNOWLEDGE_IA": frozenset(
@@ -54,10 +64,43 @@ AGENT_PERMISSIONS: dict[str, frozenset[AgentPermission]] = {
     "AUDITOR_IA": frozenset(
         {
             AgentPermission.promote_knowledge,
+            AgentPermission.verify_operational_evidence,
             AgentPermission.submit_knowledge_outcome,
             AgentPermission.export_knowledge,
         }
     ),
+}
+
+
+class ReadScope(StrEnum):
+    operational = "operational"
+    governance = "governance"
+    financial = "financial"
+    security = "security"
+    knowledge = "knowledge"
+    audit = "audit"
+
+
+AGENT_READ_SCOPES: dict[str, frozenset[ReadScope]] = {
+    "PMO_IA": frozenset({ReadScope.operational, ReadScope.governance}),
+    "KNOWLEDGE_IA": frozenset({ReadScope.knowledge}),
+    "AUDITOR_IA": frozenset(ReadScope),
+    "CEO_IA": frozenset(ReadScope),
+    "HERMES": frozenset(
+        {
+            ReadScope.operational,
+            ReadScope.governance,
+            ReadScope.financial,
+            ReadScope.security,
+        }
+    ),
+}
+
+HUMAN_READ_SCOPES: dict[HumanRole, frozenset[ReadScope]] = {
+    HumanRole.owner: frozenset(ReadScope),
+    HumanRole.operator: frozenset({ReadScope.operational, ReadScope.governance}),
+    HumanRole.auditor: frozenset(ReadScope),
+    HumanRole.viewer: frozenset({ReadScope.operational}),
 }
 
 
@@ -93,6 +136,64 @@ def _bound_agent(db: Session, actor: ActorContext) -> Agent:
     return agent
 
 
+def _bound_human_role(db: Session, actor: ActorContext) -> HumanRole:
+    if (
+        not actor.authenticated
+        or actor.actor_type != "human"
+        or not actor.issuer
+        or not actor.subject
+    ):
+        raise _forbidden("authenticated human identity is required")
+
+    binding = db.scalar(
+        select(HumanIdentityRole).where(
+            HumanIdentityRole.issuer == actor.issuer,
+            HumanIdentityRole.subject == actor.subject,
+        )
+    )
+    if binding is None:
+        logger.warning("unbound human attempted a mutation")
+        raise _forbidden("human identity is not bound to an authorized role")
+    if binding.email.casefold() != actor.name.casefold():
+        logger.warning("human identity email drift detected for bound subject")
+        raise _forbidden("human identity binding does not match the verified email")
+
+    try:
+        return HumanRole(binding.role)
+    except ValueError as exc:
+        logger.error("human identity binding contains an invalid role")
+        raise _forbidden("human identity binding is invalid") from exc
+
+
+def authorize_read(
+    db: Session,
+    actor: ActorContext,
+    *,
+    scope: ReadScope,
+) -> Agent | HumanRole | None:
+    """Authorize a read using application-level scopes in addition to platform IAM."""
+
+    if settings.environment in {"development", "test"}:
+        return None
+
+    if not actor.authenticated:
+        raise _forbidden("authenticated identity is required")
+
+    if actor.actor_type == "human":
+        role = _bound_human_role(db, actor)
+        if scope not in HUMAN_READ_SCOPES.get(role, frozenset()):
+            raise _forbidden(f"human role {role.value} cannot read {scope.value} data")
+        return role
+
+    if actor.actor_type == "service-account":
+        agent = _bound_agent(db, actor)
+        if scope not in AGENT_READ_SCOPES.get(agent.key, frozenset()):
+            raise _forbidden(f"canonical agent {agent.key} cannot read {scope.value} data")
+        return agent
+
+    raise _forbidden("actor type is not authorized for reads")
+
+
 def authorize_mutation(
     db: Session,
     actor: ActorContext,
@@ -104,8 +205,9 @@ def authorize_mutation(
     """Authorize a write operation and return the bound service agent when applicable.
 
     Development and test environments preserve local ergonomics. In production,
-    authenticated humans are governed by the Cloud Run IAM invoker boundary when
-    the route explicitly permits human operation. Service accounts are denied by
+    human mutations require an explicit subject-bound owner role in addition to the
+    Cloud Run IAM invoker boundary. Other human roles are read-only until a granular
+    permission matrix is explicitly introduced. Service accounts are denied by
     default and require a canonical binding plus an explicit code-owned permission.
     """
 
@@ -116,9 +218,12 @@ def authorize_mutation(
         raise _forbidden("authenticated identity is required")
 
     if actor.actor_type == "human":
-        if allow_human:
-            return None
-        raise _forbidden("this mutation requires a canonical service agent")
+        if not allow_human:
+            raise _forbidden("this mutation requires a canonical service agent")
+        human_role = _bound_human_role(db, actor)
+        if human_role != HumanRole.owner:
+            raise _forbidden(f"human role {human_role.value} is read-only for mutations")
+        return None
 
     if actor.actor_type != "service-account":
         raise _forbidden("actor type is not authorized for mutations")

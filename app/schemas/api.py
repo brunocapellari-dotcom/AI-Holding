@@ -1,5 +1,6 @@
 from datetime import date, datetime
 from enum import StrEnum
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -42,6 +43,10 @@ class ProjectOut(ProjectCreate):
     version: int
     created_at: datetime
     updated_at: datetime
+
+
+class ProjectStatusUpdate(BaseModel):
+    status: Literal["active", "paused", "blocked", "maintenance", "archived", "discontinued"]
 
 
 class MilestoneCreate(BaseModel):
@@ -90,6 +95,12 @@ class TaskCreate(BaseModel):
     execution_kind: ExecutionKind | None = None
     auto_start: bool = False
     depends_on: list[UUID] = Field(default_factory=list)
+    release_id: UUID | None = None
+    acceptance_criteria: list[dict[str, object] | str] = Field(default_factory=list)
+    test_required: bool = False
+    evidence_required: bool = True
+    commit_sha: str | None = Field(default=None, max_length=64)
+    deployment_ref: str | None = Field(default=None, max_length=240)
     due_at: datetime | None = None
     idempotency_key: str = Field(min_length=8, max_length=160)
     metadata_json: dict[str, object] = Field(default_factory=dict)
@@ -113,6 +124,12 @@ class TaskOut(BaseModel):
     assigned_agent_id: UUID | None
     execution_kind: ExecutionKind | None
     auto_start: bool
+    release_id: UUID | None
+    acceptance_criteria: list[object]
+    test_required: bool
+    evidence_required: bool
+    commit_sha: str | None
+    deployment_ref: str | None
     due_at: datetime | None
     status: WorkStatus
     blocked_reason: str | None

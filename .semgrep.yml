@@ -1,0 +1,66 @@
+rules:
+  - id: holding-python-eval
+    languages: [python]
+    severity: ERROR
+    message: Dynamic eval is forbidden in the Holding control plane.
+    pattern: eval(...)
+
+  - id: holding-python-exec
+    languages: [python]
+    severity: ERROR
+    message: Dynamic exec is forbidden in the Holding control plane.
+    pattern: exec(...)
+
+  - id: holding-os-system
+    languages: [python]
+    severity: ERROR
+    message: os.system is forbidden; use a bounded subprocess invocation if execution is unavoidable.
+    pattern: os.system(...)
+
+  - id: holding-subprocess-shell-true
+    languages: [python]
+    severity: ERROR
+    message: shell=True is forbidden because it expands command-injection risk.
+    patterns:
+      - pattern-either:
+          - pattern: subprocess.run(..., shell=True, ...)
+          - pattern: subprocess.Popen(..., shell=True, ...)
+          - pattern: subprocess.call(..., shell=True, ...)
+          - pattern: subprocess.check_call(..., shell=True, ...)
+          - pattern: subprocess.check_output(..., shell=True, ...)
+
+  - id: holding-unsafe-yaml-load
+    languages: [python]
+    severity: ERROR
+    message: yaml.load without SafeLoader is forbidden for untrusted input.
+    patterns:
+      - pattern: yaml.load($DATA, ...)
+      - pattern-not: yaml.load($DATA, Loader=yaml.SafeLoader, ...)
+      - pattern-not: yaml.load($DATA, Loader=SafeLoader, ...)
+
+  - id: holding-http-tls-disabled
+    languages: [python]
+    severity: ERROR
+    message: TLS verification must not be disabled.
+    pattern-either:
+      - pattern: requests.get(..., verify=False, ...)
+      - pattern: requests.post(..., verify=False, ...)
+      - pattern: requests.request(..., verify=False, ...)
+      - pattern: httpx.get(..., verify=False, ...)
+      - pattern: httpx.post(..., verify=False, ...)
+      - pattern: httpx.Client(..., verify=False, ...)
+
+  - id: holding-cors-wildcard-with-credentials
+    languages: [python]
+    severity: ERROR
+    message: Credentialed CORS must never allow wildcard origins.
+    patterns:
+      - pattern: $APP.add_middleware(CORSMiddleware, ..., allow_origins=["*"], ..., allow_credentials=True, ...)
+
+  - id: holding-pickle-loads
+    languages: [python]
+    severity: ERROR
+    message: pickle deserialization is forbidden for the control plane.
+    pattern-either:
+      - pattern: pickle.loads(...)
+      - pattern: pickle.load(...)

@@ -1,0 +1,19 @@
+{
+  "project_id": "ai-holding-prod-bc",
+  "region": "southamerica-east1",
+  "connection": "ai-github",
+  "service_account": "ai-build-executor@ai-holding-prod-bc.iam.gserviceaccount.com",
+  "targets": [
+    {"repo":"AI-Holding","branch":"holding-official-spec-2026-09-15"},
+    {"repo":"Geopolitical-Watch","branch":"feat/tooling-review-20260928"},
+    {"repo":"Mercado-Financeiro","branch":"architecture/segregated-market-stack"},
+    {"repo":"Sports-Intelligence","branch":"research/n6-data-governance-2026-09-21"},
+    {"repo":"Game-Studio","branch":"infra/gcp-cloud-build-20260928"},
+    {"repo":"Second-Brain","branch":"feat/final-integrated-second-brain"},
+    {"repo":"Hermes-AI-Platform","branch":"feat/final-platform-foundation"},
+    {"repo":"Personal-Performance-Health-OS","branch":"infra/gcp-cloud-build-20260928"},
+    {"repo":"Research-AI","branch":"integration/final-runtime"},
+    {"repo":"Content-Factory","branch":"integration/editorial-pipeline-v2"},
+    {"repo":"WHATSAPP_AI","branch":"build/final-foundation"}
+  ]
+}

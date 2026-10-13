@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.db.session import SessionLocal
 from app.models.agent_identity import AgentIdentity
 from app.models.entities import Agent, AgentStatus, Project, ProjectStatus
+from app.models.human_identity import HumanIdentityRole, HumanRole
 from app.models.routine import Routine
 
 
@@ -35,6 +36,7 @@ class ProjectSeed:
     repository: str | None = None
     repository_path: str | None = None
     business_unit: str | None = None
+    previous_repositories: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -131,8 +133,9 @@ PROJECT_SEEDS: tuple[ProjectSeed, ...] = (
         ),
         priority=0,
         autonomy_level=4,
-        repository="brunocapellari-dotcom/AI-Holding",
+        repository="brunocapellari-dotcom/Second-Brain",
         business_unit="Shared Core",
+        previous_repositories=("brunocapellari-dotcom/AI-Holding",),
     ),
     ProjectSeed(
         key="AI_HOLDING",
@@ -144,6 +147,18 @@ PROJECT_SEEDS: tuple[ProjectSeed, ...] = (
         autonomy_level=4,
         repository="brunocapellari-dotcom/AI-Holding",
         business_unit="Holding",
+    ),
+    ProjectSeed(
+        key="HERMES_AI_PLATFORM",
+        name="Hermes AI Platform",
+        strategic_goal=(
+            "Provide shared AI, model, agent, skill and tool orchestration without taking "
+            "portfolio authority from the Holding."
+        ),
+        priority=0,
+        autonomy_level=3,
+        repository="brunocapellari-dotcom/Hermes-AI-Platform",
+        business_unit="Shared Core",
     ),
     ProjectSeed(
         key="AGROLOG_MT",
@@ -210,6 +225,7 @@ PROJECT_SEEDS: tuple[ProjectSeed, ...] = (
         ),
         priority=3,
         autonomy_level=1,
+        repository="brunocapellari-dotcom/Sports-Intelligence",
         business_unit="Quantitative Intelligence",
     ),
     ProjectSeed(
@@ -220,20 +236,70 @@ PROJECT_SEEDS: tuple[ProjectSeed, ...] = (
         ),
         priority=4,
         autonomy_level=2,
+        repository="brunocapellari-dotcom/Game-Studio",
+        repository_path="games/worldwar-modern",
         business_unit="Interactive Systems",
     ),
     ProjectSeed(
         key="PERSONAL_PERFORMANCE_HEALTH_OS",
         name="Personal Performance & Health OS",
         strategic_goal=(
-            "Operate a local-first personal performance system that turns goals, training, "
-            "nutrition, recovery and health context into audited adaptive plans without "
-            "overriding medical authority."
+            "Operate a local-first personal performance system that turns goals, "
+            "training, nutrition, recovery and health context into audited adaptive "
+            "plans without overriding medical authority."
         ),
-        priority=3,
+        priority=4,
         autonomy_level=2,
+        status=ProjectStatus.paused,
         repository="brunocapellari-dotcom/Personal-Performance-Health-OS",
         business_unit="Personal Performance",
+    ),
+    ProjectSeed(
+        key="RESEARCH_AI",
+        name="Research AI",
+        strategic_goal=(
+            "Operate shared autonomous research infrastructure for source discovery, "
+            "validation, acquisition and evidence delivery across the Holding."
+        ),
+        priority=0,
+        autonomy_level=4,
+        repository="brunocapellari-dotcom/Research-AI",
+        business_unit="Shared Core",
+    ),
+    ProjectSeed(
+        key="CONTENT_FACTORY",
+        name="Content Factory",
+        strategic_goal=(
+            "Produce audited multimodal content from approved knowledge while preserving "
+            "provenance, rights, continuity and quality."
+        ),
+        priority=3,
+        autonomy_level=3,
+        repository="brunocapellari-dotcom/Content-Factory",
+        business_unit="Content Operations",
+    ),
+    ProjectSeed(
+        key="WHATSAPP_AI",
+        name="WhatsApp AI",
+        strategic_goal=(
+            "Operate secure messaging automation and freight-intelligence workflows with "
+            "canonical entities, provenance and bounded integrations."
+        ),
+        priority=2,
+        autonomy_level=3,
+        repository="brunocapellari-dotcom/WHATSAPP_AI",
+        business_unit="Business Automation",
+    ),
+    ProjectSeed(
+        key="CATEQUESE_INFANTIL",
+        name="Catequese Infantil",
+        strategic_goal=(
+            "Operate the independent Catholic children's catechesis series with Jesus at the "
+            "center, production continuity and separate theological approval gates."
+        ),
+        priority=2,
+        autonomy_level=3,
+        business_unit="Content Operations",
     ),
     ProjectSeed(
         key="MAINTENANCE_FIELD_INTELLIGENCE",
@@ -243,7 +309,7 @@ PROJECT_SEEDS: tuple[ProjectSeed, ...] = (
         ),
         priority=4,
         autonomy_level=1,
-        status=ProjectStatus.incubating,
+        status=ProjectStatus.paused,
         business_unit="Venture Factory",
     ),
 )
@@ -311,12 +377,30 @@ def _ensure_project(db: Session, seed: ProjectSeed, by_key: dict[str, Project]) 
     if existing:
         if existing.name != seed.name:
             raise RuntimeError(f"project identity drift detected for {seed.key}")
-        if seed.repository and existing.repository not in {None, seed.repository}:
+        if seed.repository and existing.repository not in {
+            None,
+            seed.repository,
+            *seed.previous_repositories,
+        }:
             raise RuntimeError(f"repository drift detected for {seed.key}")
-        if seed.repository and existing.repository is None:
+        if seed.repository and existing.repository != seed.repository:
             existing.repository = seed.repository
+        # Canonical terminal states are owner/governance constraints. Enforce them without
+        # automatically reactivating a project that the owner previously paused or stopped.
+        if (
+            seed.status
+            in {
+                ProjectStatus.paused,
+                ProjectStatus.archived,
+                ProjectStatus.discontinued,
+            }
+            and existing.status != seed.status
+        ):
+            existing.status = seed.status
         if seed.repository_path and existing.repository_path is None:
             existing.repository_path = seed.repository_path
+        if seed.repository_path and existing.repository_path not in {None, seed.repository_path}:
+            raise RuntimeError(f"repository path drift detected for {seed.key}")
         expected_parent_id = parent.id if parent else None
         if existing.parent_project_id != expected_parent_id:
             raise RuntimeError(f"project hierarchy drift detected for {seed.key}")
@@ -334,7 +418,7 @@ def _ensure_project(db: Session, seed: ProjectSeed, by_key: dict[str, Project]) 
         repository_path=seed.repository_path,
         business_unit=seed.business_unit,
         strategic_goal=seed.strategic_goal,
-        metadata_json={"bootstrap_source": "canonical-portfolio-v1"},
+        metadata_json={"bootstrap_source": "canonical-portfolio-v2"},
     )
     db.add(project)
     db.flush()
@@ -491,6 +575,60 @@ def bootstrap_canonical_portfolio(
     }
 
 
+def _owner_identity_from_env() -> tuple[str, str, str] | None:
+    values = {
+        "issuer": os.getenv("OWNER_IDENTITY_ISSUER"),
+        "subject": os.getenv("OWNER_IDENTITY_SUBJECT"),
+        "email": os.getenv("OWNER_IDENTITY_EMAIL"),
+    }
+    configured = [value for value in values.values() if value]
+    if not configured:
+        return None
+    if len(configured) != len(values):
+        raise RuntimeError("OWNER runtime identity configuration must be complete")
+    return (
+        (values["issuer"] or "").strip(),
+        (values["subject"] or "").strip(),
+        (values["email"] or "").strip(),
+    )
+
+
+def bootstrap_owner_identity(db: Session) -> bool:
+    identity = _owner_identity_from_env()
+    if identity is None:
+        return False
+
+    issuer, subject, email = identity
+    if not issuer or not subject or not email:
+        raise RuntimeError("OWNER runtime identity configuration cannot contain blank values")
+
+    existing = db.scalar(
+        select(HumanIdentityRole).where(
+            HumanIdentityRole.issuer == issuer,
+            HumanIdentityRole.subject == subject,
+        )
+    )
+    if existing is not None:
+        if existing.email.casefold() != email.casefold() or existing.role != HumanRole.owner.value:
+            raise RuntimeError("owner identity drift detected")
+        return False
+
+    email_owner = db.scalar(select(HumanIdentityRole).where(HumanIdentityRole.email == email))
+    if email_owner is not None:
+        raise RuntimeError("owner email is already bound to another verified subject")
+
+    db.add(
+        HumanIdentityRole(
+            issuer=issuer,
+            subject=subject,
+            email=email,
+            role=HumanRole.owner.value,
+        )
+    )
+    db.flush()
+    return True
+
+
 def main() -> None:
     runtime_identities = _runtime_identity_seeds_from_env()
     with SessionLocal() as db:
@@ -498,6 +636,9 @@ def main() -> None:
             db,
             runtime_identities=runtime_identities,
         )
+        owner_created = bootstrap_owner_identity(db)
+        db.commit()
+    result["owner_identity_created"] = int(owner_created)
     print(json.dumps(result, sort_keys=True))
 
 

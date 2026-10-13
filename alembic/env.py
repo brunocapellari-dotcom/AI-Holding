@@ -1,12 +1,25 @@
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config, pool
+from sqlalchemy.engine import Connection
 
 from alembic import context
 from app.core.config import settings
 from app.db.alembic_config import escape_config_parser_value
 from app.db.base import Base
-from app.models import agent_identity, entities, hermes_event, knowledge, routine  # noqa: F401
+from app.models import (  # noqa: F401
+    agent_identity,
+    control_plane,
+    corporate_registry,
+    entities,
+    holding,
+    holding_evidence,
+    holding_governance,
+    human_identity,
+    hermes_event,
+    knowledge,
+    routine,
+)
 
 config = context.config
 config.set_main_option(
@@ -29,20 +42,29 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
+def _run_with_connection(connection: Connection) -> None:
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        compare_type=True,
+    )
+    with context.begin_transaction():
+        context.run_migrations()
+
+
 def run_migrations_online() -> None:
+    supplied_connection = config.attributes.get("connection")
+    if isinstance(supplied_connection, Connection):
+        _run_with_connection(supplied_connection)
+        return
+
     connectable = engine_from_config(
         config.get_section(config.config_ini_section) or {},
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
     with connectable.connect() as connection:
-        context.configure(
-            connection=connection,
-            target_metadata=target_metadata,
-            compare_type=True,
-        )
-        with context.begin_transaction():
-            context.run_migrations()
+        _run_with_connection(connection)
 
 
 if context.is_offline_mode():
