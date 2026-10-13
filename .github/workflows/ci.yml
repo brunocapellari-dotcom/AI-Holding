@@ -174,9 +174,11 @@ jobs:
           gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
           IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/holding/${SERVICE_NAME}:${IMAGE_TAG}"
           docker build --pull --tag "${IMAGE}" .
-          docker push "${IMAGE}"
-          DIGEST="$(gcloud artifacts docker images describe \
-            "${IMAGE}" --format='value(image_summary.digest)')"
+          PUSH_OUTPUT="$(docker push "${IMAGE}")"
+          printf '%s\n' "${PUSH_OUTPUT}"
+          DIGEST="$(printf '%s\n' "${PUSH_OUTPUT}" \
+            | sed -n 's/.*digest: \(sha256:[0-9a-f]\{64\}\).*/\1/p' \
+            | tail -n 1)"
           test -n "${DIGEST}"
           echo "IMAGE_REF=${REGION}-docker.pkg.dev/${PROJECT_ID}/holding/${SERVICE_NAME}@${DIGEST}" \
             >> "${GITHUB_ENV}"
