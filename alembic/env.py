@@ -16,6 +16,7 @@ from app.models import (  # noqa: F401
     holding_evidence,
     holding_governance,
     human_identity,
+    hermes_event,
     knowledge,
     routine,
 )
