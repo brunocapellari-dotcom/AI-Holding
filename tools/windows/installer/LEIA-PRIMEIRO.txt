@@ -1,0 +1,1 @@
+Extraia TODO o ZIP. Execute 00-VALIDAR-PACOTE.cmd e depois 01-INSTALAR-E-SINCRONIZAR.cmd. Leia README.md. Preparacao local nao comprova go-live.

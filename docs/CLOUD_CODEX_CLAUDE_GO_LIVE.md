@@ -1,6 +1,6 @@
 # Cloud-first go-live: all twelve repositories
 
-This document complements tools/windows/setup-all-projects.ps1. Developer tools installed locally are NOT a remote deployment.
+This document complements the Windows installer in tools/windows/installer (see its README.md). Developer tools installed locally are NOT a remote deployment.
 
 ## Work queue
 
@@ -21,9 +21,10 @@ This document complements tools/windows/setup-all-projects.ps1. Developer tools 
 
 ## Install once
 
-On Windows 11, in a clone of AI-Holding run:
+On Windows 11, copy the folder tools/windows/installer (or a ZIP of it, fully extracted) and run, in order:
 
-    powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\windows\setup-all-projects.ps1
+    00-VALIDAR-PACOTE.cmd
+    01-INSTALAR-E-SINCRONIZAR.cmd
 
 This only installs light development tools and clones or fast-forward-updates all 12 repositories under the user's AI-Holding-Workspace. It does not install Docker, run databases or provision paid services. It does not overwrite changed repositories.
 

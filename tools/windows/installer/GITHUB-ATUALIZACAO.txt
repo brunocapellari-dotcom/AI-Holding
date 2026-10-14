@@ -1,0 +1,3 @@
+Fonte canonica deste instalador: repositorio AI-Holding, pasta tools/windows/installer.
+Substitui tools/windows/setup-all-projects.ps1 (PR #69), que tinha o mesmo defeito de stderr no Windows PowerShell 5.1.
+Nao e deploy e nao altera nenhum servico em producao.
