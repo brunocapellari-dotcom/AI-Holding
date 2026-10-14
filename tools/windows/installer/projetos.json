@@ -1,0 +1,91 @@
+{
+  "schema_version": "1.0",
+  "owner": "brunocapellari-dotcom",
+  "workspace": "AI-Holding-Workspace",
+  "repositories": [
+    {
+      "name": "AI-Holding",
+      "project": "Holding / Control Plane",
+      "priority": 1,
+      "active": true,
+      "mission": "Entregar Control Plane realmente operacional: registro de projetos, estados, health, integrações, métricas reais, bloqueios e trilha de auditoria. Corrigir deploy remoto, autenticação, persistência, backup/restore e E2E com Hermes. Não criar painel de dados simulados."
+    },
+    {
+      "name": "Hermes-AI-Platform",
+      "project": "Hermes / orquestrador",
+      "priority": 1,
+      "active": true,
+      "mission": "Fechar o ciclo de execução real: worker persistente, filas, retry, DLQ, outbox, checkpoint, políticas, integração Holding, autenticação e E2E em nuvem. Não depender de localhost ou notebook. Preservar controles de autorização humana."
+    },
+    {
+      "name": "Research-AI",
+      "project": "Pesquisa",
+      "priority": 2,
+      "active": true,
+      "mission": "Tornar pesquisa E2E funcional: descobrir fontes, testar APIs/datasets, baixar apenas conteúdo autorizado, proveniência, licença, pacote de pesquisa estruturado e entrega a Knowledge Factory e projetos clientes. Testar com casos reais."
+    },
+    {
+      "name": "Second-Brain",
+      "project": "Obsidian / Segundo Cérebro",
+      "priority": 2,
+      "active": true,
+      "mission": "Consolidar ingestão de claims, fontes, evidências, entidades e notas Markdown/Obsidian, deduplicação, auditoria e conexões com Research, AgroLog, Holding e Hermes; preservar base canônica, migrar sem perda e testar restore."
+    },
+    {
+      "name": "AgroLogMT",
+      "project": "AgroLog / agro e logística",
+      "priority": 2,
+      "active": true,
+      "mission": "Entregar cadeia E2E de dados reais agrícolas, clima, safra, preços, line-up, logística e fretes anunciados via WhatsApp, com dados históricos, proveniência, validação e interface integrada. PROIBIDO média municipal de frete; consolidar por ponto de embarque+transportadora+destino+condições, sem inventar cotação negociada."
+    },
+    {
+      "name": "WHATSAPP_AI",
+      "project": "WhatsApp Freight Intelligence",
+      "priority": 2,
+      "active": true,
+      "mission": "Garantir ingestão autorizada de mensagens, extração de ofertas, entity resolution, deduplicação histórica e atualização de anúncio de frete por ponto de embarque+transportadora+destino+produto+condições; preservar versões e proveniência; integrar AgroLog. Sem burlar regras do WhatsApp."
+    },
+    {
+      "name": "Geopolitical-Watch",
+      "project": "Monitor de Conflitos",
+      "priority": 2,
+      "active": true,
+      "mission": "Corrigir falhas de memória no Render de 512MiB, separar jobs pesados do servidor web, validar endpoints, segurança, coletores, histórico e mapas com dados reais, health/readiness e alerta. Validar disponibilidade fora do notebook."
+    },
+    {
+      "name": "Mercado-Financeiro",
+      "project": "Mercado Financeiro",
+      "priority": 3,
+      "active": true,
+      "mission": "Entregar ingestão histórica B3/CVM/BCB/NEFIN, normalização e auditoria de datasets, backtests sem data leakage, risk engine, paper trading, observabilidade e relatórios. Proibir dinheiro real sem aprovação humana."
+    },
+    {
+      "name": "Sports-Intelligence",
+      "project": "Inteligência Esportiva",
+      "priority": 3,
+      "active": true,
+      "mission": "Completar pipeline de vídeo para tracking, eventos, métricas, scouting e análise com testes E2E; preservar integração dados históricos, validação e limites de uso. Modelos preditivos com avaliação fora da amostra; sem apostas reais automáticas."
+    },
+    {
+      "name": "Content-Factory",
+      "project": "Content Factory",
+      "priority": 3,
+      "active": true,
+      "mission": "Finalizar brief->pesquisa->roteiro->storyboard->assets->voz->edição->legendas->QC->render->vídeo, com artefato final verificável, armazenamento, retries, custos controlados e direitos autorais. Integrar com projetos consumidores sem duplicar lógica."
+    },
+    {
+      "name": "Game-Studio",
+      "project": "Game Studio (3 jogos)",
+      "priority": 4,
+      "active": false,
+      "mission": "PROJETO PAUSADO: preservar codigo, dados e historico. Proibido executar agentes, testes, deploys, builds, auditorias ou gastar recursos ate autorizacao explicita de retomada."
+    },
+    {
+      "name": "Personal-Performance-Health-OS",
+      "project": "Personal Performance & Health OS",
+      "priority": 5,
+      "active": false,
+      "mission": "PROJETO PAUSADO: apenas inventário, segurança e preservação do repositório. Não implementar, fazer deploy nem gerar custo até liberação explícita."
+    }
+  ]
+}

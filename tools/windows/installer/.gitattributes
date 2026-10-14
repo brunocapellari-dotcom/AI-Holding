@@ -1,0 +1,4 @@
+# Windows launchers must keep CRLF; PowerShell scripts keep UTF-8 BOM + CRLF.
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+*.txt text eol=crlf
