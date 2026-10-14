@@ -11,3 +11,5 @@ htmlcov/
 *.tfstate*
 *.tfplan
 .DS_Store
+build/
+infra/terraform/.terraform/
