@@ -29,6 +29,7 @@ function Sync-Repositories {
   if (-not (Command-Exists 'git')) { throw 'Git nao instalado. Execute 01-INSTALAR-E-SINCRONIZAR.cmd primeiro.' }
   $failed = @()
   foreach ($r in $Script:Registry.repositories) {
+    if (-not $r.active -or $r.name -in @('Game-Studio','Personal-Performance-Health-OS')) { Write-Host ('[PAUSADO] Sincronizacao ignorada: ' + $r.name); continue }
     $dir = Join-Path $Script:RepositoryDir $r.name
     $origin = ('https://github.com/{0}/{1}.git' -f $Script:Registry.owner,$r.name)
     Write-Host ("`n[{0}] {1}" -f $r.project,$r.name) -ForegroundColor Cyan
