@@ -38,19 +38,28 @@ python scripts/backup_local_postgres.py restore-drill \
   --target-db holding_restore_20261013
 ```
 
-Backup uses a consistent `pg_dump` snapshot and a temporary staging directory,
-checks dump readability with `pg_restore --list`, hashes the archive and
-authenticates the manifest using HMAC. An existing destination is never overwritten.
+Backup opens a read-only `REPEATABLE READ` transaction, exports its snapshot,
+fingerprints every user table in that snapshot (row count plus an
+order-independent SHA-256 over the row text, rendered with pinned
+`TimeZone`/`DateStyle`/float settings) and runs `pg_dump --snapshot=<id>` on the
+very same snapshot, so the fingerprint describes exactly the archived data. It
+uses a temporary staging directory, checks dump readability with
+`pg_restore --list`, hashes the archive and authenticates the manifest
+(archive SHA-256 + table fingerprint, format version 2) using HMAC. An existing
+destination is never overwritten.
 
 The drill refuses arbitrary database names or the configured source database.
 It creates a fresh, isolated `holding_restore_*` database, restores with
 `--single-transaction --exit-on-error`, checks that the Holding projects
-table exists, and drops **only the database created by that drill**. Failure to
+table exists, recomputes the table fingerprint on the restored database and
+fails unless every table (including `alembic_version` and
+`hermes_event_receipts`) matches the signed manifest exactly, and drops
+**only the database created by that drill** (also on failure). Failure to
 create the new database never triggers a drop.
 
-The drill is a minimum restore smoke, **not complete business-data recovery
-certification**: project counts, Hermes receipts, migrations, point-in-time
-semantics, roles, RPO/RTO and business workflows still need separate review
+The drill proves logical data integrity of one snapshot; it is **not complete
+business-data recovery certification**: point-in-time semantics (WAL/PITR),
+roles, RPO/RTO and business workflows still need separate review
 before declaring a final production recovery gate passed.
 
 ## Release evidence required
