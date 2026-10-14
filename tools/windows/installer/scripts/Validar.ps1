@@ -19,9 +19,7 @@ Get-ChildItem -LiteralPath $PSScriptRoot -Filter '*.ps1' | ForEach-Object {
 $registry = Get-Content -LiteralPath (Join-Path $root 'projetos.json') -Raw -Encoding UTF8 | ConvertFrom-Json
 if (@($registry.repositories).Count -ne 12) { throw 'Esperados 12 repositorios.' }
 if (@($registry.repositories.name | Select-Object -Unique).Count -ne 12) { throw 'Nomes duplicados.' }
-foreach ($r in $registry.repositories) { if ($r.name -notmatch '^[A-Za-z0-9_-]+
-Write-Host 'OK: pacote completo, sintaxe PowerShell valida, 12 repositorios. Nada instalado ou clonado.'
-) { throw 'Nome de repositorio invalido.' }; Write-Host $r.name }
+foreach ($r in $registry.repositories) { if ($r.name -notmatch '^[A-Za-z0-9_-]+$') { throw 'Nome de repositorio invalido.' }; Write-Host $r.name }
 foreach ($pausedName in @('Game-Studio','Personal-Performance-Health-OS')) {
   $paused = @($registry.repositories | Where-Object { $_.name -eq $pausedName })
   if ($paused.Count -ne 1 -or $paused[0].active) { throw ('Projeto pausado indevidamente ativo: ' + $pausedName) }
