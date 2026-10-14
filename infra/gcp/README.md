@@ -133,13 +133,13 @@ The script is fail-closed. It requires a clean working tree, bootstraps the exec
 
 ## Holding quality and release gates
 
-After the GitHub App connection is complete, configure the two Holding-only manual gates:
+After the GitHub App connection is complete, configure the Holding-only manual gates (quality is always created; candidate and release only with `ENABLE_PAID_GCP_DEPLOY=true`):
 
 ```bash
 bash scripts/activate_holding_gcp_triggers.sh
 ```
 
-The quality gate runs with the low-privilege `ai-build-executor`. The release gate runs with the existing production deployer and additionally requires Cloud Build approval before execution.
+The quality gate (`cloudbuild.yaml`) runs with the low-privilege `ai-build-executor` and persists nothing (zero recurring cost). The release-candidate gate (`cloudbuild.candidate.yaml`) runs the identical quality steps with the same `ai-build-executor`, then publishes provenance evidence; it requires Cloud Build approval. The release gate runs with the existing production deployer and additionally requires Cloud Build approval before execution.
 
 For the current release candidate, use the exact Git commit rather than a mutable branch:
 
@@ -147,7 +147,7 @@ For the current release candidate, use the exact Git commit rather than a mutabl
 RC_SHA="$(git rev-parse HEAD)"
 
 QUALITY_BUILD_ID="$(
-  gcloud builds triggers run ai-holding-quality-manual \
+  gcloud builds triggers run ai-holding-candidate-manual \
     --region=southamerica-east1 \
     --project="${PROJECT_ID}" \
     --sha="${RC_SHA}" \
@@ -166,7 +166,7 @@ test "$(
 )" = "SUCCESS"
 ```
 
-A successful quality build stores `build-id.txt`, `source-commit.txt`, Gitleaks, Trivy, SBOM and image identity evidence in GCS. It also publishes the candidate image through the Cloud Build `images` field with `requestedVerifyOption: VERIFIED`, so the build is not successful unless build provenance is generated.
+A successful release-candidate build (`cloudbuild.candidate.yaml`, after approval) stores `build-id.txt`, `source-commit.txt`, Gitleaks, Trivy, SBOM and image identity evidence in GCS. It also publishes the candidate image through the Cloud Build `images` field with `requestedVerifyOption: VERIFIED`, so the build is not successful unless build provenance is generated.
 
 Production promotion uses the exact candidate Build ID and the same immutable commit:
 

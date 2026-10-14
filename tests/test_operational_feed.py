@@ -16,8 +16,18 @@ def _event(event_id: str, project_key: str) -> dict[str, object]:
 
 
 def test_operational_feed_reports_only_persisted_sanitized_events(client) -> None:
-    assert client.post("/api/v1/hermes/events", json=_event("event-00000001", "AGROLOG_MT")).status_code == 201
-    assert client.post("/api/v1/hermes/events", json=_event("event-00000002", "RESEARCH_AI")).status_code == 201
+    assert (
+        client.post(
+            "/api/v1/hermes/events", json=_event("event-00000001", "AGROLOG_MT")
+        ).status_code
+        == 201
+    )
+    assert (
+        client.post(
+            "/api/v1/hermes/events", json=_event("event-00000002", "RESEARCH_AI")
+        ).status_code
+        == 201
+    )
 
     response = client.get("/api/v1/holding/control-plane/event-feed?project_key=AGROLOG_MT")
     assert response.status_code == 200, response.text

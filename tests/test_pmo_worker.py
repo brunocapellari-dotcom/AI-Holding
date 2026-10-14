@@ -375,8 +375,7 @@ def test_worker_allows_http_only_in_explicit_local_mode(monkeypatch) -> None:
     assert config.control_plane_url == "http://api:8080"
 
 
-def test_local_worker_resolves_and_activates_canonical_agent_without_google_token(
-) -> None:
+def test_local_worker_resolves_and_activates_canonical_agent_without_google_token() -> None:
     requests: list[tuple[str, str, dict[str, object] | None]] = []
 
     def token_provider(audience: str) -> str:

@@ -10,7 +10,14 @@ mypy app
 pip-audit
 bandit -c pyproject.toml -r app
 semgrep scan --config .semgrep.yml --error --metrics=off app
-zizmor --strict-collection --collect=workflows,actions,dependabot .
+# GitHub Actions was removed (Cloud Build is the canonical runner). zizmor
+# exits 3 when there is nothing to collect, so audit strictly whenever any
+# GitHub workflow/action/dependabot file is (re)introduced.
+if [[ -n "$(find . -path ./.git -prune -o \( -path './.github/*' -o -name 'action.yml' -o -name 'action.yaml' \) -type f -print -quit)" ]]; then
+  zizmor --strict-collection --collect=workflows,actions,dependabot .
+else
+  echo "zizmor: no GitHub workflows, actions or dependabot config to audit"
+fi
 
 runtime_license_root="$(mktemp -d)"
 trap 'rm -rf "${runtime_license_root}"' EXIT

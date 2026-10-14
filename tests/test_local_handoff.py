@@ -23,10 +23,17 @@ def test_local_handoff_matches_real_receipt(monkeypatch) -> None:
         raise AssertionError(path)
 
     monkeypatch.setattr(handoff, "_json_get", fake_get)
-    report = handoff.verify_handoff("http://127.0.0.1:8080", "http://127.0.0.1:8001", "real-event-0001", "AGROLOG_MT")
+    report = handoff.verify_handoff(
+        "http://127.0.0.1:8080", "http://127.0.0.1:8001", "real-event-0001", "AGROLOG_MT"
+    )
     assert report["status"] == "PASS"
     assert report["holding_persisted_matching_receipts"] == 1
-    assert handoff.verify_handoff("http://127.0.0.1:8080", "http://127.0.0.1:8001", "missing-evt-0000", "AGROLOG_MT")["status"] == "BLOCKED"
+    assert (
+        handoff.verify_handoff(
+            "http://127.0.0.1:8080", "http://127.0.0.1:8001", "missing-evt-0000", "AGROLOG_MT"
+        )["status"]
+        == "BLOCKED"
+    )
 
 
 def test_unhealthy_worker_blocks_real_handoff(monkeypatch) -> None:
@@ -34,19 +41,25 @@ def test_unhealthy_worker_blocks_real_handoff(monkeypatch) -> None:
         if path == "/ready":
             return {"status": "ready"}
         return {"workers_healthy": 0}
+
     monkeypatch.setattr(handoff, "_json_get", fake_get)
     with pytest.raises(RuntimeError, match="healthy"):
-        handoff.verify_handoff("http://127.0.0.1:8080", "http://127.0.0.1:8001", "real-event-0001", "AGROLOG_MT")
+        handoff.verify_handoff(
+            "http://127.0.0.1:8080", "http://127.0.0.1:8001", "real-event-0001", "AGROLOG_MT"
+        )
 
 
-@pytest.mark.parametrize("url", [
-    "https://example.com",
-    "http://192.168.0.1:8080",
-    "http://169.254.169.254:80",
-    "http://127.0.0.1:8080/path",
-    "http://user:pass@127.0.0.1:8080",
-    "http://localhost:8080/#fragment",
-])
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://example.com",
+        "http://192.168.0.1:8080",
+        "http://169.254.169.254:80",
+        "http://127.0.0.1:8080/path",
+        "http://user:pass@127.0.0.1:8080",
+        "http://localhost:8080/#fragment",
+    ],
+)
 def test_remote_or_unsafe_endpoints_are_rejected(url: str) -> None:
     with pytest.raises(ValueError):
         handoff._local_base(url)

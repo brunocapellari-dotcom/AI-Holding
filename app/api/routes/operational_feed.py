@@ -48,15 +48,17 @@ def operational_event_feed(
         received = _utc(receipt.received_at)
         occurred = _utc(receipt.occurred_at)
         age_seconds = max(0, int((now - received).total_seconds()))
-        events.append({
-            "event_id": receipt.event_id,
-            "event_type": receipt.event_type,
-            "project_key": receipt.project_key,
-            "producer": receipt.producer,
-            "occurred_at": occurred.isoformat(),
-            "received_at": received.isoformat(),
-            "received_age_seconds": age_seconds,
-        })
+        events.append(
+            {
+                "event_id": receipt.event_id,
+                "event_type": receipt.event_type,
+                "project_key": receipt.project_key,
+                "producer": receipt.producer,
+                "occurred_at": occurred.isoformat(),
+                "received_at": received.isoformat(),
+                "received_age_seconds": age_seconds,
+            }
+        )
     return {
         "generated_at": now.isoformat(),
         "kind": "recorded_hermes_activity",

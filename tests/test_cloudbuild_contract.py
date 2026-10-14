@@ -10,16 +10,57 @@ def _read(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
 
 
-def test_quality_cloud_build_is_low_privilege_and_provenance_gated() -> None:
+def _step_ids(config: str) -> list[str]:
+    return re.findall(r"^  - id: ([a-z0-9-]+)$", config, flags=re.MULTILINE)
+
+
+def test_quality_cloud_build_is_low_privilege_and_zero_cost() -> None:
     config = _read("cloudbuild.yaml")
     assert "ai-build-executor@" in config
     assert "requestedVerifyOption: VERIFIED" in config
-    assert "images:" in config
+    assert "gitleaks.json" in config
+    assert "sbom.cdx.json" in config
+    assert "trivy-image.json" in config
+    assert "\nimages:\n" not in config
+    assert "gcloud storage cp" not in config
+
+
+def test_release_candidate_build_is_low_privilege_and_provenance_gated() -> None:
+    config = _read("cloudbuild.candidate.yaml")
+    assert "ai-build-executor@" in config
+    assert "requestedVerifyOption: VERIFIED" in config
+    assert '\nimages:\n  - "${_IMAGE}"\n' in config
     assert "source-commit.txt" in config
     assert "build-id.txt" in config
     assert "gitleaks.json" in config
     assert "sbom.cdx.json" in config
     assert "trivy-image.json" in config
+    assert "AI-Holding/${BUILD_ID}" in config
+
+
+def test_release_candidate_runs_the_exact_quality_gate_first() -> None:
+    quality = _read("cloudbuild.yaml")
+    candidate = _read("cloudbuild.candidate.yaml")
+    quality_steps = _step_ids(quality)
+    candidate_steps = _step_ids(candidate)
+    assert "full-project-gate" in quality_steps
+    assert candidate_steps[: len(quality_steps)] == quality_steps
+    assert candidate_steps[len(quality_steps) :] == [
+        "prepare-provenance-candidate",
+        "persist-build-evidence",
+    ]
+    quality_body = quality.split("\nsteps:\n", 1)[1].split("\ntimeout:", 1)[0]
+    assert quality_body in candidate
+
+
+def test_release_consumes_the_candidate_evidence_layout() -> None:
+    candidate = _read("cloudbuild.candidate.yaml")
+    release = _read("cloudbuild.release.yaml")
+    assert "ai-execution-evidence/AI-Holding/${BUILD_ID}" in candidate
+    assert "ai-execution-evidence/AI-Holding/${_CANDIDATE_BUILD_ID}" in release
+    image = "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_IMAGE_NAME}:"
+    assert image + "${BUILD_ID}" in candidate
+    assert image + "${_CANDIDATE_BUILD_ID}" in release
 
 
 def test_release_cloud_build_reuses_exact_candidate_and_release_identity() -> None:
@@ -52,6 +93,8 @@ def test_holding_manual_gates_are_separated_by_service_account() -> None:
     assert "github-deployer@" in script
     assert "--build-config=cloudbuild.yaml" in script
     assert "--build-config=cloudbuild.release.yaml" in script
+    assert "--build-config=cloudbuild.candidate.yaml" in script
+    assert "ai-holding-candidate-manual" in script
     assert "--require-approval" in script
 
 
@@ -77,7 +120,7 @@ _ALLOWED_CLOUD_BUILD_SUBSTITUTIONS = {
 
 def test_cloudbuild_yaml_does_not_leak_shell_variables_into_substitution() -> None:
     pattern = re.compile(r"(?<!\$)\$(?:\{([A-Za-z_][A-Za-z0-9_]*)\}|([A-Za-z_][A-Za-z0-9_]*))")
-    for path in ("cloudbuild.yaml", "cloudbuild.release.yaml"):
+    for path in ("cloudbuild.yaml", "cloudbuild.candidate.yaml", "cloudbuild.release.yaml"):
         invalid: list[str] = []
         for match in pattern.finditer(_read(path)):
             name = match.group(1) or match.group(2)

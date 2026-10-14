@@ -12,11 +12,11 @@ from app.models import (  # noqa: F401
     control_plane,
     corporate_registry,
     entities,
+    hermes_event,
     holding,
     holding_evidence,
     holding_governance,
     human_identity,
-    hermes_event,
     knowledge,
     routine,
 )

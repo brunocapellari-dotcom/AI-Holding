@@ -6,6 +6,7 @@ REGION="${REGION:-southamerica-east1}"
 CONNECTION="${GCP_GITHUB_CONNECTION:-ai-github}"
 REPOSITORY_RESOURCE="${REPOSITORY_RESOURCE:-ai-holding}"
 QUALITY_TRIGGER="${QUALITY_TRIGGER:-ai-holding-quality-manual}"
+CANDIDATE_TRIGGER="${CANDIDATE_TRIGGER:-ai-holding-candidate-manual}"
 RELEASE_TRIGGER="${RELEASE_TRIGGER:-ai-holding-release-manual}"
 ENABLE_PAID_GCP_DEPLOY="${ENABLE_PAID_GCP_DEPLOY:-false}"
 QUALITY_SA_EMAIL="${QUALITY_SA_EMAIL:-ai-build-executor@${PROJECT_ID}.iam.gserviceaccount.com}"
@@ -33,6 +34,15 @@ else
 fi
 
 if [[ "${ENABLE_PAID_GCP_DEPLOY}" == "true" ]]; then
+  # Release candidate: same quality gate plus Artifact Registry image with
+  # Cloud Build provenance and GCS build-id/source-commit evidence. Manual and
+  # approval-gated so the zero-cost quality path never persists artifacts.
+  if ! gcloud builds triggers describe "${CANDIDATE_TRIGGER}"     --region="${REGION}" --project="${PROJECT_ID}" >/dev/null 2>&1; then
+    gcloud builds triggers create manual     --name="${CANDIDATE_TRIGGER}"     --repository="${REPOSITORY}"     --branch=main     --build-config=cloudbuild.candidate.yaml     --region="${REGION}"     --service-account="${QUALITY_SA}"     --require-approval     --project="${PROJECT_ID}"
+  else
+    echo "trigger exists: ${CANDIDATE_TRIGGER}"
+  fi
+
   if ! gcloud builds triggers describe "${RELEASE_TRIGGER}"     --region="${REGION}" --project="${PROJECT_ID}" >/dev/null 2>&1; then
     gcloud builds triggers create manual     --name="${RELEASE_TRIGGER}"     --repository="${REPOSITORY}"     --branch=main     --build-config=cloudbuild.release.yaml     --region="${REGION}"     --service-account="${RELEASE_SA}"     --require-approval     --project="${PROJECT_ID}"
   else
@@ -54,5 +64,6 @@ Quality trigger:
 Quality can run against an exact commit:
   gcloud builds triggers run ${QUALITY_TRIGGER} --region=${REGION} --sha=<COMMIT_SHA> --project=${PROJECT_ID}
 
-Paid production promotion is disabled by default. Set ENABLE_PAID_GCP_DEPLOY=true only after explicit owner approval.
+Paid release candidate (${CANDIDATE_TRIGGER}, cloudbuild.candidate.yaml) and
+production promotion (${RELEASE_TRIGGER}) are disabled by default. Set ENABLE_PAID_GCP_DEPLOY=true only after explicit owner approval.
 EOF
