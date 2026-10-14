@@ -1,4 +1,4 @@
-﻿param([int] $MaxProjects = 11,[switch] $Simular)
+﻿param([int] $MaxProjects = 10,[switch] $Simular)
 . (Join-Path $PSScriptRoot 'Comum.ps1')
 Refresh-UserPath
 Ensure-Directories
@@ -9,7 +9,8 @@ if (-not $Simular) {
   $confirmation = Read-Host 'Confirme o processamento SEQUENCIAL, com limites de sua assinatura. Digite EXECUTAR'
   if ($confirmation -ne 'EXECUTAR') { Write-Host 'Cancelado.'; exit 0 }
 }
-$selected = @($Script:Registry.repositories | Where-Object { $_.active } | Sort-Object priority,name | Select-Object -First $MaxProjects)
+$paused = @('Game-Studio','Personal-Performance-Health-OS')
+$selected = @($Script:Registry.repositories | Where-Object { $_.active -and $_.name -notin $paused } | Sort-Object priority,name | Select-Object -First $MaxProjects)
 foreach ($r in $selected) {
   $repo = Join-Path $Script:RepositoryDir $r.name
   if (-not (Test-Path (Join-Path $repo '.git'))) { Write-Warning ('Repo nao clonado: ' + $r.name); continue }
